@@ -29,7 +29,7 @@
 // Shared modules are imported relatively: in the browser '../../shared/x.js' from /js/ resolves
 // to /shared/x.js (URL resolution clamps at the root); under Node it resolves to <repo>/shared.
 
-import { PROTOCOL_VERSION, ERR_TEXT } from '../../shared/constants.js';
+import { PROTOCOL_VERSION, ERR_TEXT, ERR } from '../../shared/constants.js';
 import { validateC2S } from '../../shared/protocol.js';
 
 export const REQUEST_TIMEOUT_MS = 8000;
@@ -46,6 +46,7 @@ export const CLIENT_ERR_TEXT = Object.freeze({
   CLOSED: '连接已关闭',
   REPLACED: '该身份已在其他页面登录',
   VERSION: '客户端版本与服务器不一致，请刷新页面',
+  UNSUPPORTED: '这台服务器还不支持该操作，请更新服务器版本后再试',
 });
 
 /** Server close code: the session was taken over by another socket (server/net.js CLOSE.REPLACED). */
@@ -65,16 +66,49 @@ export function errorText(code, msg) {
   return ERR_TEXT[code] || CLIENT_ERR_TEXT[code] || (typeof msg === 'string' && msg) || String(code || '未知错误');
 }
 
+/**
+ * `unhandled type <verb>` is what `server/lobby.js` answers a message shape it knows nothing about — in practice an
+ * older server meeting a newer client. The reply is the capability probe: no version table to maintain, no guess at
+ * what a future release will or will not implement, and a server that DOES know the verb never lands here at all.
+ */
+const UNHANDLED_RE = /^unhandled type ([a-z][a-zA-Z0-9]*\.[a-zA-Z][a-zA-Z0-9]*)$/;
+/** url -> verbs that server refused as unknown. Keyed by address: reconnecting somewhere else starts clean. */
+const unsupportedVerbs = new Map();
+
+/** @param {string} code @param {string} [detail] @returns {string|null} the verb this reply says the server lacks */
+export function unhandledVerb(code, detail) {
+  if (code !== ERR.BAD_MSG) return null;
+  const m = UNHANDLED_RE.exec(String(detail || '').trim());
+  return m ? m[1] : null;
+}
+
+/**
+ * Whether the server at `url` told us it does not implement `verb` on this page's session. Screens may use it to
+ * grey the control out after the first refusal instead of letting the player hit the same wall again.
+ * @param {string|null} url @param {string} verb @returns {boolean}
+ */
+export function serverLacks(url, verb) {
+  const set = unsupportedVerbs.get(String(url || ''));
+  return !!set && set.has(verb);
+}
+
 /** Error thrown/rejected by requests. `code` is an ERR code or a CLIENT_ERR_TEXT key. */
 export class NetError extends Error {
-  /** @param {string} code @param {string} [msg] server text @param {string} [detail] server developer detail */
-  constructor(code, msg, detail) {
+  /** @param {string} code @param {string} [msg] server text @param {string} [detail] server developer detail @param {string} [url] server the reply came from */
+  constructor(code, msg, detail, url) {
     const versionMismatch = typeof detail === 'string' && /version/i.test(detail);
-    super(versionMismatch ? CLIENT_ERR_TEXT.VERSION : errorText(code, msg));
+    const missing = unhandledVerb(code, detail);
+    if (missing && typeof url === 'string' && url) {
+      const key = String(url);
+      if (!unsupportedVerbs.has(key)) unsupportedVerbs.set(key, new Set());
+      unsupportedVerbs.get(key).add(missing);
+    }
+    super(versionMismatch ? CLIENT_ERR_TEXT.VERSION : missing ? CLIENT_ERR_TEXT.UNSUPPORTED : errorText(code, msg));
     this.name = 'NetError';
     this.code = String(code || 'INTERNAL');
     this.serverMsg = msg ?? null;
     this.detail = typeof detail === 'string' ? detail : null;
+    this.missingVerb = missing;       // the verb this server refused, or null
   }
 }
 
@@ -400,7 +434,7 @@ export class Net {
   _onHelloError(msg) {
     this._clearTimer('_helloTimer', 'clearTimeout');
     this._helloRid = null;
-    this.lastError = new NetError(msg.code, msg.msg, msg.detail);
+    this.lastError = new NetError(msg.code, msg.msg, msg.detail, this.url);
     this._setStatus('connected');
     // Queued requests can't be sent without a session.
     this._failPending('OFFLINE', true);
@@ -548,13 +582,13 @@ export class Net {
       this._clearEntryTimer(entry);
       handled = true;
       try {
-        if (t === 'error') entry.reject(new NetError(msg.code, msg.msg, msg.detail));
+        if (t === 'error') entry.reject(new NetError(msg.code, msg.msg, msg.detail, this.url));
         else entry.resolve(msg);
       } catch (err) { console.error('[net] request callback failed', err); }
     }
     const late = rid != null && !handled && this._expired.delete(rid); // reply to a request that already timed out
     if (t === 'error' && !handled && !isHelloError && !late) {
-      this._emit('unhandledError', new NetError(msg.code, msg.msg, msg.detail));
+      this._emit('unhandledError', new NetError(msg.code, msg.msg, msg.detail, this.url));
     }
 
     this._emit(t, msg);
