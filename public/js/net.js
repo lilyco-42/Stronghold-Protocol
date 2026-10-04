@@ -67,11 +67,13 @@ export function errorText(code, msg) {
 }
 
 /**
- * `unhandled type <verb>` is what `server/lobby.js` answers a message shape it knows nothing about — in practice an
- * older server meeting a newer client. The reply is the capability probe: no version table to maintain, no guess at
- * what a future release will or will not implement, and a server that DOES know the verb never lands here at all.
+ * Two shapes, both measured against a running server. `shared/protocol.js` + `server/net.js` reject a type that is
+ * not in the table with `unknown type <verb>` — that is what an OLDER server answers a newer client, since the verb
+ * never reaches the lobby at all. `server/lobby.js` adds `unhandled type <verb>` for a verb the table knows but its
+ * own switch does not dispatch. Either reply IS the capability probe: no version table to maintain, no guess at what
+ * a future release implements, and a server that handles the verb never lands here.
  */
-const UNHANDLED_RE = /^unhandled type ([a-z][a-zA-Z0-9]*\.[a-zA-Z][a-zA-Z0-9]*)$/;
+const UNHANDLED_RE = /^(?:unknown|unhandled) type ([a-z][a-zA-Z0-9]*\.[a-zA-Z][a-zA-Z0-9]*)$/;
 /** url -> verbs that server refused as unknown. Keyed by address: reconnecting somewhere else starts clean. */
 const unsupportedVerbs = new Map();
 

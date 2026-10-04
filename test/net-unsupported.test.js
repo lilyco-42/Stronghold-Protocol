@@ -12,15 +12,19 @@ import {
 } from '../public/js/net.js';
 import { ERR } from '../shared/constants.js';
 
-test('unhandledVerb: only a BAD_MSG shaped like `unhandled type <verb>` names a verb', () => {
-  assert.equal(unhandledVerb(ERR.BAD_MSG, 'unhandled type room.spectate'), 'room.spectate');
+test('unhandledVerb: only a BAD_MSG shaped like `unknown type <verb>` names a verb', () => {
+  // server/net.js answers a type missing from shared/protocol.js — the real reply an older server gives.
+  assert.equal(unhandledVerb(ERR.BAD_MSG, 'unknown type room.spectate'), 'room.spectate');
+  assert.equal(unhandledVerb(ERR.BAD_MSG, 'unknown type room.kick'), 'room.kick');
+  // server/lobby.js answers a verb the table knows but its own switch does not dispatch.
   assert.equal(unhandledVerb(ERR.BAD_MSG, 'unhandled type g.emote'), 'g.emote');
-  assert.equal(unhandledVerb(ERR.BAD_MSG, '  unhandled type room.kick  '), 'room.kick', 'surrounding space is tolerated');
+  assert.equal(unhandledVerb(ERR.BAD_MSG, '  unknown type room.kick  '), 'room.kick', 'surrounding space is tolerated');
   assert.equal(unhandledVerb(ERR.BAD_MSG, 'unknown chess char_128_plosis'), null, 'an ordinary validation detail');
-  assert.equal(unhandledVerb(ERR.BAD_MSG, 'unhandled type '), null, 'no verb follows');
+  assert.equal(unhandledVerb(ERR.BAD_MSG, 'unknown type '), null, 'no verb follows');
+  assert.equal(unhandledVerb(ERR.BAD_MSG, 'unknown type nodots'), null, 'a verb is always namespaced');
   assert.equal(unhandledVerb(ERR.BAD_MSG, ''), null);
   assert.equal(unhandledVerb(ERR.BAD_MSG, null), null);
-  assert.equal(unhandledVerb(ERR.TIMEOUT, 'unhandled type room.kick'), null, 'only BAD_MSG can mean "unknown verb"');
+  assert.equal(unhandledVerb(ERR.TIMEOUT, 'unknown type room.kick'), null, 'only BAD_MSG can mean "unknown verb"');
 });
 
 test('a refusal names the missing verb, reads as a sentence, and is remembered for that server only', () => {
