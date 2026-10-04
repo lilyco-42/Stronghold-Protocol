@@ -2,7 +2,7 @@
 // stop hijacking BGM playback with a "下载文件信息" dialog. See public/js/media.js for the full rationale.
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { mediaUrl } from '../public/js/media.js';
+import { mediaUrl, mediaAliasEnabled } from '../public/js/media.js';
 // 前缀与扩展名列表只有一份（客户端和服务端都从这里取），所以断言也直接盯住这一份。
 import { MEDIA_PREFIX, AUDIO_EXTS } from '../shared/media.js';
 
@@ -49,5 +49,32 @@ describe('mediaUrl: 音频地址去掉扩展名（躲开下载器嗅探）', () 
   test('没有 location 时（测试环境）用传入的 origin 判断同源', () => {
     assert.equal(mediaUrl('/assets/audio/bgm/a.mp3'), '/media/bgm/a', '相对地址本来就同源');
     assert.equal(mediaUrl('https://other.example/assets/audio/a.mp3'), 'https://other.example/assets/audio/a.mp3');
+  });
+});
+
+describe('mediaAliasEnabled: 纯静态宿主（Android/Capacitor）不改写别名', () => {
+  // /media/… 只有实现了它的宿主能解：游戏服务器（server/index.js）和桌面壳（desktop/serve.mjs）。
+  // Capacitor 只是把 www/ 当静态文件发，别名必然 404 —— 那种构建里 BGM/音效会全线静音，
+  // 所以它保留直连 /assets/audio/…（server/index.js 的注释把这条路写成"纯静态宿主的回退"）。
+  test('默认开启，显式 false 才关', () => {
+    assert.equal(mediaAliasEnabled({}), true);
+    assert.equal(mediaAliasEnabled({ __SP_MEDIA_ALIAS__: true }), true);
+    assert.equal(mediaAliasEnabled({ __SP_MEDIA_ALIAS__: false }), false);
+    assert.equal(mediaAliasEnabled({ __SP_MEDIA_ALIAS__: 0 }), true, '只有严格 false 才关（不做假值判断）');
+  });
+
+  test('关掉之后 mediaUrl 原样返回直连地址', () => {
+    const had = Object.getOwnPropertyDescriptor(globalThis, '__SP_MEDIA_ALIAS__');
+    try {
+      globalThis.__SP_MEDIA_ALIAS__ = false;
+      assert.equal(mediaUrl('/assets/audio/bgm/m_sys_act1autochess_loop.mp3', ORIGIN),
+        '/assets/audio/bgm/m_sys_act1autochess_loop.mp3', 'Android 用静态服务器能给的地址');
+      assert.equal(mediaUrl('/assets/audio/sfx/player/p_imp/hit.mp3', ORIGIN),
+        '/assets/audio/sfx/player/p_imp/hit.mp3');
+    } finally {
+      if (had) Object.defineProperty(globalThis, '__SP_MEDIA_ALIAS__', had); else delete globalThis.__SP_MEDIA_ALIAS__;
+    }
+    assert.equal(mediaUrl('/assets/audio/bgm/m_sys_act1autochess_loop.mp3', ORIGIN),
+      '/media/bgm/m_sys_act1autochess_loop', '恢复后仍走别名（网页版与桌面版不受影响）');
   });
 });

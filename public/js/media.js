@@ -28,8 +28,20 @@ const AUDIO_PATH = /^\/assets\/audio\/(.+)$/i;
  * @param {string} [origin] origin of the page; defaults to `location.origin`
  * @returns {string} a URL safe to pass to fetch()
  */
+/**
+ * Whether this host can resolve the extension-less alias at all. Only something that implements it may be asked for
+ * it: the game server (`server/index.js` serveMedia) and the desktop shell (`desktop/serve.mjs`). Capacitor serves
+ * `www/` as plain static files, so on Android the alias is a guaranteed 404 and every BGM/sfx would be silent —
+ * those builds set `__SP_MEDIA_ALIAS__ = false` and keep the direct `/assets/audio/…` URLs, which every host serves.
+ * @param {object} [env] @returns {boolean}
+ */
+export function mediaAliasEnabled(env = globalThis) {
+  return env?.__SP_MEDIA_ALIAS__ !== false;
+}
+
 export function mediaUrl(url, origin = globalThis.location?.origin) {
   if (typeof url !== 'string' || !url) return url;
+  if (!mediaAliasEnabled()) return url;
   let u;
   // No origin known (Node / tests): parse relative URLs against a placeholder, absolute ones are rejected below.
   try { u = new URL(url, origin || 'http://localhost'); } catch { return url; }
