@@ -132,8 +132,8 @@ function SeatCard({ seat, index, room, facts, myId, busy, onAddBot, onRemoveBot,
       ${seat.isBot && facts.isHost ? html`<${Tooltip} text="移除该 AI 队友">
         <${Button} variant="ghost" size="sm" square=${true} icon="close" loading=${busy === `rm${index}`} onClick=${() => onRemoveBot(index)} aria-label="移除 AI 队友" />
       <//>` : null}
-      ${!seat.isBot && !isMe && facts.isHost ? html`<${Tooltip} text="将该博士移出同盟">
-        <${Button} variant="ghost" size="sm" square=${true} icon="close" loading=${busy === `kick${index}`} onClick=${() => onKick(index, seat.name, seat.playerId)} aria-label="移出该博士" />
+      ${!seat.isBot && !isMe && facts.isHost ? html`<${Tooltip} text=${net.verbAvailable('room.kick').ok ? '将该博士移出同盟' : net.verbUnavailableText('room.kick')}>
+        <${Button} variant="ghost" size="sm" square=${true} icon="close" loading=${busy === `kick${index}`} disabled=${!net.verbAvailable('room.kick').ok} onClick=${() => onKick(index, seat.name, seat.playerId)} aria-label="移出该博士" />
       <//>` : null}
     </footer>
   </article>`;
@@ -142,12 +142,15 @@ function SeatCard({ seat, index, room, facts, myId, busy, onAddBot, onRemoveBot,
 /** 观战席: the room's spectators (host: ✕ frees a seat), and 入座 for a spectator while a player seat is free. */
 function SpectatorBar({ facts, myId, busy, onRemove, onSit }) {
   if (!facts.spectators.length) return null;
+  // An older server has no `room.removeSpectator` (measured: absent through 0.1.2): the ✕ stays put but greyed out.
+  const removeSpectatorOk = net.verbAvailable('room.removeSpectator').ok;
   return html`<section class="specbar" aria-label="观战席">
     <span class="specbar__label"><${Icon} name="eye" />观战席<b class="num">${facts.spectators.length}</b><span class="num t-dim">/${MAX_SPECTATORS}</span></span>
     ${facts.spectators.map((s) => html`<span key=${s.playerId} class=${`specbar__who${s.playerId === myId ? ' is-me' : ''}${s.connected === false ? ' is-offline' : ''}`}>
       ${s.connected === false ? html`<${Icon} name="wifiOff" />` : null}${s.name || '博士'}${s.playerId === myId ? html`<span class="seat__you">你</span>` : null}
       ${facts.isHost ? html`<${Button} variant="ghost" size="sm" square=${true} icon="close" loading=${busy === `rs${s.playerId}`}
-        onClick=${() => onRemove(s.playerId)} aria-label=${`移出观战者 ${s.name || ''}`} title="移出该观战者" />` : null}
+        disabled=${!removeSpectatorOk} onClick=${() => onRemove(s.playerId)} aria-label=${`移出观战者 ${s.name || ''}`}
+        title=${removeSpectatorOk ? '移出该观战者' : net.verbUnavailableText('room.removeSpectator')} />` : null}
     </span>`)}
     ${facts.spectating && facts.emptySeats > 0 ? html`<${Button} size="sm" icon="user" loading=${busy === 'sit'} onClick=${onSit}>入座<//>` : null}
   </section>`;

@@ -135,6 +135,48 @@ export function defaultWsUrl(loc = globalThis.location) {
   return `${loc.protocol === 'https:' ? 'wss' : 'ws'}://${loc.host}/ws`;
 }
 
+/** http origin of a game-server ws address (`''` when it is not a ws URL). */
+export function serverHttpOrigin(wsUrl = defaultWsUrl()) {
+  const url = String(wsUrl || '');
+  const m = /^wss?:\/\/([^/?#]+)/.exec(url);
+  return m ? `${url.startsWith('wss') ? 'https' : 'http'}://${m[1]}` : '';
+}
+
+/**
+ * Where this page reads `/healthz` — the only place a server's own `app` version is published (the socket's `hello`
+ * carries `PROTOCOL_VERSION`, which stayed 1 across releases and so cannot tell versions apart).
+ *
+ * Same origin → the relative path, exactly as the web build always used it (and as ui/buildGuard.js is tested);
+ * different origin (a packaged client whose socket goes to a remote server) → the server's absolute address, because
+ * a relative `/healthz` there asks the app's own loopback file server and can only ever answer 404.
+ * @param {string} [wsUrl] @param {{protocol?: string, host?: string}} [loc]
+ * @returns {string}
+ */
+export function healthUrl(wsUrl = defaultWsUrl(), loc = globalThis.location) {
+  const origin = serverHttpOrigin(wsUrl);
+  if (!origin || !loc || !loc.host) return '/healthz';
+  return origin === `${loc.protocol}//${loc.host}` ? '/healthz' : `${origin}/healthz`;
+}
+
+/**
+ * Newest server `app` version that does NOT answer these verbs: measured on the release tags, `room.spectate` and
+ * `room.kick` are absent from `shared/protocol.js` through 0.1.2 and present in 0.1.3 (`4276617`). This only decides
+ * whether to grey a control out BEFORE the first click; the server's own `unhandled type` reply stays the authority,
+ * so an unknown version (or a fork that backported it) never locks a working feature away.
+ */
+export const VERB_MIN_APP = Object.freeze({ 'room.spectate': '0.1.3', 'room.kick': '0.1.3', 'room.removeSpectator': '0.1.3' });
+
+/** @param {string} a @param {string} b @returns {boolean} whether dotted version `a` is at least `b` */
+export function versionAtLeast(a, b) {
+  const nums = (v) => String(v || '').trim().replace(/^[v=]+/, '').split('.').map((p) => parseInt(p, 10) || 0);
+  const x = nums(a); const y = nums(b);
+  for (let i = 0; i < Math.max(x.length, y.length); i++) {
+    const d = (x[i] || 0) - (y[i] || 0);
+    if (d !== 0) return d > 0;
+  }
+  return true;
+}
+
 const WS_OPEN = 1;
 const WS_CONNECTING = 0;
 
@@ -154,6 +196,7 @@ export class Net {
   constructor(opts = {}) {
     this.url = opts.url || null;
     this.WS = opts.WebSocket || null;
+    this.fetchFn = typeof opts.fetchFn === 'function' ? opts.fetchFn : null;
     this.getToken = typeof opts.getToken === 'function' ? opts.getToken : () => null;
     this.now = opts.now || (() => Date.now());
     this.random = opts.random || Math.random;
@@ -175,6 +218,8 @@ export class Net {
     this.retryAt = 0;          // epoch ms of the next reconnect attempt (0 = none)
     this.ping = null;          // last RTT in ms
     this.lastError = null;     // last NetError relevant to the connection (e.g. hello rejected)
+    this.serverApp = null;     // server `app` version, read best-effort from its /healthz (null = unknown)
+    this.serverInfoFailed = false; // the /healthz read was tried and did not answer: stay optimistic
     this.clockOffset = 0;
     this.clockSynced = false;
 
@@ -428,7 +473,53 @@ export class Net {
     if (Number.isFinite(msg.serverNow)) this._addClockSample(msg.serverNow + (this.ping ?? 0) / 2 - this.now(), Infinity);
     this._setStatus('online');
     this._flushQueue();
+    this._probeServerInfo();
     this._sendPing();
+  }
+
+  /**
+   * Read the server's own `app` version once per connection. Never throws, never blocks the session, and an
+   * unanswered `/healthz` (a self-hosted server without CORS) is recorded as unknown instead of as incompatible.
+   */
+  async _probeServerInfo() {
+    const fetchFn = (typeof this.fetchFn === 'function' && this.fetchFn)
+      || (typeof globalThis.fetch === 'function' ? ((...a) => globalThis.fetch(...a)) : null);
+    if (!fetchFn) return;
+    const url = healthUrl(this.url || defaultWsUrl());
+    this.serverInfoFailed = false;
+    try {
+      const res = await fetchFn(url, { cache: 'no-store' });
+      if (!res || !res.ok) { this.serverInfoFailed = true; return; }
+      const body = await res.json();
+      this.serverApp = typeof body?.app === 'string' && body.app ? body.app : null;
+      if (this.serverApp === null) this.serverInfoFailed = true;
+    } catch {
+      this.serverApp = null;
+      this.serverInfoFailed = true;
+    }
+    this._emit('serverInfo', { app: this.serverApp, url });
+  }
+
+  /**
+   * Whether the connected server can take `verb`. Two independent signals, and absence of either one is a pass:
+   * the server's own `unhandled type` reply (authoritative, learned for this address) and, only when we did read a
+   * version, the release that first answers the verb. Screens use it to grey a control out before the click.
+   * @param {string} verb @returns {{ ok: boolean, reason: string|null }}
+   */
+  verbAvailable(verb) {
+    if (serverLacks(this.url, verb)) return { ok: false, reason: 'server-refused' };
+    const min = VERB_MIN_APP[verb];
+    if (min && this.serverApp && !versionAtLeast(this.serverApp, min)) return { ok: false, reason: 'older-server' };
+    return { ok: true, reason: null };
+  }
+
+  /** Short player-facing reason for a greyed-out control ('' when it is available). */
+  verbUnavailableText(verb) {
+    const { ok, reason } = this.verbAvailable(verb);
+    if (ok) return '';
+    return reason === 'older-server'
+      ? `这台服务器是 ${this.serverApp}，该功能需要 ${VERB_MIN_APP[verb]} 以上的服务器`
+      : '这台服务器不支持该操作，请更新服务器版本';
   }
 
   _onHelloError(msg) {

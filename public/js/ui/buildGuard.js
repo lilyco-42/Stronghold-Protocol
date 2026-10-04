@@ -18,6 +18,8 @@
 //
 // Kept dependency-free and injectable (fetch / reload / inMatch / timers) so test/ui/buildGuard.test.js can drive it.
 
+import { healthUrl } from '../net.js';
+
 /** How often a page re-asks the server for its build tag. */
 export const BUILD_CHECK_MS = 60_000;
 /** Give up on a `/healthz` that does not answer: a request left hanging must not stop the guard from ever checking again. */
@@ -40,7 +42,7 @@ export async function fetchBuild(fetchFn, o = {}) {
     timer = setT(() => { try { ctrl?.abort(); } catch { /* ignore */ } reject(new Error('timeout')); }, timeoutMs);
   });
   try {
-    const res = await Promise.race([fetchFn('/healthz', { cache: 'no-store', signal: ctrl ? ctrl.signal : undefined }), tooSlow]);
+    const res = await Promise.race([fetchFn(healthUrl(), { cache: 'no-store', signal: ctrl ? ctrl.signal : undefined }), tooSlow]);
     if (!res || !res.ok) return null;
     const body = await res.json();
     return body && typeof body.build === 'string' && body.build ? body.build : null;

@@ -258,6 +258,10 @@ export function LobbyScreen() {
     if (!CODE_RE.test(k)) { toast(`同盟密钥为 ${ROOM_CODE_LEN} 位字母或数字`, 'warn'); return; }
     run('spectate', () => net.request('room.spectate', { code: k }));
   };
+  // A server older than this client answers `room.spectate` with BAD_MSG (net.js learns that from the reply, and also
+  // reads the server's own /healthz version). Until it says otherwise the control stays live — never lock it by guess.
+  const spectateCheck = net.verbAvailable('room.spectate');
+  const spectateBlocked = !spectateCheck.ok;
   const backToTitle = () => {
     identity.setEntered(false);
     store.set((s) => ({ session: { ...s.session, entered: false } }));
@@ -299,8 +303,8 @@ export function LobbyScreen() {
             <${TextField} size="code" icon="key" value=${code} placeholder="输入同盟密钥 / 粘贴邀请链接"
               transform=${normalizeCode} onInput=${(v) => setCode(normalizeCode(v))} onEnter=${() => join()} />
             <${Button} variant="amber" size="lg" icon="users" loading=${busy === 'join'} disabled=${!codeOk || !online} onClick=${() => join()}>加入同盟<//>
-            <${Tooltip} text=${`以观战者身份进入：不占博士席位，只能观看（每个同盟最多 ${MAX_SPECTATORS} 名，模拟进行中也可进入）`}>
-              <${Button} variant="secondary" size="lg" icon="eye" class="join-spectate" loading=${busy === 'spectate'} disabled=${!codeOk || !online} onClick=${spectate}>观战<//>
+            <${Tooltip} text=${spectateBlocked ? net.verbUnavailableText('room.spectate') : `以观战者身份进入：不占博士席位，只能观看（每个同盟最多 ${MAX_SPECTATORS} 名，模拟进行中也可进入）`}>
+              <${Button} variant="secondary" size="lg" icon="eye" class="join-spectate" loading=${busy === 'spectate'} disabled=${!codeOk || !online || spectateBlocked} onClick=${spectate}>观战<//>
             <//>
           </div>
           <div class="join-foot">
