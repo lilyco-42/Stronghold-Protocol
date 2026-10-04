@@ -8,9 +8,28 @@ import assert from 'node:assert/strict';
 
 import {
   NetError, unhandledVerb, serverLacks, CLIENT_ERR_TEXT, errorText,
-  Net, VERB_MIN_APP, versionAtLeast, healthUrl, serverHttpOrigin,
+  Net, VERB_MIN_APP, versionAtLeast, healthUrl, serverHttpOrigin, serverKey,
 } from '../public/js/net.js';
 import { ERR } from '../shared/constants.js';
+
+test('the real app singleton carries NO url — a refusal on it must still grey the control (regression)', () => {
+  // main.js imports the exported `net` singleton, which is constructed without a url; the socket address is computed
+  // by defaultWsUrl() only when it connects. Keying the learned verbs on `net.url` ('') silently dropped every
+  // refusal, and the unit tests that always passed an explicit url could not see it. This test builds it the way the
+  // app does.
+  const page = globalThis.location;
+  try {
+    globalThis.location = { protocol: 'https:', host: '127.0.0.1:47821' };
+    const net = new Net({});
+    assert.equal(net.url, null, 'the singleton has no address of its own');
+    assert.equal(serverKey(net.url), 'wss://127.0.0.1:47821/ws', 'the key is the address the socket will dial');
+
+    new NetError(ERR.BAD_MSG, '无效的请求', 'unknown type room.spectate', net.url);
+    assert.equal(net.verbAvailable('room.spectate').reason, 'server-refused', 'recorded under the dialled address');
+    assert.equal(net.verbAvailable('room.kick').ok, true, 'only the verb that was refused');
+    assert.equal(serverLacks('wss://another.test/ws', 'room.spectate'), false, 'another address starts clean');
+  } finally { globalThis.location = page; }
+});
 
 test('unhandledVerb: only a BAD_MSG shaped like `unknown type <verb>` names a verb', () => {
   // server/net.js answers a type missing from shared/protocol.js — the real reply an older server gives.

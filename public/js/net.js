@@ -77,6 +77,16 @@ const UNHANDLED_RE = /^(?:unknown|unhandled) type ([a-z][a-zA-Z0-9]*\.[a-zA-Z][a
 /** url -> verbs that server refused as unknown. Keyed by address: reconnecting somewhere else starts clean. */
 const unsupportedVerbs = new Map();
 
+/**
+ * The address a capability claim belongs to. The exported `net` singleton is built WITHOUT a url (the socket address
+ * is computed by `defaultWsUrl()` when it connects), so `net.url` is '' in the real app and cannot be the key —
+ * keying on it silently loses every refusal. Falls back to the same address the socket will dial.
+ * @param {string} [url] @returns {string}
+ */
+export function serverKey(url = '') {
+  return String(url || '') || defaultWsUrl();
+}
+
 /** @param {string} code @param {string} [detail] @returns {string|null} the verb this reply says the server lacks */
 export function unhandledVerb(code, detail) {
   if (code !== ERR.BAD_MSG) return null;
@@ -90,7 +100,7 @@ export function unhandledVerb(code, detail) {
  * @param {string|null} url @param {string} verb @returns {boolean}
  */
 export function serverLacks(url, verb) {
-  const set = unsupportedVerbs.get(String(url || ''));
+  const set = unsupportedVerbs.get(serverKey(url));
   return !!set && set.has(verb);
 }
 
@@ -100,10 +110,12 @@ export class NetError extends Error {
   constructor(code, msg, detail, url) {
     const versionMismatch = typeof detail === 'string' && /version/i.test(detail);
     const missing = unhandledVerb(code, detail);
-    if (missing && typeof url === 'string' && url) {
-      const key = String(url);
-      if (!unsupportedVerbs.has(key)) unsupportedVerbs.set(key, new Set());
-      unsupportedVerbs.get(key).add(missing);
+    if (missing) {
+      const key = serverKey(url);
+      if (key) {
+        if (!unsupportedVerbs.has(key)) unsupportedVerbs.set(key, new Set());
+        unsupportedVerbs.get(key).add(missing);
+      }
     }
     super(versionMismatch ? CLIENT_ERR_TEXT.VERSION : missing ? CLIENT_ERR_TEXT.UNSUPPORTED : errorText(code, msg));
     this.name = 'NetError';
@@ -487,7 +499,7 @@ export class Net {
     const fetchFn = (typeof this.fetchFn === 'function' && this.fetchFn)
       || (typeof globalThis.fetch === 'function' ? ((...a) => globalThis.fetch(...a)) : null);
     if (!fetchFn) return;
-    const url = healthUrl(this.url || defaultWsUrl());
+    const url = healthUrl(serverKey(this.url));
     this.serverInfoFailed = false;
     try {
       const res = await fetchFn(url, { cache: 'no-store' });
