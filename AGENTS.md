@@ -52,7 +52,13 @@ npm test                                 # 全量：node --test
    带 Chrome UA 才是浏览器真正用的 421 个 `@font-face` / 112 个 woff2 / 4.84 MB。用错量级会做出错误的方案决策。
    上游若升字体版本，`--verify-bytes` 会红 —— 那是提示重跑生成器并重新提交，不是坏了。
 4. `public/index.html` 与 `public/dev/uikit.html` 都不得再出现 `fonts.googleapis.com` / `fonts.gstatic.com`；
-   这条由 `test/webfonts-local.test.js`（扫全树 html/css/js/mjs/json）+ `test/client-static.test.js` 钉住。
+   这条由 `test/webfonts-local.test.js`（扫全树 html/css/js/mjs/json）+ `test/client-static.test.js` 钉住，
+   **"发出去的那一份对不对"由 `test/webfonts-serve.test.js` 钉**（对 `createStaticHandler` 起真服务，量到的是
+   `text/css` / `font/woff2` / `public, max-age=86400` / 含 `font-display: swap` / 三种点路径写法一律 403）。
+   改这一块要跑的三条与实测值（2026-10-05 16:28–16:30 本机）：
+   `node tools/fetch-webfonts.mjs --check --verify-bytes` → 112/112 rc=0；
+   `node --test test/webfonts-local.test.js test/webfonts-serve.test.js` → 10/10；
+   `node ../StrongholdProtocolClient/tools/check-payload-offline.mjs public` → 0 问题。
    同一文件里还有一条更宽的：`public/` 下**任何引用形式**（href/src/url()/fetch/@import/`new WebSocket('http…')`）
    都不许指向站外 —— 只认引用形式，不认裸 URL：vendor 里上百条注释链接和 SVG 的 `xmlns` 标识符不发请求，
    一起禁等于把闸门静音。测试自带一条自校准（裸 URL 计数必须 >20，否则说明扫描没跑到 vendor/）。
