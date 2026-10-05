@@ -155,3 +155,29 @@ test('an unreadable /healthz locks nothing away, and the server own refusal stil
   // A version too old for one verb never marks the others: the table only lists what is actually newer than the server.
   assert.equal(Object.keys(VERB_MIN_APP).every((v) => v.startsWith('room.')), true, 'only room verbs are pinned');
 });
+
+test('a server that CLAIMS 0.1.3 but refuses the verb on the wire still gets greyed out (prod 2026-10-05)', async () => {
+  // Measured on sp.lain42.top at 15:09 CST: /healthz answers app:"0.1.3", yet room.spectate / room.kick /
+  // room.removeSpectator come back `BAD_MSG` + `unknown type <verb>` — the deploy replaced server/ but left
+  // shared/protocol.js on 0.1.1, and net.js:587 checks THAT table before lobby.js ever sees a case. So the version
+  // signal alone can be wrong, and the only authority is the reply. This is the flow a player hits: the control is
+  // live, one click is refused, and after that refusal the UI must stop offering it — for that verb, on that server.
+  const url = 'wss://mixed-deploy.test/ws';
+  const net = new Net({ url, fetchFn: async () => ({ ok: true, json: async () => ({ app: '0.1.3', protocol: 1 }) }) });
+  await net._probeServerInfo();
+  assert.equal(net.serverApp, '0.1.3');
+  assert.equal(net.verbAvailable('room.spectate').ok, true, 'the version pin alone says the server is new enough');
+
+  const refusal = new NetError(ERR.BAD_MSG, '请求格式错误', 'unknown type room.spectate', url);
+  assert.equal(refusal.missingVerb, 'room.spectate', 'the reply names what is missing');
+  assert.equal(net.verbAvailable('room.spectate').ok, false, 'one refusal is enough to stop offering it');
+  assert.equal(net.verbAvailable('room.spectate').reason, 'server-refused');
+  assert.equal(net.verbAvailable('room.kick').ok, true, 'the verbs nobody refused stay live — no blanket lockout');
+  assert.deepEqual(net.verbAvailable('room.spectate'), { ok: false, reason: 'server-refused' }, 'asking again gives the same answer');
+  assert.match(net.verbUnavailableText('room.spectate'), /不支持|更新服务器/, 'the tooltip explains what happened');
+
+  // …and only for THAT server: another host that answers honestly keeps the feature (ops docs/12 §5).
+  const elsewhere = new Net({ url: 'wss://honest.test/ws', fetchFn: async () => ({ ok: true, json: async () => ({ app: '0.1.3' }) }) });
+  await elsewhere._probeServerInfo();
+  assert.equal(elsewhere.verbAvailable('room.spectate').ok, true, 'the learned refusal must not leak across servers');
+});
