@@ -19,18 +19,19 @@
 | `86719d1` | `dev/uikit.html` 也改用它；再加一条**全树**检查 | 同上 + `test/webfonts-local.test.js` |
 | `11f9c5c` | 钉住"版本号说 0.1.3、线级却拒收"时客户端仍会自纠 | `test/net-unsupported.test.js` |
 
-## 2. 跑测试与已知的那条 CPU 闸
+## 2. 跑测试与已知的两条 CPU 闸
 
 ```
 npm install --ignore-scripts ws        # 服务端只依赖 ws；postinstall 会去拷 vendor，跳过
 npm test                                 # 全量：node --test
 ```
 
-2026-10-05 实测：**3638 项 / 3621 过 / 1 失败 / 16 跳过**。唯一那条失败是
-`test/sim/robustness.test.js` 的阈值闸（best-of-3 实测 0.52 ms/tick，限 0.5）—— 并行整跑时因本机负载才红，
-单独跑该文件 35/35 通过（878–2024 ms）。判它是负载不是回归的依据：这条闸测的是 `server/sim/**`，
-而本分支 `git diff upstream/master..HEAD -- server/sim test/sim` **为空**。
-**别把这条 flake 当回归，也别拿整跑的绿当已验证** —— 要么单独复跑，要么明说没测。
+2026-10-05 15:53 在 `6ea4a0e`（`v0.1.3-17-g6ea4a0e`）整跑实测：**3639 项 / 3621 过 / 2 失败 / 16 跳过**。
+那 2 条都是 0.5 ms/tick 的阈值闸，不是回归：`test/sim/perf.test.js:43`（70 敌 + 10 干员）与
+`test/sim/robustness.test.js:739`（双人 BOSS 场，best 1.5747 ms/tick，三次 1.622/1.575/1.592）。
+单独复跑：`node --test test/sim/perf.test.js` → **2/2 过**，`node --test test/sim/robustness.test.js` → **35/35 过**。
+判负载的依据：这两条闸测的是 `server/sim/**`，而本分支 `git diff upstream/master..HEAD -- server/sim test/sim` **为空**。
+**别把这两条 flake 当回归，也别拿整跑的绿当已验证** —— 要么单独复跑，要么明说没测。
 
 ## 3. 这个仓库的硬约定（改错了会静默出事）
 
