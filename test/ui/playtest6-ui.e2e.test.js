@@ -37,8 +37,8 @@ const NARROW = [['640x360', 640, 360, true], ['667x375', 667, 375, true], ['720x
 /** two pick maps over the 4 mock players (p1 = me): every one of 6 cards is taken in one pass and free in the other */
 const TAKEN = [{ p4: 0, p3: 1, ai_2: 2, p1: 3 }, { p4: 4, p3: 5 }];
 const DESKTOP = [['1280x720', 1280, 720, false], ['1920x1080', 1920, 1080, false]];
-/** public/index.html's Google Fonts stylesheet */
-const WEB_FONTS = 'https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700;900&family=Oxanium:wght@400;500;600;700&family=Rajdhani:wght@500;600;700&display=swap';
+/** the repo-internal CJK font mirror the harness loads to measure glyphs */
+const WEB_FONTS = '/webfonts/google/google.css';   // repo-internal mirror (tools/fetch-webfonts.mjs): the harness needs CJK glyphs measurable without a network
 
 describe('user playtest #6 — UI items 6 / 10 (mock harness, headless Chrome)', { skip: !ENABLED && 'set SP_E2E=1 (and have Chrome) to run' }, () => {
   let srv;

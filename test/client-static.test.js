@@ -192,7 +192,8 @@ describe('HTML pages reference existing files', () => {
     const src = readFileSync(path.join(PUBLIC, 'index.html'), 'utf8');
     assert.match(src, /<script type="module" src="\/js\/main\.js"[^>]*><\/script>/);
     assert.match(src, /class="rotate-hint"/);
-    assert.match(src, /fonts\.googleapis\.com\/css2\?family=Noto\+Sans\+SC/);
+    assert.match(src, /href="\/webfonts\/google\/google\.css"/, 'CJK 字体走仓库内镜像（tools/fetch-webfonts.mjs）');
+    assert.doesNotMatch(src, /fonts\.(googleapis|gstatic)\.com/, '不得再依赖外部字体主机（离线/局域网必须能开局）');
     assert.match(src, /href="\/fonts\/fonts\.css"/);
   });
 });

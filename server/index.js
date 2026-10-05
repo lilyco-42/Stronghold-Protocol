@@ -116,7 +116,7 @@ const GZIP_CACHE_MAX_TOTAL = 96 << 20;
 // place (atlas + png + skel must stay consistent), so "long" is one day; revalidation after that is a cheap 304.
 const LONG_CACHE = 'public, max-age=86400';          // 1 day
 const IMMUTABLE_CACHE = 'public, max-age=31536000, immutable';
-const LONG_CACHE_DIRS = ['assets', 'fonts', 'vendor']; // first path segment under public/
+const LONG_CACHE_DIRS = ['assets', 'fonts', 'vendor', 'webfonts']; // first path segment under public/
 const MAX_URL_LENGTH = 4096;
 
 // ---------------------------------------------------------------------------------------------------
