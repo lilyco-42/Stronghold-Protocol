@@ -7,6 +7,7 @@
 // sheet, that every url() resolves to a real .woff2, and that public/index.html has no fonts.googleapis/gstatic ref.
 //
 //   node tools/fetch-webfonts.mjs [--check]     --check verifies the mirror without writing (CI-friendly)
+//   node tools/fetch-webfonts.mjs --check --verify-bytes   also re-fetches each slice and compares sha256 with Google
 
 import { mkdir, readFile, writeFile, readdir, stat } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
@@ -45,6 +46,8 @@ export function rewrite(css, mapping) {
 }
 
 const check = process.argv.includes('--check');
+/** --verify-bytes re-downloads every slice and compares sha256 with the mirror: "same glyphs" is then a measured fact. */
+const verifyBytes = process.argv.includes('--verify-bytes');
 
 /** Everything below runs only as a script: importing this module (the test does, for nameFor) must not fetch. */
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
@@ -53,12 +56,17 @@ const urls = [...new Set(css.match(/https:\/\/[^)]+\.woff2/g) || [])];
 if (!urls.length) throw new Error('no woff2 urls in the response — wrong UA?');
 
 await mkdir(OUT_DIR, { recursive: true });
+const remote = [];
 for (const url of urls) {
   const name = nameFor(url);
   const p = path.join(OUT_DIR, name);
   let have = null;
   try { have = (await stat(p)).size; } catch { /* not mirrored yet */ }
-  if (check) { if (!have) throw new Error(`缺 ${name}`); continue; }
+  if (check) {
+    if (!have) throw new Error(`缺 ${name}`);
+    if (verifyBytes) remote.push({ url, name, p });
+    continue;
+  }
   if (have) continue;
   const bytes = new Uint8Array(await (await fetch(url, { headers: { 'user-agent': UA } })).arrayBuffer());
   if (bytes.length < 100 || String.fromCharCode(...bytes.slice(0, 4)) !== 'wOF2') throw new Error(`${name} 不是 woff2`);
@@ -74,6 +82,23 @@ if (check) {
   const want = new Set(urls.map(nameFor));
   const missing = [...want].filter((n) => !files.includes(n));
   if (missing.length) throw new Error(`${missing.length} 个切片未镜像，例如 ${missing[0]}`);
+  if (verifyBytes) {
+    const sha = (b) => createHash('sha256').update(b).digest('hex');
+    const diff = [], gone = [];
+    const POOL = 8;
+    for (let i = 0; i < remote.length; i += POOL) {
+      await Promise.all(remote.slice(i, i + POOL).map(async ({ url, name, p }) => {
+        const res = await fetch(url, { headers: { 'user-agent': UA } });
+        if (!res.ok) { gone.push(`${name} ← HTTP ${res.status}`); return; }
+        const remoteSha = sha(new Uint8Array(await res.arrayBuffer()));
+        const localSha = sha(await readFile(p));
+        if (remoteSha !== localSha) diff.push(`${name}: remote ${remoteSha.slice(0, 16)} vs mirror ${localSha.slice(0, 16)}`);
+      }));
+    }
+    if (gone.length) throw new Error(`${gone.length} 个远程切片取不到（Google 可能已升版本）：${gone.slice(0, 3).join(', ')}`);
+    if (diff.length) throw new Error(`${diff.length}/${remote.length} 个字节与 Google 当前提供的不一致 —— 重跑 node tools/fetch-webfonts.mjs 并重新提交：\n  ${diff.slice(0, 4).join('\n  ')}`);
+    console.log(`webfonts bytes OK: ${remote.length}/${remote.length} 个 woff2 的 sha256 与 Google 当前字节一致`);
+  }
   console.log(`webfonts OK: ${files.length} woff2, ${urls.length} referenced`);
   process.exit(0);
 }
