@@ -28,12 +28,13 @@ npm install --ignore-scripts ws        # 服务端只依赖 ws；postinstall 会
 npm test                                 # 全量：node --test
 ```
 
-2026-10-05 15:53 在 `6ea4a0e`（`v0.1.3-17-g6ea4a0e`）整跑实测：**3639 项 / 3621 过 / 2 失败 / 16 跳过**。
-那 2 条都是 0.5 ms/tick 的阈值闸，不是回归：`test/sim/perf.test.js:43`（70 敌 + 10 干员）与
-`test/sim/robustness.test.js:739`（双人 BOSS 场，best 1.5747 ms/tick，三次 1.622/1.575/1.592）。
-单独复跑：`node --test test/sim/perf.test.js` → **2/2 过**，`node --test test/sim/robustness.test.js` → **35/35 过**。
-判负载的依据：这两条闸测的是 `server/sim/**`，而本分支 `git diff upstream/master..HEAD -- server/sim test/sim` **为空**。
-**别把这两条 flake 当回归，也别拿整跑的绿当已验证** —— 要么单独复跑，要么明说没测。
+2026-10-05 16:41 在 `3dd1a2c` 整跑实测：**3643 项 / 3624 过 / 3 失败 / 16 跳过**。
+那 3 条都是 0.5 ms/tick 的阈值闸，不是回归：`test/sim/perf.test.js:22`、`test/sim/perf.test.js:43`（两条 70 敌 + 10 干员的 benchmark）与
+`test/sim/robustness.test.js:739`（双人 BOSS 场）。**同一批文件单独复跑 37/37 全过**（`node --test test/sim/perf.test.js test/sim/robustness.test.js`）。
+判负载的依据：这三条闸测的是 `server/sim/**`，而本分支 `git diff upstream/master..HEAD -- server/sim test/sim` **为空**。
+⚠️ 整跑红的条数会随本机负载变（同一天里 1→2→3 条都出现过），所以"几条失败"不能当判据 —— 判据是**失败的是不是这几条阈值闸**，
+是就单独复跑，不是就是真回归。
+**别把它们当回归，也别拿整跑的绿当已验证** —— 要么单独复跑，要么明说没测。
 
 ## 3. 这个仓库的硬约定（改错了会静默出事）
 
