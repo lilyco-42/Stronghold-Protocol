@@ -50,7 +50,10 @@ npm test                                 # 全量：node --test
    上游若升字体版本，`--verify-bytes` 会红 —— 那是提示重跑生成器并重新提交，不是坏了。
 4. `public/index.html` 与 `public/dev/uikit.html` 都不得再出现 `fonts.googleapis.com` / `fonts.gstatic.com`；
    这条由 `test/webfonts-local.test.js`（扫全树 html/css/js/mjs/json）+ `test/client-static.test.js` 钉住。
-   加回外链时测试会点名文件。
+   同一文件里还有一条更宽的：`public/` 下**任何引用形式**（href/src/url()/fetch/@import/`new WebSocket('http…')`）
+   都不许指向站外 —— 只认引用形式，不认裸 URL：vendor 里上百条注释链接和 SVG 的 `xmlns` 标识符不发请求，
+   一起禁等于把闸门静音。测试自带一条自校准（裸 URL 计数必须 >20，否则说明扫描没跑到 vendor/）。
+   与客户端仓库 `tools/check-payload-offline.mjs` 是同一套判据，两边都要过。加回外链时测试会点名文件。
 5. `/media/<track>`（无扩展名，躲下载管理器）只有 **node 服务器**与 Electron 壳的 `serve.mjs` 解得了；
    Capacitor 是纯静态宿主 → APK 必须设 `__SP_MEDIA_ALIAS__ = false`，否则全场静音。别在 `media.js` 里去掉这个开关。
 

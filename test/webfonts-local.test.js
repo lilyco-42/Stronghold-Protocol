@@ -80,3 +80,36 @@ test('no file under public/ references an external font host', async () => {
   await walk(path.join(ROOT, 'public'));
   assert.deepEqual(hits, [], `这些文件还引用外部字体主机：${hits.join(', ')}`);
 });
+
+/**
+ * 离线/局域网必须零外呼 —— 与客户端仓库 tools/check-payload-offline.mjs 同一套判据：只看**引用形式**，
+ * 不看裸 URL。public/ 里本来就有上百条裸 URL（three.js/pixi 注释里的文档与许可证地址、SVG 的 xmlns 标识符），
+ * 它们不发请求；把它们一起禁掉只会让闸门三天内被静音。所以下面既断言"引用形式为 0"，也断言"裸 URL 不为 0"，
+ * 后者是这条测试的自校准：哪天扫描没跑到位，它先红。
+ */
+test('nothing under public/ points a request at an off-device URL', async () => {
+  const FORMS = [
+    /(?:href|src|action|poster|data-src)\s*=\s*["'](https?:\/\/[^"'\s]+)/g,
+    /url\(\s*["']?(https?:\/\/[^)'"\s]+)/g,
+    /(?:fetch|import|axios\.get)\s*\(\s*["'](https?:\/\/[^'"\s]+)/g,
+    /new\s+WebSocket\s*\(\s*["'`](https?:\/\/[^'"`\s)]+)/g,
+    /@import\s+(?:url\()?\s*["']?(https?:\/\/[^)'"\s]+)/g,
+  ];
+  const BARE = /https?:\/\/[^\s"'<>)\]]+/g;
+  const exts = new Set(['.html', '.css', '.js', '.mjs', '.json', '.svg', '.txt', '.atlas']);
+  const hits = [];
+  let bare = 0;
+  const walk = async (dir) => {
+    for (const e of await readdir(dir, { withFileTypes: true })) {
+      const p = path.join(dir, e.name);
+      if (e.isDirectory()) { await walk(p); continue; }
+      if (!exts.has(path.extname(e.name).toLowerCase())) continue;
+      const text = await readFile(p, 'utf8');
+      for (const rx of FORMS) for (const m of text.matchAll(rx)) hits.push(`${path.relative(ROOT, p)} → ${m[1]}`);
+      bare += [...text.matchAll(BARE)].length;
+    }
+  };
+  await walk(path.join(ROOT, 'public'));
+  assert.deepEqual(hits, [], `这些是真正会发出去的站外请求：\n  ${hits.slice(0, 8).join('\n  ')}`);
+  assert.ok(bare > 20, `裸 URL 计数只有 ${bare} —— 扫描大概没跑到 vendor/，这条测试就失去意义了`);
+});
