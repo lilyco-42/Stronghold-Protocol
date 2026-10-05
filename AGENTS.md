@@ -18,6 +18,8 @@
 | `75fb8eb` | `--check --verify-bytes`：把镜像与 Google 当前提供的字节逐个比 sha256 | `tools/fetch-webfonts.mjs` |
 | `86719d1` | `dev/uikit.html` 也改用它；再加一条**全树**检查 | 同上 + `test/webfonts-local.test.js` |
 | `11f9c5c` | 钉住"版本号说 0.1.3、线级却拒收"时客户端仍会自纠 | `test/net-unsupported.test.js` |
+| `6ea4a0e` | 网页侧也钉"零站外请求"（判据与客户端闸门一致：按引用形式扫，注释里的 URL 不算） | `test/webfonts-local.test.js` |
+| `4cef77b` | 网页版这一侧钉住 **node 服务怎么发镜像字体**（mime / 长缓存 / `font-display: swap` / 点路径一律 403），带正控制与变异复验 | `test/webfonts-serve.test.js` |
 
 ## 2. 跑测试与已知的两条 CPU 闸
 
