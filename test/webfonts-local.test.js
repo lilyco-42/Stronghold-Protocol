@@ -59,3 +59,24 @@ test('the families the game asks Google for are all covered locally', () => {
   for (const w of ['400', '500', '700', '900']) assert.ok(weights.has(w), `缺字重 ${w}`);
   assert.equal(sheet.match(/font-display: swap/g)?.length > 100, true, 'swap 时序未保留');
 });
+
+/**
+ * The whole shipped tree, not just index.html: dev/uikit.html used to keep its own css2 link, and a page that
+ * reaches a font host is exactly what breaks a LAN/offline session. Text sources only — binary assets are scanned
+ * by the payload gate in the client repo.
+ */
+test('no file under public/ references an external font host', async () => {
+  const exts = new Set(['.html', '.css', '.js', '.mjs', '.json']);
+  const hits = [];
+  const walk = async (dir) => {
+    for (const e of await readdir(dir, { withFileTypes: true })) {
+      const p = path.join(dir, e.name);
+      if (e.isDirectory()) { await walk(p); continue; }
+      if (!exts.has(path.extname(e.name))) continue;
+      const text = await readFile(p, 'utf8');
+      if (/fonts\.(googleapis|gstatic)\.com/.test(text)) hits.push(path.relative(ROOT, p));
+    }
+  };
+  await walk(path.join(ROOT, 'public'));
+  assert.deepEqual(hits, [], `这些文件还引用外部字体主机：${hits.join(', ')}`);
+});
