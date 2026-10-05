@@ -2,8 +2,9 @@
 
 上游是 `sganggs/Stronghold-Protocol`（GPL-3.0）。本仓库的 `origin` 是**我的 fork**
 `lilyco-42/Stronghold-Protocol`，`upstream` 指向上游；本分支
-`feat/net-cross-version-capability` 在最新上游之上多 9 个提交（2026-10-05 合并到 `bd892a4`，
-`git rev-list --left-right --count upstream/master...HEAD` = `0 9`）。
+`feat/net-cross-version-capability` 在最新上游之上多 17 个提交（2026-10-05 合并到 `bd892a4` 之后又走了几个提交；
+这个数每提交一次就会变，所以别引用它 —— 现测：`git rev-list --left-right --count upstream/master...HEAD` = `0 17`，
+左边为 0 才是要紧的判据：**不落后于上游**）。
 **约定：改动只推到自己 fork 的分支，不主动开上游 PR。**
 
 ## 1. 这个分支加了什么（`git log --oneline upstream/master..HEAD`）
@@ -82,6 +83,6 @@ npm test                                 # 全量：node --test
 
 | 仓库 | 职责 | 备注 |
 |---|---|---|
-| `lilyco-42/StrongholdProtocolClient` | 桌面(Electron) + 安卓(Capacitor) 打包与 CI | 只从 payload 构建，不本机编译；四道闸门（版本 / 完整性 / 暂存离线 / 产物离线）；细节见该仓库 `AGENTS.md` |
+| `lilyco-42/StrongholdProtocolClient` | 桌面(Electron) + 安卓(Capacitor) 打包与 CI | 只从 payload 构建，不本机编译；五道闸门（完整性 / 版本 / **出处** / 暂存离线 / 产物离线）；细节见该仓库 `AGENTS.md` |
 | `lilyco-42/lain42-stronghold-ops` | 生产机的事实：带宽、OSS、混合部署事故、核对单 | `docs/13-upgrade-drift-checklist.md` 是换基线后的整套核对 |
-| 本仓库 | 游戏代码 + 上面那 9 个提交 | **别以为有 CI**：fork 的 Actions 开关是开的（`/actions/permissions` 回 `enabled:true`），但 workflow 从未被注册（`/actions/workflows` 空、runs `total_count:0`），推分支也不会跑，`gh workflow run ci.yml` 报 "not found on the default branch"。所以上面那 9 个提交的测试证据只有本机 `npm test`；要 CI 级的绿只能走上游 PR（本任务约定不开） |
+| 本仓库 | 游戏代码 + §1 表里那批提交 | **别以为有 CI**：fork 的 Actions 开关是开的（`/actions/permissions` 回 `enabled:true`），但 workflow 从未被注册（`/actions/workflows` 空、runs `total_count:0`），推分支也不会跑，`gh workflow run ci.yml` 报 "not found on the default branch"。所以 §1 那批提交的测试证据只有本机 `npm test`；要 CI 级的绿只能走上游 PR（本任务约定不开） |
