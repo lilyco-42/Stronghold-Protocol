@@ -11,6 +11,11 @@
 // the server through `room.skins` — the same shape and the same wiring as the operator loadout (ui/loadoutSync.js),
 // except that this one is PUBLIC: the server puts it in `Match.publicView().players[]`, which is how a teammate
 // sees your skin.
+//
+// …when the server knows the verb. Every fan server and our own box run upstream code, which has no `room.skins`
+// at all, so the sync degrades to LOCAL (`skinsStore.sync === 'local'`) instead of failing: skins are pure looks
+// (`server/sim/**` mentions `skin` exactly once, in the view snapshot), so the local store is a complete authority
+// for the player's own board. What is lost is only that teammates do not see it — and the picker says so.
 
 import { createStore, loadPref, savePref } from '../store.js';
 import { data } from '../data.js';
@@ -120,6 +125,15 @@ export function installSkinsSync({ net, timers } = {}) {
       if (json === lastSent && pendingJson == null) { setState('synced'); return; }
       const my = ++seq;
       pendingJson = json;
+      // 多服务器适配：网友服和线上服都是上游 fork，没有 room.skins 这个动词。皮肤是**纯外观**
+      // （整个 server/sim 里 skin 只在视图快照 snapshot.js 出现一次，不参与任何判定），所以本机 store
+      // 就是权威：不认这个动词时不再发注定被拒的请求，选择照样存、自己的板子照样换皮，只是不同步给队友。
+      if (typeof net.verbAvailable === 'function' && !net.verbAvailable('room.skins').ok) {
+        lastSent = json;
+        pendingJson = null;
+        setState('local');
+        return;
+      }
       setState('sending');
       try {
         await net.request('room.skins', { skins });
@@ -133,7 +147,8 @@ export function installSkinsSync({ net, timers } = {}) {
         const code = err && err.code;
         if (code === 'RATE' || code === 'TIMEOUT' || code === 'OFFLINE') { schedule(RETRY_MS); return; }
         console.warn('[skins] room.skins refused', code, err && err.detail);
-        setState('error');
+        // 被拒 = 退回本地模式，不是错误：玩家什么都没做错，下一台支持的服务器会照常同步。
+        setState('local');
       }
     } catch (e) {
       console.warn('[skins] sync failed', e);

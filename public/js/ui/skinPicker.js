@@ -60,6 +60,8 @@ export function SkinSection({ chess }) {
     <header class="lo-sec__head">
       <h3>皮肤<${MicroLabel}>SKIN<//></h3>
       <span class="lo-sec__note">${list.length} 款可选</span>
+      ${s.sync === 'local' ? html`<span class="lo-sec__note" data-testid="skin-local-note"
+        title="这台服务器没有 room.skins：你的选择存在本机、你自己的战场照常换皮，只是队友看不到">仅自己可见</span>` : null}
     </header>
     <div class="lo-skins" role="radiogroup" aria-label="选择皮肤">
       <button type="button" role="radio" aria-checked=${chosen ? 'false' : 'true'} data-skin=""
