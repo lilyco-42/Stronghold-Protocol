@@ -48,6 +48,9 @@ function ourLines(file) {
     if (!trimmed || trimmed.startsWith('//') || trimmed.startsWith('/*') || trimmed.startsWith('*')) continue;
     // 单行数据文件（data/assets.json 整份 JSON 就是一行，1 MB+）：按「行」记账没有意义，截断存下并标 opaque，
     // 让读报告的人知道这是一整个文件级的挂载点，而不是一条可逐行复核的补丁。
+    // ⚠ 已知代价：opaque 条目存的是**行首 120 字符**，而 assets.json 的行首就是 `{"version":…,"stats":{…}}`，
+    // 所以每次正常刷新素材都会让 checkSurface 报"我们的行不见了"（假红，不是漏检）。方向是安全的（宁可红），
+    // 真要查皮肤条目有没有被合并吃掉，看 test/skins-installed.test.js —— 它是按结构查的，不受行首数字影响。
     const opaque = trimmed.length > 4000;
     out.push({
       line: opaque ? `${trimmed.slice(0, 120)}…（整行 ${trimmed.length} 字符）` : trimmed,

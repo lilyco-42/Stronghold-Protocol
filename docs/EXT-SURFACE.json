@@ -4,7 +4,7 @@
  "files": {
   "data/assets.json": [
    {
-    "line": "{\"version\":1,\"hash\":\"2249e4a0918a\",\"generator\":\"tools/fetch-assets.mjs\",\"stats\":{\"files\":5700,\"bytes\":331632595,\"chars\":…（整行 814222 字符）",
+    "line": "{\"version\":1,\"hash\":\"2249e4a0918a\",\"generator\":\"tools/fetch-assets.mjs\",\"stats\":{\"files\":5700,\"bytes\":331632595,\"chars\":…（整行 821075 字符）",
     "anchor": "",
     "opaque": true
    }
@@ -1507,6 +1507,24 @@
    {
     "line": "return { ok: true, entries, skins };",
     "anchor": "export function parseImport(input) {"
+   }
+  ],
+  "public/js/ui/teamPanel.js": [
+   {
+    "line": "<${Tooltip} text=${offline",
+    "anchor": "export function TeamPanel({ pub, myId, watching, bubbles, onWatch, compact = fal"
+   },
+   {
+    "line": "? (self ? '连接已断开：这段时间服务器在替你打阵地，重连回来就能接上'",
+    "anchor": "export function TeamPanel({ pub, myId, watching, bubbles, onWatch, compact = fal"
+   },
+   {
+    "line": ": `连接已断开：这段时间服务器在替 ${p.name || '队友'} 打阵地，TA 重连回来就能接上`)",
+    "anchor": "export function TeamPanel({ pub, myId, watching, bubbles, onWatch, compact = fal"
+   },
+   {
+    "line": ": meta.text} placement=\"right\">",
+    "anchor": "export function TeamPanel({ pub, myId, watching, bubbles, onWatch, compact = fal"
    }
   ],
   "server/index.js": [
