@@ -52,10 +52,13 @@
 装它们用的命令就三条（`data/skins-installed.json` 是唯一输入）：
 
 ```
-NODE_USE_ENV_PROXY=1 node tools/fetch-skin-spines.mjs    # 72 个文件：每款 front/back 各 skel+atlas+png
-NODE_USE_ENV_PROXY=1 node tools/fetch-skin-avatars.mjs   # 12 个 180×180 头像 → public/assets/char/skin_avatar/<stem>.png
+NODE_USE_ENV_PROXY=1 node tools/fetch-skin-spines.mjs    # 90 个文件：每款 front/back 各 skel+atlas+png
+NODE_USE_ENV_PROXY=1 node tools/fetch-skin-avatars.mjs   # 15 个 180×180 头像 → public/assets/char/skin_avatar/<stem>.png
 node tools/inject-skins-assets.mjs                       # 写进 data/assets.json 的 chars[].skins
 ```
+
+下面这几段数字是**12 款那一版**实测的（2026-10-06 23:0x）；后加的 3 款 1 费皮肤走的是同一套命令与同一套断言，
+`test/skins-installed.test.js` 在 15 款状态下重跑过（54/54 绿）。
 
 2026-10-06 实测的落地状态：84 个文件全部下到、24 份 atlas 全部规范化（都带 `size:` 页）、24 个朝向的 atlas
 引用的 png 都在盘上、12 份 `.skel` 的版本串都是 **3.8.99**（与原皮一致）；`room.skins` 带着 12 条下标发给
