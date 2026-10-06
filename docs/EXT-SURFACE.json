@@ -1,0 +1,1864 @@
+{
+ "generated": "2026-10-06",
+ "upstream": "upstream/master",
+ "files": {
+  "public/css/screens/loadout.css": [
+   {
+    "line": "单行垂直列表：每款皮肤独占一行，左侧头像、中间完整名称与系列、右侧状态标签。兼容旧机型 (Chromium 80-84)。 */",
+    "anchor": ""
+   },
+   {
+    "line": ".lo-skins {",
+    "anchor": ""
+   },
+   {
+    "line": "display: flex;",
+    "anchor": ""
+   },
+   {
+    "line": "flex-direction: column;",
+    "anchor": ""
+   },
+   {
+    "line": "gap: max(.08rem, 6px);",
+    "anchor": ""
+   },
+   {
+    "line": "width: 100%;",
+    "anchor": ""
+   },
+   {
+    "line": "}",
+    "anchor": ""
+   },
+   {
+    "line": ".lo-skin {",
+    "anchor": ""
+   },
+   {
+    "line": "position: relative;",
+    "anchor": ""
+   },
+   {
+    "line": "width: 100%;",
+    "anchor": ""
+   },
+   {
+    "line": "box-sizing: border-box;",
+    "anchor": ""
+   },
+   {
+    "line": "display: flex;",
+    "anchor": ""
+   },
+   {
+    "line": "align-items: center;",
+    "anchor": ""
+   },
+   {
+    "line": "gap: max(.12rem, 8px);",
+    "anchor": ""
+   },
+   {
+    "line": "padding: max(.06rem, 5px) max(.12rem, 10px) max(.06rem, 5px) max(.06rem, 5px);",
+    "anchor": ""
+   },
+   {
+    "line": "font: inherit;",
+    "anchor": ""
+   },
+   {
+    "line": "color: var(--text-md);",
+    "anchor": ""
+   },
+   {
+    "line": "text-align: left;",
+    "anchor": ""
+   },
+   {
+    "line": "cursor: pointer;",
+    "anchor": ""
+   },
+   {
+    "line": "background: rgba(255, 255, 255, .03);",
+    "anchor": ""
+   },
+   {
+    "line": "border: 1px solid var(--line);",
+    "anchor": ""
+   },
+   {
+    "line": "border-radius: 2px;",
+    "anchor": ""
+   },
+   {
+    "line": "transition: background var(--t-fast), border-color var(--t-fast);",
+    "anchor": ""
+   },
+   {
+    "line": "touch-action: manipulation;",
+    "anchor": ""
+   },
+   {
+    "line": "}",
+    "anchor": ""
+   },
+   {
+    "line": ".lo-skin:hover:not(:disabled) {",
+    "anchor": ""
+   },
+   {
+    "line": "border-color: var(--line-3);",
+    "anchor": ""
+   },
+   {
+    "line": "background: rgba(255, 255, 255, .06);",
+    "anchor": ""
+   },
+   {
+    "line": "}",
+    "anchor": ""
+   },
+   {
+    "line": ".lo-skin.is-on {",
+    "anchor": ""
+   },
+   {
+    "line": "color: var(--text-hi);",
+    "anchor": ""
+   },
+   {
+    "line": "background: linear-gradient(90deg, rgba(78, 216, 175, .16), rgba(78, 216, 175, .03) 80%);",
+    "anchor": ""
+   },
+   {
+    "line": "border-color: rgba(78, 216, 175, .75);",
+    "anchor": ""
+   },
+   {
+    "line": "}",
+    "anchor": ""
+   },
+   {
+    "line": ".lo-skin:disabled {",
+    "anchor": ""
+   },
+   {
+    "line": "cursor: default;",
+    "anchor": ""
+   },
+   {
+    "line": "opacity: .45;",
+    "anchor": ""
+   },
+   {
+    "line": "}",
+    "anchor": ""
+   },
+   {
+    "line": ".lo-skin__art {",
+    "anchor": ""
+   },
+   {
+    "line": "flex: 0 0 auto;",
+    "anchor": ""
+   },
+   {
+    "line": "width: max(.48rem, 36px);",
+    "anchor": ""
+   },
+   {
+    "line": "height: max(.48rem, 36px);",
+    "anchor": ""
+   },
+   {
+    "line": "display: grid;",
+    "anchor": ""
+   },
+   {
+    "line": "place-items: center;",
+    "anchor": ""
+   },
+   {
+    "line": "overflow: hidden;",
+    "anchor": ""
+   },
+   {
+    "line": "background: rgba(0, 0, 0, .4);",
+    "anchor": ""
+   },
+   {
+    "line": "border: 1px solid var(--line);",
+    "anchor": ""
+   },
+   {
+    "line": "border-radius: 2px;",
+    "anchor": ""
+   },
+   {
+    "line": "}",
+    "anchor": ""
+   },
+   {
+    "line": ".lo-skin__art img {",
+    "anchor": ""
+   },
+   {
+    "line": "display: block;",
+    "anchor": ""
+   },
+   {
+    "line": "width: 100%;",
+    "anchor": ""
+   },
+   {
+    "line": "height: 100%;",
+    "anchor": ""
+   },
+   {
+    "line": "object-fit: cover;",
+    "anchor": ""
+   },
+   {
+    "line": "object-position: center top;",
+    "anchor": ""
+   },
+   {
+    "line": "}",
+    "anchor": ""
+   },
+   {
+    "line": ".lo-skin__art-fallback.is-hidden {",
+    "anchor": ""
+   },
+   {
+    "line": "display: none !important;",
+    "anchor": ""
+   },
+   {
+    "line": "}",
+    "anchor": ""
+   },
+   {
+    "line": ".lo-skin__art--none {",
+    "anchor": ""
+   },
+   {
+    "line": "width: 100%;",
+    "anchor": ""
+   },
+   {
+    "line": "height: 100%;",
+    "anchor": ""
+   },
+   {
+    "line": "background: repeating-linear-gradient(45deg, rgba(255, 255, 255, .06) 0 3px, transparent 3px 7px);",
+    "anchor": ""
+   },
+   {
+    "line": "}",
+    "anchor": ""
+   },
+   {
+    "line": ".lo-skin__text {",
+    "anchor": ""
+   },
+   {
+    "line": "flex: 1 1 auto;",
+    "anchor": ""
+   },
+   {
+    "line": "min-width: 0;",
+    "anchor": ""
+   },
+   {
+    "line": "display: flex;",
+    "anchor": ""
+   },
+   {
+    "line": "flex-direction: column;",
+    "anchor": ""
+   },
+   {
+    "line": "justify-content: center;",
+    "anchor": ""
+   },
+   {
+    "line": "gap: max(.02rem, 1px);",
+    "anchor": ""
+   },
+   {
+    "line": "}",
+    "anchor": ""
+   },
+   {
+    "line": ".lo-skin__name {",
+    "anchor": ""
+   },
+   {
+    "line": "font-size: max(.17rem, 12px);",
+    "anchor": ""
+   },
+   {
+    "line": "font-weight: 700;",
+    "anchor": ""
+   },
+   {
+    "line": "white-space: nowrap;",
+    "anchor": ""
+   },
+   {
+    "line": "overflow: hidden;",
+    "anchor": ""
+   },
+   {
+    "line": "text-overflow: ellipsis;",
+    "anchor": ""
+   },
+   {
+    "line": "color: var(--text-hi);",
+    "anchor": ""
+   },
+   {
+    "line": "}",
+    "anchor": ""
+   },
+   {
+    "line": ".lo-skin__group {",
+    "anchor": ""
+   },
+   {
+    "line": "font-family: var(--font-num);",
+    "anchor": ""
+   },
+   {
+    "line": "font-size: max(.12rem, 9px);",
+    "anchor": ""
+   },
+   {
+    "line": "letter-spacing: .06em;",
+    "anchor": ""
+   },
+   {
+    "line": "color: var(--text-dim);",
+    "anchor": ""
+   },
+   {
+    "line": "white-space: nowrap;",
+    "anchor": ""
+   },
+   {
+    "line": "overflow: hidden;",
+    "anchor": ""
+   },
+   {
+    "line": "text-overflow: ellipsis;",
+    "anchor": ""
+   },
+   {
+    "line": "}",
+    "anchor": ""
+   },
+   {
+    "line": ".lo-skin__badge {",
+    "anchor": ""
+   },
+   {
+    "line": "flex: 0 0 auto;",
+    "anchor": ""
+   },
+   {
+    "line": "font-size: max(.12rem, 9px);",
+    "anchor": ""
+   },
+   {
+    "line": "font-weight: 700;",
+    "anchor": ""
+   },
+   {
+    "line": "letter-spacing: .04em;",
+    "anchor": ""
+   },
+   {
+    "line": "padding: max(.02rem, 2px) max(.06rem, 5px);",
+    "anchor": ""
+   },
+   {
+    "line": "border-radius: 2px;",
+    "anchor": ""
+   },
+   {
+    "line": "background: rgba(78, 216, 175, .15);",
+    "anchor": ""
+   },
+   {
+    "line": "color: var(--mint-400);",
+    "anchor": ""
+   },
+   {
+    "line": "border: 1px solid rgba(78, 216, 175, .4);",
+    "anchor": ""
+   },
+   {
+    "line": "}",
+    "anchor": ""
+   }
+  ],
+  "public/dev/uikit.html": [
+   {
+    "line": "<link rel=\"stylesheet\" media=\"print\" onload=\"this.media='all'\" href=\"/webfonts/google/google.css\" />",
+    "anchor": ""
+   }
+  ],
+  "public/index.html": [
+   {
+    "line": "<!-- CJK + display fonts, mirrored from Google Fonts into public/webfonts/ (tools/fetch-webfonts.mjs): same woff2",
+    "anchor": ""
+   },
+   {
+    "line": "bytes, same unicode-range slices, same display=swap — so no external font host, and offline/LAN play still",
+    "anchor": ""
+   },
+   {
+    "line": "starts on its own. Never render-blocking (LAN/offline play must still start); fallbacks in theme.css. -->",
+    "anchor": ""
+   },
+   {
+    "line": "<link rel=\"stylesheet\" media=\"print\" onload=\"this.media='all'\" href=\"/webfonts/google/google.css\" />",
+    "anchor": ""
+   }
+  ],
+  "public/js/assets.js": [
+   {
+    "line": "if (rec) {",
+    "anchor": "export function avatarUrl(m, id, opts) {"
+   },
+   {
+    "line": "if (opts && str(opts.skin)) {",
+    "anchor": "export function avatarUrl(m, id, opts) {"
+   },
+   {
+    "line": "const skin = get(get(rec, 'skins'), opts.skin);",
+    "anchor": "export function avatarUrl(m, id, opts) {"
+   },
+   {
+    "line": "if (skin && str(skin.avatar)) return str(skin.avatar);",
+    "anchor": "export function avatarUrl(m, id, opts) {"
+   },
+   {
+    "line": "}",
+    "anchor": "export function avatarUrl(m, id, opts) {"
+   },
+   {
+    "line": "return str(e2 && rec.avatarE2) || str(rec.avatar) || null;",
+    "anchor": "export function avatarUrl(m, id, opts) {"
+   },
+   {
+    "line": "}",
+    "anchor": "export function avatarUrl(m, id, opts) {"
+   },
+   {
+    "line": "if (ch) {",
+    "anchor": "export function spineEntry(m, id, opts) {"
+   },
+   {
+    "line": "const defaultSp = (opts && opts.back && isObj(ch.spine?.back)) ? ch.spine.back : ch.spine?.front;",
+    "anchor": "export function spineEntry(m, id, opts) {"
+   },
+   {
+    "line": "const fallbackSp = validSpine(defaultSp) ? defaultSp : null;",
+    "anchor": "export function spineEntry(m, id, opts) {"
+   },
+   {
+    "line": "const skin = opts && str(opts.skin) ? get(get(ch, 'skins'), opts.skin) : null;",
+    "anchor": "export function spineEntry(m, id, opts) {"
+   },
+   {
+    "line": "if (skin && isObj(skin.spine)) {",
+    "anchor": "export function spineEntry(m, id, opts) {"
+   },
+   {
+    "line": "const sp = (opts && opts.back && isObj(skin.spine.back)) ? skin.spine.back : skin.spine.front;",
+    "anchor": "export function spineEntry(m, id, opts) {"
+   },
+   {
+    "line": "if (validSpine(sp)) {",
+    "anchor": "export function spineEntry(m, id, opts) {"
+   },
+   {
+    "line": "return fallbackSp ? { ...sp, fallback: fallbackSp } : sp;",
+    "anchor": "export function spineEntry(m, id, opts) {"
+   },
+   {
+    "line": "}",
+    "anchor": "export function spineEntry(m, id, opts) {"
+   },
+   {
+    "line": "}",
+    "anchor": "export function spineEntry(m, id, opts) {"
+   },
+   {
+    "line": "return fallbackSp;",
+    "anchor": "export function spineEntry(m, id, opts) {"
+   },
+   {
+    "line": "export function hasBackSpine(m, id, skinId) {",
+    "anchor": "export function localSpineEntry(sl, local, web) {"
+   },
+   {
+    "line": "if (!ch) return false;",
+    "anchor": "export function hasBackSpine(m, id) {"
+   },
+   {
+    "line": "const skin = str(skinId) ? get(get(ch, 'skins'), skinId) : null;",
+    "anchor": "export function hasBackSpine(m, id) {"
+   },
+   {
+    "line": "if (skin && isObj(skin.spine) && validSpine(skin.spine.back)) {",
+    "anchor": "export function hasBackSpine(m, id) {"
+   },
+   {
+    "line": "return true;",
+    "anchor": "export function hasBackSpine(m, id) {"
+   },
+   {
+    "line": "}",
+    "anchor": "export function hasBackSpine(m, id) {"
+   },
+   {
+    "line": "return !!(isObj(ch.spine) && validSpine(ch.spine.back));",
+    "anchor": "export function hasBackSpine(m, id) {"
+   },
+   {
+    "line": "picture: (id, o) => unitPictureUrl(m(), id, o),",
+    "anchor": "export function createAssets(options) {"
+   },
+   {
+    "line": "hasBack: (id, skinId) => hasBackSpine(m(), id, skinId),",
+    "anchor": "export function createAssets(options) {"
+   }
+  ],
+  "public/js/data.js": [
+   {
+    "line": "skins: 'skins.json',",
+    "anchor": "export const DATA_FILES = Object.freeze({"
+   }
+  ],
+  "public/js/main.js": [
+   {
+    "line": "import { installAudio, audio } from './audio.js';",
+    "anchor": "import { GameScreen } from './screens/game.js';"
+   },
+   {
+    "line": "import { installSkinsSync } from './ui/skins.js';",
+    "anchor": "import { installLoadoutSync } from './ui/loadoutSync.js';"
+   },
+   {
+    "line": "installSkinsSync({ net });",
+    "anchor": "async function boot() {"
+   },
+   {
+    "line": "data.load('skins').catch(() => {});",
+    "anchor": "async function boot() {"
+   }
+  ],
+  "public/js/media.js": [
+   {
+    "line": "export function mediaAliasEnabled(env = globalThis) {",
+    "anchor": "const AUDIO_PATH = /^\\/assets\\/audio\\/(.+)$/i;"
+   },
+   {
+    "line": "return env?.__SP_MEDIA_ALIAS__ !== false;",
+    "anchor": "const AUDIO_PATH = /^\\/assets\\/audio\\/(.+)$/i;"
+   },
+   {
+    "line": "}",
+    "anchor": "const AUDIO_PATH = /^\\/assets\\/audio\\/(.+)$/i;"
+   },
+   {
+    "line": "if (!mediaAliasEnabled()) return url;",
+    "anchor": "export function mediaUrl(url, origin = globalThis.location?.origin) {"
+   }
+  ],
+  "public/js/net.js": [
+   {
+    "line": "import { PROTOCOL_VERSION, ERR_TEXT, ERR } from '../../shared/constants.js';",
+    "anchor": ""
+   },
+   {
+    "line": "UNSUPPORTED: '这台服务器还不支持该操作，请更新服务器版本后再试',",
+    "anchor": "export const CLIENT_ERR_TEXT = Object.freeze({"
+   },
+   {
+    "line": "const UNHANDLED_RE = /^(?:unknown|unhandled) type ([a-z][a-zA-Z0-9]*\\.[a-zA-Z][a-zA-Z0-9]*)$/;",
+    "anchor": "export function errorText(code, msg) {"
+   },
+   {
+    "line": "const unsupportedVerbs = new Map();",
+    "anchor": "export function errorText(code, msg) {"
+   },
+   {
+    "line": "export function serverKey(url = '') {",
+    "anchor": "export function errorText(code, msg) {"
+   },
+   {
+    "line": "return String(url || '') || defaultWsUrl();",
+    "anchor": "export function errorText(code, msg) {"
+   },
+   {
+    "line": "}",
+    "anchor": "export function errorText(code, msg) {"
+   },
+   {
+    "line": "export function unhandledVerb(code, detail) {",
+    "anchor": "export function errorText(code, msg) {"
+   },
+   {
+    "line": "if (code !== ERR.BAD_MSG) return null;",
+    "anchor": "export function errorText(code, msg) {"
+   },
+   {
+    "line": "const m = UNHANDLED_RE.exec(String(detail || '').trim());",
+    "anchor": "export function errorText(code, msg) {"
+   },
+   {
+    "line": "return m ? m[1] : null;",
+    "anchor": "export function errorText(code, msg) {"
+   },
+   {
+    "line": "}",
+    "anchor": "export function errorText(code, msg) {"
+   },
+   {
+    "line": "export function serverLacks(url, verb) {",
+    "anchor": "export function errorText(code, msg) {"
+   },
+   {
+    "line": "const set = unsupportedVerbs.get(serverKey(url));",
+    "anchor": "export function errorText(code, msg) {"
+   },
+   {
+    "line": "return !!set && set.has(verb);",
+    "anchor": "export function errorText(code, msg) {"
+   },
+   {
+    "line": "}",
+    "anchor": "export function errorText(code, msg) {"
+   },
+   {
+    "line": "constructor(code, msg, detail, url) {",
+    "anchor": "export class NetError extends Error {"
+   },
+   {
+    "line": "const missing = unhandledVerb(code, detail);",
+    "anchor": "export class NetError extends Error {"
+   },
+   {
+    "line": "if (missing) {",
+    "anchor": "export class NetError extends Error {"
+   },
+   {
+    "line": "const key = serverKey(url);",
+    "anchor": "export class NetError extends Error {"
+   },
+   {
+    "line": "if (key) {",
+    "anchor": "export class NetError extends Error {"
+   },
+   {
+    "line": "if (!unsupportedVerbs.has(key)) unsupportedVerbs.set(key, new Set());",
+    "anchor": "export class NetError extends Error {"
+   },
+   {
+    "line": "unsupportedVerbs.get(key).add(missing);",
+    "anchor": "export class NetError extends Error {"
+   },
+   {
+    "line": "}",
+    "anchor": "export class NetError extends Error {"
+   },
+   {
+    "line": "}",
+    "anchor": "export class NetError extends Error {"
+   },
+   {
+    "line": "super(versionMismatch ? CLIENT_ERR_TEXT.VERSION : missing ? CLIENT_ERR_TEXT.UNSUPPORTED : errorText(code, msg));",
+    "anchor": "export class NetError extends Error {"
+   },
+   {
+    "line": "this.missingVerb = missing;       // the verb this server refused, or null",
+    "anchor": "export class NetError extends Error {"
+   },
+   {
+    "line": "export function serverHttpOrigin(wsUrl = defaultWsUrl()) {",
+    "anchor": "export function defaultWsUrl(loc = globalThis.location) {"
+   },
+   {
+    "line": "const url = String(wsUrl || '');",
+    "anchor": "export function defaultWsUrl(loc = globalThis.location) {"
+   },
+   {
+    "line": "const m = /^wss?:\\/\\/([^/?#]+)/.exec(url);",
+    "anchor": "export function defaultWsUrl(loc = globalThis.location) {"
+   },
+   {
+    "line": "return m ? `${url.startsWith('wss') ? 'https' : 'http'}://${m[1]}` : '';",
+    "anchor": "export function defaultWsUrl(loc = globalThis.location) {"
+   },
+   {
+    "line": "}",
+    "anchor": "export function defaultWsUrl(loc = globalThis.location) {"
+   },
+   {
+    "line": "export function healthUrl(wsUrl = defaultWsUrl(), loc = globalThis.location) {",
+    "anchor": "export function defaultWsUrl(loc = globalThis.location) {"
+   },
+   {
+    "line": "const origin = serverHttpOrigin(wsUrl);",
+    "anchor": "export function defaultWsUrl(loc = globalThis.location) {"
+   },
+   {
+    "line": "if (!origin || !loc || !loc.host) return '/healthz';",
+    "anchor": "export function defaultWsUrl(loc = globalThis.location) {"
+   },
+   {
+    "line": "return origin === `${loc.protocol}//${loc.host}` ? '/healthz' : `${origin}/healthz`;",
+    "anchor": "export function defaultWsUrl(loc = globalThis.location) {"
+   },
+   {
+    "line": "}",
+    "anchor": "export function defaultWsUrl(loc = globalThis.location) {"
+   },
+   {
+    "line": "export const VERB_MIN_APP = Object.freeze({ 'room.spectate': '0.1.3', 'room.kick': '0.1.3', 'room.removeSpectator': '0.1.3' });",
+    "anchor": "export function defaultWsUrl(loc = globalThis.location) {"
+   },
+   {
+    "line": "export function versionAtLeast(a, b) {",
+    "anchor": "export function defaultWsUrl(loc = globalThis.location) {"
+   },
+   {
+    "line": "const nums = (v) => String(v || '').trim().replace(/^[v=]+/, '').split('.').map((p) => parseInt(p, 10) || 0);",
+    "anchor": "export function defaultWsUrl(loc = globalThis.location) {"
+   },
+   {
+    "line": "const x = nums(a); const y = nums(b);",
+    "anchor": "export function defaultWsUrl(loc = globalThis.location) {"
+   },
+   {
+    "line": "for (let i = 0; i < Math.max(x.length, y.length); i++) {",
+    "anchor": "export function defaultWsUrl(loc = globalThis.location) {"
+   },
+   {
+    "line": "const d = (x[i] || 0) - (y[i] || 0);",
+    "anchor": "export function defaultWsUrl(loc = globalThis.location) {"
+   },
+   {
+    "line": "if (d !== 0) return d > 0;",
+    "anchor": "export function defaultWsUrl(loc = globalThis.location) {"
+   },
+   {
+    "line": "}",
+    "anchor": "export function defaultWsUrl(loc = globalThis.location) {"
+   },
+   {
+    "line": "return true;",
+    "anchor": "export function defaultWsUrl(loc = globalThis.location) {"
+   },
+   {
+    "line": "}",
+    "anchor": "export function defaultWsUrl(loc = globalThis.location) {"
+   },
+   {
+    "line": "this.fetchFn = typeof opts.fetchFn === 'function' ? opts.fetchFn : null;",
+    "anchor": "export class Net {"
+   },
+   {
+    "line": "this.serverApp = null;     // server `app` version, read best-effort from its /healthz (null = unknown)",
+    "anchor": "export class Net {"
+   },
+   {
+    "line": "this.serverInfoFailed = false; // the /healthz read was tried and did not answer: stay optimistic",
+    "anchor": "export class Net {"
+   },
+   {
+    "line": "this._probeServerInfo();",
+    "anchor": "export class Net {"
+   },
+   {
+    "line": "async _probeServerInfo() {",
+    "anchor": "export class Net {"
+   },
+   {
+    "line": "const fetchFn = (typeof this.fetchFn === 'function' && this.fetchFn)",
+    "anchor": "export class Net {"
+   },
+   {
+    "line": "|| (typeof globalThis.fetch === 'function' ? ((...a) => globalThis.fetch(...a)) : null);",
+    "anchor": "export class Net {"
+   },
+   {
+    "line": "if (!fetchFn) return;",
+    "anchor": "export class Net {"
+   },
+   {
+    "line": "const url = healthUrl(serverKey(this.url));",
+    "anchor": "export class Net {"
+   },
+   {
+    "line": "this.serverInfoFailed = false;",
+    "anchor": "export class Net {"
+   },
+   {
+    "line": "try {",
+    "anchor": "export class Net {"
+   },
+   {
+    "line": "const res = await fetchFn(url, { cache: 'no-store' });",
+    "anchor": "export class Net {"
+   },
+   {
+    "line": "if (!res || !res.ok) { this.serverInfoFailed = true; return; }",
+    "anchor": "export class Net {"
+   },
+   {
+    "line": "const body = await res.json();",
+    "anchor": "export class Net {"
+   },
+   {
+    "line": "this.serverApp = typeof body?.app === 'string' && body.app ? body.app : null;",
+    "anchor": "export class Net {"
+   },
+   {
+    "line": "if (this.serverApp === null) this.serverInfoFailed = true;",
+    "anchor": "export class Net {"
+   },
+   {
+    "line": "} catch {",
+    "anchor": "export class Net {"
+   },
+   {
+    "line": "this.serverApp = null;",
+    "anchor": "export class Net {"
+   },
+   {
+    "line": "this.serverInfoFailed = true;",
+    "anchor": "export class Net {"
+   },
+   {
+    "line": "}",
+    "anchor": "export class Net {"
+   },
+   {
+    "line": "this._emit('serverInfo', { app: this.serverApp, url });",
+    "anchor": "export class Net {"
+   },
+   {
+    "line": "}",
+    "anchor": "export class Net {"
+   },
+   {
+    "line": "verbAvailable(verb) {",
+    "anchor": "export class Net {"
+   },
+   {
+    "line": "if (serverLacks(this.url, verb)) return { ok: false, reason: 'server-refused' };",
+    "anchor": "export class Net {"
+   },
+   {
+    "line": "const min = VERB_MIN_APP[verb];",
+    "anchor": "export class Net {"
+   },
+   {
+    "line": "if (min && this.serverApp && !versionAtLeast(this.serverApp, min)) return { ok: false, reason: 'older-server' };",
+    "anchor": "export class Net {"
+   },
+   {
+    "line": "return { ok: true, reason: null };",
+    "anchor": "export class Net {"
+   },
+   {
+    "line": "}",
+    "anchor": "export class Net {"
+   },
+   {
+    "line": "verbUnavailableText(verb) {",
+    "anchor": "export class Net {"
+   },
+   {
+    "line": "const { ok, reason } = this.verbAvailable(verb);",
+    "anchor": "export class Net {"
+   },
+   {
+    "line": "if (ok) return '';",
+    "anchor": "export class Net {"
+   },
+   {
+    "line": "return reason === 'older-server'",
+    "anchor": "export class Net {"
+   },
+   {
+    "line": "? `这台服务器是 ${this.serverApp}，该功能需要 ${VERB_MIN_APP[verb]} 以上的服务器`",
+    "anchor": "export class Net {"
+   },
+   {
+    "line": ": '这台服务器不支持该操作，请更新服务器版本';",
+    "anchor": "export class Net {"
+   },
+   {
+    "line": "}",
+    "anchor": "export class Net {"
+   },
+   {
+    "line": "this.lastError = new NetError(msg.code, msg.msg, msg.detail, this.url);",
+    "anchor": "export class Net {"
+   },
+   {
+    "line": "if (t === 'error') entry.reject(new NetError(msg.code, msg.msg, msg.detail, this.url));",
+    "anchor": "export class Net {"
+   },
+   {
+    "line": "this._emit('unhandledError', new NetError(msg.code, msg.msg, msg.detail, this.url));",
+    "anchor": "export class Net {"
+   }
+  ],
+  "public/js/render/app.js": [
+   {
+    "line": "import { skinFor } from '../ui/skins.js';",
+    "anchor": "import { promotionsOf } from './promote.js';"
+   },
+   {
+    "line": "skin: u.skin ?? null,",
+    "anchor": "export function renderInfo(u) {"
+   },
+   {
+    "line": "const baseId = rec?.baseId || piece.id;",
+    "anchor": "export async function createFieldView(host, options = {}) {"
+   },
+   {
+    "line": "skin: piece.skin ?? skinFor(baseId) ?? skinFor(piece.id) ?? null,",
+    "anchor": "export async function createFieldView(host, options = {}) {"
+   },
+   {
+    "line": "const sig = `${info.kind}|${info.defId}|${info.golden ? 1 : 0}|${info.skin || ''}`;",
+    "anchor": "export async function createFieldView(host, options = {}) {"
+   }
+  ],
+  "public/js/render/units.js": [
+   {
+    "line": "const skinOpt = this.info.skin ? { skin: this.info.skin } : undefined;",
+    "anchor": "export class UnitView {"
+   },
+   {
+    "line": "const url = ICE_TOKENS.has(this.info.defId) ? null : a && (a.picture ? a.picture(this.info.avatar, skinOpt) || a.picture(this.info.defId, skinOpt) || a.picture(this.info.spine, skinOpt) : null);",
+    "anchor": "export class UnitView {"
+   },
+   {
+    "line": "this._pic = { key: String(this.info.avatar || this.info.defId || 'unknown') + (this.info.skin ? `|${this.info.skin}` : ''), color: this._frameColor(), img: null, state: 'none', shown: null, t0: nowMs() };",
+    "anchor": "export class UnitView {"
+   },
+   {
+    "line": "const entry = id ? a.spineEntry(id, { back, skin: this.info.skin }) : null;",
+    "anchor": "export class UnitView {"
+   },
+   {
+    "line": "if (this.isEnemy || this.dir !== 'UP' || !id || !a || typeof a.hasBack !== 'function' || !a.hasBack(id, this.info.skin)) return false;",
+    "anchor": "export class UnitView {"
+   },
+   {
+    "line": "return this.alive || dieClipDur(typeof a.spineEntry === 'function' ? a.spineEntry(id, { back: true, skin: this.info.skin }) : null) > 0;",
+    "anchor": "export class UnitView {"
+   }
+  ],
+  "public/js/screens/loadout.js": [
+   {
+    "line": "changedCount, skillLabel, moduleBadge, attrRows, skillTags, serializeExport, parseImport, LOADOUT_IMPORT_MAX_BYTES, mergeSkins,",
+    "anchor": "import {"
+   },
+   {
+    "line": "import { skinsStore, setSkins } from '../ui/skins.js';",
+    "anchor": "import { loadoutStore, openLoadout, closeLoadout, setEntries, applyLoadoutEntrie"
+   },
+   {
+    "line": "import { SkinSection } from '../ui/skinPicker.js';",
+    "anchor": "import { loadoutStore, openLoadout, closeLoadout, setEntries, applyLoadoutEntrie"
+   },
+   {
+    "line": "const [tab, setTab] = useState('skill'); // 'skill' | 'mod' | 'stats' | 'skin'",
+    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked }) {"
+   },
+   {
+    "line": "const modOpt = opt?.moduleOptions?.find((x) => x.id === choice.module) || null;",
+    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked }) {"
+   },
+   {
+    "line": "const hasMod = !!golden && (opt?.moduleOptions?.length || 0) > 0;",
+    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked }) {"
+   },
+   {
+    "line": "const activeTab = tab === 'mod' && !hasMod ? 'skill' : tab;",
+    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked }) {"
+   },
+   {
+    "line": "useEffect(() => { if (bodyRef.current) bodyRef.current.scrollTop = 0; }, [chess?.chessId, activeTab]);",
+    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked }) {"
+   },
+   {
+    "line": "if (!chess) return html`<aside class=\"lo-detail lo-detail--empty\"><p class=\"t-dim\">没有符合条件的干员</p></aside>`;",
+    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked }) {"
+   },
+   {
+    "line": "<div class=\"lo-dtabs\" role=\"tablist\" aria-label=\"调配项目\">",
+    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked }) {"
+   },
+   {
+    "line": "<button type=\"button\" role=\"tab\" aria-selected=${activeTab === 'skill'} class=${cx('lo-dtab', activeTab === 'skill' && 'is-on')} onClick=${() => setTab('skill')}>",
+    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked }) {"
+   },
+   {
+    "line": "技能 <span class=\"lo-dtab__en num\">SKILL</span>",
+    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked }) {"
+   },
+   {
+    "line": "</button>",
+    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked }) {"
+   },
+   {
+    "line": "${hasMod ? html`<button type=\"button\" role=\"tab\" aria-selected=${activeTab === 'mod'} class=${cx('lo-dtab', activeTab === 'mod' && 'is-on')} onClick=${() => setTab('mod')}>",
+    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked }) {"
+   },
+   {
+    "line": "模组 <span class=\"lo-dtab__en num\">MODULE</span>",
+    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked }) {"
+   },
+   {
+    "line": "</button>` : null}",
+    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked }) {"
+   },
+   {
+    "line": "<button type=\"button\" role=\"tab\" aria-selected=${activeTab === 'stats'} class=${cx('lo-dtab', activeTab === 'stats' && 'is-on')} onClick=${() => setTab('stats')}>",
+    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked }) {"
+   },
+   {
+    "line": "数值 <span class=\"lo-dtab__en num\">STATS</span>",
+    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked }) {"
+   },
+   {
+    "line": "</button>",
+    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked }) {"
+   },
+   {
+    "line": "<button type=\"button\" role=\"tab\" aria-selected=${activeTab === 'skin'} class=${cx('lo-dtab', activeTab === 'skin' && 'is-on')} onClick=${() => setTab('skin')}>",
+    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked }) {"
+   },
+   {
+    "line": "换装 <span class=\"lo-dtab__en num\">SKIN</span>",
+    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked }) {"
+   },
+   {
+    "line": "</button>",
+    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked }) {"
+   },
+   {
+    "line": "</div>",
+    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked }) {"
+   },
+   {
+    "line": "${activeTab === 'skill' ? html`",
+    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked }) {"
+   },
+   {
+    "line": "<section class=\"lo-sec\">",
+    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked }) {"
+   },
+   {
+    "line": "<header class=\"lo-sec__head\">",
+    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked }) {"
+   },
+   {
+    "line": "<h3>技能<${MicroLabel}>SKILL<//></h3>",
+    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked }) {"
+   },
+   {
+    "line": "<div class=\"lo-seg\" role=\"tablist\" aria-label=\"技能等级\">",
+    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked }) {"
+   },
+   {
+    "line": "<button type=\"button\" role=\"tab\" aria-selected=${level === 'normal'} class=${cx(level === 'normal' && 'is-on')} onClick=${() => setLevel('normal')}>普通 <span class=\"num\">Lv.${lv(chess)}</span></button>",
+    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked }) {"
+   },
+   {
+    "line": "<button type=\"button\" role=\"tab\" aria-selected=${level === 'elite'} class=${cx(level === 'elite' && 'is-on')} disabled=${!golden} onClick=${() => setLevel('elite')}>精锐 <span class=\"num\">Lv.${lv(golden)}</span></button>",
+    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked }) {"
+   },
+   {
+    "line": "</div>",
+    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked }) {"
+   },
+   {
+    "line": "</header>",
+    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked }) {"
+   },
+   {
+    "line": "<div class=\"lo-skills\" role=\"radiogroup\" aria-label=\"选择技能\">",
+    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked }) {"
+   },
+   {
+    "line": "${opt.skillOptions.map((s) => html`<${SkillOption} key=${s.index} m=${m} opt=${s} level=${level} on=${s.index === choice.skill}",
+    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked }) {"
+   },
+   {
+    "line": "onPick=${(i) => onChange({ skill: i })} />`)}",
+    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked }) {"
+   },
+   {
+    "line": "</div>",
+    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked }) {"
+   },
+   {
+    "line": "</section>",
+    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked }) {"
+   },
+   {
+    "line": "` : null}",
+    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked }) {"
+   },
+   {
+    "line": "${activeTab === 'stats' ? html`",
+    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked }) {"
+   },
+   {
+    "line": "<${LoadoutStats} base=${chess} golden=${golden} entries=${entries} level=${statLevel} onLevel=${setStatLevel} />",
+    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked }) {"
+   },
+   {
+    "line": "` : null}",
+    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked }) {"
+   },
+   {
+    "line": "${activeTab === 'mod' && golden ? html`",
+    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked }) {"
+   },
+   {
+    "line": "<section class=\"lo-sec lo-sec--mod\">",
+    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked }) {"
+   },
+   {
+    "line": "<header class=\"lo-sec__head\">",
+    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked }) {"
+   },
+   {
+    "line": "<h3>模组<${MicroLabel}>MODULE<//></h3>",
+    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked }) {"
+   },
+   {
+    "line": "<span class=\"lo-sec__note\">仅精锐干员装备 · 模组等级 <b class=\"num\">${golden.status?.equipLevel ?? 1}</b></span>",
+    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked }) {"
+   },
+   {
+    "line": "</header>",
+    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked }) {"
+   },
+   {
+    "line": "<div class=\"lo-mods\" role=\"radiogroup\" aria-label=\"选择模组\">",
+    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked }) {"
+   },
+   {
+    "line": "${opt.moduleOptions.map((mo) => html`<button key=${mo.id} type=\"button\" role=\"radio\" aria-checked=${mo.id === choice.module}",
+    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked }) {"
+   },
+   {
+    "line": "data-module=${mo.id} class=${cx('lo-mod', mo.id === choice.module && 'is-on', mo.id === MODULE_NONE && 'lo-mod--none')}",
+    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked }) {"
+   },
+   {
+    "line": "onClick=${() => onChange({ module: mo.id })}>",
+    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked }) {"
+   },
+   {
+    "line": "<${ModuleGlyph} m=${m} rec=${mo.rec} id=${mo.id} />",
+    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked }) {"
+   },
+   {
+    "line": "<span class=\"lo-mod__text\">",
+    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked }) {"
+   },
+   {
+    "line": "<span class=\"lo-mod__type num\">${mo.id === MODULE_NONE ? 'NONE' : mo.rec?.typeName || ''}</span>",
+    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked }) {"
+   },
+   {
+    "line": "<b class=\"lo-mod__name\">${mo.id === MODULE_NONE ? '不装备' : mo.rec?.name || mo.id}</b>",
+    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked }) {"
+   },
+   {
+    "line": "</span>",
+    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked }) {"
+   },
+   {
+    "line": "${mo.isDefault ? html`<span class=\"lo-badge lo-badge--def lo-mod__def\">默认</span>` : null}",
+    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked }) {"
+   },
+   {
+    "line": "</button>`)}",
+    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked }) {"
+   },
+   {
+    "line": "${modOpt ? html`<${ModuleInfo} m=${m} golden=${golden} opt=${modOpt} />` : null}",
+    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked }) {"
+   },
+   {
+    "line": "</section>",
+    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked }) {"
+   },
+   {
+    "line": "` : null}",
+    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked }) {"
+   },
+   {
+    "line": "${activeTab === 'skin' ? html`<${SkinSection} chess=${chess} />` : null}",
+    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked }) {"
+   },
+   {
+    "line": "const openExport = () => setIo({",
+    "anchor": "function LoadoutScreen({ st }) {"
+   },
+   {
+    "line": "mode: 'export',",
+    "anchor": "function LoadoutScreen({ st }) {"
+   },
+   {
+    "line": "text: serializeExport(loadoutStore.get().entries, { skins: skinsStore.get().entries }),",
+    "anchor": "function LoadoutScreen({ st }) {"
+   },
+   {
+    "line": "});",
+    "anchor": "function LoadoutScreen({ st }) {"
+   },
+   {
+    "line": "let skinsApplied = 0;",
+    "anchor": "function LoadoutScreen({ st }) {"
+   },
+   {
+    "line": "if (res.skins && Object.keys(res.skins).length > 0) {",
+    "anchor": "function LoadoutScreen({ st }) {"
+   },
+   {
+    "line": "const merged = mergeSkins(skinsStore.get().entries, res.skins);",
+    "anchor": "function LoadoutScreen({ st }) {"
+   },
+   {
+    "line": "setSkins(merged);",
+    "anchor": "function LoadoutScreen({ st }) {"
+   },
+   {
+    "line": "skinsApplied = Object.keys(res.skins).length;",
+    "anchor": "function LoadoutScreen({ st }) {"
+   },
+   {
+    "line": "}",
+    "anchor": "function LoadoutScreen({ st }) {"
+   },
+   {
+    "line": "if (!applied && !skinsApplied) {",
+    "anchor": "function LoadoutScreen({ st }) {"
+   },
+   {
+    "line": "toast('导入失败：这份数据在当前版本没有可用的调配或皮肤，未做任何改动', 'error');",
+    "anchor": "function LoadoutScreen({ st }) {"
+   },
+   {
+    "line": "return;",
+    "anchor": "function LoadoutScreen({ st }) {"
+   },
+   {
+    "line": "}",
+    "anchor": "function LoadoutScreen({ st }) {"
+   },
+   {
+    "line": "const parts = [];",
+    "anchor": "function LoadoutScreen({ st }) {"
+   },
+   {
+    "line": "if (applied) parts.push(`${applied} 名干员配置`);",
+    "anchor": "function LoadoutScreen({ st }) {"
+   },
+   {
+    "line": "if (skinsApplied) parts.push(`${skinsApplied} 款皮肤`);",
+    "anchor": "function LoadoutScreen({ st }) {"
+   },
+   {
+    "line": "toast(`已增量导入：${parts.join('，')}${dropped ? `（另有 ${dropped} 项未导入）` : ''}`, dropped ? 'warn' : 'success');",
+    "anchor": "function LoadoutScreen({ st }) {"
+   }
+  ],
+  "public/js/screens/lobby.js": [
+   {
+    "line": "const spectateCheck = net.verbAvailable('room.spectate');",
+    "anchor": "export function LobbyScreen() {"
+   },
+   {
+    "line": "const spectateBlocked = !spectateCheck.ok;",
+    "anchor": "export function LobbyScreen() {"
+   },
+   {
+    "line": "<${Tooltip} text=${spectateBlocked ? net.verbUnavailableText('room.spectate') : `以观战者身份进入：不占博士席位，只能观看（每个同盟最多 ${MAX_SPECTATORS} 名，模拟进行中也可进入）`}>",
+    "anchor": "export function LobbyScreen() {"
+   },
+   {
+    "line": "<${Button} variant=\"secondary\" size=\"lg\" icon=\"eye\" class=\"join-spectate\" loading=${busy === 'spectate'} disabled=${!codeOk || !online || spectateBlocked} onClick=${spectate}>观战<//>",
+    "anchor": "export function LobbyScreen() {"
+   }
+  ],
+  "public/js/screens/room.js": [
+   {
+    "line": "${!seat.isBot && !isMe && facts.isHost ? html`<${Tooltip} text=${net.verbAvailable('room.kick').ok ? '将该博士移出同盟' : net.verbUnavailableText('room.kick')}>",
+    "anchor": "function SeatCard({ seat, index, room, facts, myId, busy, onAddBot, onRemoveBot,"
+   },
+   {
+    "line": "<${Button} variant=\"ghost\" size=\"sm\" square=${true} icon=\"close\" loading=${busy === `kick${index}`} disabled=${!net.verbAvailable('room.kick').ok} onClick=${() => onKick(index, seat.name, seat.playerId)} aria-label=\"移出该博士\" />",
+    "anchor": "function SeatCard({ seat, index, room, facts, myId, busy, onAddBot, onRemoveBot,"
+   },
+   {
+    "line": "const removeSpectatorOk = net.verbAvailable('room.removeSpectator').ok;",
+    "anchor": "function SpectatorBar({ facts, myId, busy, onRemove, onSit }) {"
+   },
+   {
+    "line": "disabled=${!removeSpectatorOk} onClick=${() => onRemove(s.playerId)} aria-label=${`移出观战者 ${s.name || ''}`}",
+    "anchor": "function SpectatorBar({ facts, myId, busy, onRemove, onSit }) {"
+   },
+   {
+    "line": "title=${removeSpectatorOk ? '移出该观战者' : net.verbUnavailableText('room.removeSpectator')} />` : null}",
+    "anchor": "function SpectatorBar({ facts, myId, busy, onRemove, onSit }) {"
+   }
+  ],
+  "public/js/ui/buildGuard.js": [
+   {
+    "line": "import { healthUrl } from '../net.js';",
+    "anchor": ""
+   },
+   {
+    "line": "const res = await Promise.race([fetchFn(healthUrl(), { cache: 'no-store', signal: ctrl ? ctrl.signal : undefined }), tooSlow]);",
+    "anchor": "export async function fetchBuild(fetchFn, o = {}) {"
+   }
+  ],
+  "public/js/ui/gameComponents.js": [
+   {
+    "line": "'choices', 'effects', 'garrisons', 'factions', 'local', 'skins'];",
+    "anchor": "export const GAME_FILES = ['config', 'assets', 'chess', 'bonds', 'items', 'bands"
+   }
+  ],
+  "public/js/ui/loadoutModel.js": [
+   {
+    "line": "import { loadoutOptions, checkLoadout, resolveLoadout, MODULE_NONE, LOADOUT_LIMITS, isSkinId, SKIN_LIMITS } from '../../../shared/protocol.js';",
+    "anchor": ""
+   },
+   {
+    "line": "export function sanitizeSkins(raw) {",
+    "anchor": "export const LOADOUT_IMPORT_MAX_BYTES = 256 * 1024;"
+   },
+   {
+    "line": "const out = {};",
+    "anchor": "export const LOADOUT_IMPORT_MAX_BYTES = 256 * 1024;"
+   },
+   {
+    "line": "if (!isObj(raw)) return out;",
+    "anchor": "export const LOADOUT_IMPORT_MAX_BYTES = 256 * 1024;"
+   },
+   {
+    "line": "const limit = (SKIN_LIMITS && SKIN_LIMITS.entries) || 160;",
+    "anchor": "export const LOADOUT_IMPORT_MAX_BYTES = 256 * 1024;"
+   },
+   {
+    "line": "for (const [id, skinId] of Object.entries(raw)) {",
+    "anchor": "export const LOADOUT_IMPORT_MAX_BYTES = 256 * 1024;"
+   },
+   {
+    "line": "if (Object.keys(out).length >= limit) break;",
+    "anchor": "export const LOADOUT_IMPORT_MAX_BYTES = 256 * 1024;"
+   },
+   {
+    "line": "if (UNSAFE_IDS.has(id) || !/^[A-Za-z0-9_\\-.:]{1,64}$/.test(id)) continue;",
+    "anchor": "export const LOADOUT_IMPORT_MAX_BYTES = 256 * 1024;"
+   },
+   {
+    "line": "if (isSkinId(skinId)) out[id] = skinId;",
+    "anchor": "export const LOADOUT_IMPORT_MAX_BYTES = 256 * 1024;"
+   },
+   {
+    "line": "}",
+    "anchor": "export const LOADOUT_IMPORT_MAX_BYTES = 256 * 1024;"
+   },
+   {
+    "line": "return out;",
+    "anchor": "export const LOADOUT_IMPORT_MAX_BYTES = 256 * 1024;"
+   },
+   {
+    "line": "}",
+    "anchor": "export const LOADOUT_IMPORT_MAX_BYTES = 256 * 1024;"
+   },
+   {
+    "line": "export function mergeSkins(currentSkins, importedSkins) {",
+    "anchor": "export const LOADOUT_IMPORT_MAX_BYTES = 256 * 1024;"
+   },
+   {
+    "line": "if (!isObj(importedSkins)) return currentSkins || {};",
+    "anchor": "export const LOADOUT_IMPORT_MAX_BYTES = 256 * 1024;"
+   },
+   {
+    "line": "const next = { ...(currentSkins || {}) };",
+    "anchor": "export const LOADOUT_IMPORT_MAX_BYTES = 256 * 1024;"
+   },
+   {
+    "line": "for (const [id, skinId] of Object.entries(importedSkins)) {",
+    "anchor": "export const LOADOUT_IMPORT_MAX_BYTES = 256 * 1024;"
+   },
+   {
+    "line": "if (skinId) {",
+    "anchor": "export const LOADOUT_IMPORT_MAX_BYTES = 256 * 1024;"
+   },
+   {
+    "line": "next[id] = skinId;",
+    "anchor": "export const LOADOUT_IMPORT_MAX_BYTES = 256 * 1024;"
+   },
+   {
+    "line": "} else {",
+    "anchor": "export const LOADOUT_IMPORT_MAX_BYTES = 256 * 1024;"
+   },
+   {
+    "line": "delete next[id];",
+    "anchor": "export const LOADOUT_IMPORT_MAX_BYTES = 256 * 1024;"
+   },
+   {
+    "line": "}",
+    "anchor": "export const LOADOUT_IMPORT_MAX_BYTES = 256 * 1024;"
+   },
+   {
+    "line": "}",
+    "anchor": "export const LOADOUT_IMPORT_MAX_BYTES = 256 * 1024;"
+   },
+   {
+    "line": "return next;",
+    "anchor": "export const LOADOUT_IMPORT_MAX_BYTES = 256 * 1024;"
+   },
+   {
+    "line": "}",
+    "anchor": "export const LOADOUT_IMPORT_MAX_BYTES = 256 * 1024;"
+   },
+   {
+    "line": "export function exportPayload(entries, { now = Date.now(), skins = null } = {}) {",
+    "anchor": "export const LOADOUT_IMPORT_MAX_BYTES = 256 * 1024;"
+   },
+   {
+    "line": "const out = {",
+    "anchor": "export function exportPayload(entries, { now = Date.now() } = {}) {"
+   },
+   {
+    "line": "if (skins && isObj(skins)) {",
+    "anchor": "export function exportPayload(entries, { now = Date.now() } = {}) {"
+   },
+   {
+    "line": "const cleanSkins = sanitizeSkins(skins);",
+    "anchor": "export function exportPayload(entries, { now = Date.now() } = {}) {"
+   },
+   {
+    "line": "if (Object.keys(cleanSkins).length > 0) {",
+    "anchor": "export function exportPayload(entries, { now = Date.now() } = {}) {"
+   },
+   {
+    "line": "out.skins = cleanSkins;",
+    "anchor": "export function exportPayload(entries, { now = Date.now() } = {}) {"
+   },
+   {
+    "line": "}",
+    "anchor": "export function exportPayload(entries, { now = Date.now() } = {}) {"
+   },
+   {
+    "line": "}",
+    "anchor": "export function exportPayload(entries, { now = Date.now() } = {}) {"
+   },
+   {
+    "line": "return out;",
+    "anchor": "export function exportPayload(entries, { now = Date.now() } = {}) {"
+   },
+   {
+    "line": "const skins = isObj(raw.skins) ? sanitizeSkins(raw.skins) : null;",
+    "anchor": "export function parseImport(input) {"
+   },
+   {
+    "line": "if (!Object.keys(entries).length && (!skins || !Object.keys(skins).length)) {",
+    "anchor": "export function parseImport(input) {"
+   },
+   {
+    "line": "return { ok: false, error: '里面没有有效的调配或皮肤条目' };",
+    "anchor": "export function parseImport(input) {"
+   },
+   {
+    "line": "}",
+    "anchor": "export function parseImport(input) {"
+   },
+   {
+    "line": "return { ok: true, entries, skins };",
+    "anchor": "export function parseImport(input) {"
+   }
+  ],
+  "server/index.js": [
+   {
+    "line": "const LONG_CACHE_DIRS = ['assets', 'fonts', 'vendor', 'webfonts']; // first path segment under public/",
+    "anchor": "const IMMUTABLE_CACHE = 'public, max-age=31536000, immutable';"
+   }
+  ],
+  "server/lobby.js": [
+   {
+    "line": "function freezeSkins(skins, getChess) {",
+    "anchor": "function freezeLoadout(loadout) {"
+   },
+   {
+    "line": "const out = {};",
+    "anchor": "function freezeLoadout(loadout) {"
+   },
+   {
+    "line": "for (const [id, skinId] of Object.entries(skins || {})) {",
+    "anchor": "function freezeLoadout(loadout) {"
+   },
+   {
+    "line": "const rec = getChess(id);",
+    "anchor": "function freezeLoadout(loadout) {"
+   },
+   {
+    "line": "if (!rec || rec.isGolden || rec.visible === false || rec.isHidden || rec.isDiy || (rec.baseId && rec.baseId !== id)) continue;",
+    "anchor": "function freezeLoadout(loadout) {"
+   },
+   {
+    "line": "out[id] = String(skinId);",
+    "anchor": "function freezeLoadout(loadout) {"
+   },
+   {
+    "line": "}",
+    "anchor": "function freezeLoadout(loadout) {"
+   },
+   {
+    "line": "return Object.freeze(out);",
+    "anchor": "function freezeLoadout(loadout) {"
+   },
+   {
+    "line": "}",
+    "anchor": "function freezeLoadout(loadout) {"
+   },
+   {
+    "line": "case 'room.skins': return this.skins(session, msg);",
+    "anchor": "export class Lobby {"
+   },
+   {
+    "line": "skins(session, { skins }) {",
+    "anchor": "export class Lobby {"
+   },
+   {
+    "line": "const data = this.safeData();",
+    "anchor": "export class Lobby {"
+   },
+   {
+    "line": "const cleaned = freezeSkins(skins, (id) => lookup('chess', id, data));",
+    "anchor": "export class Lobby {"
+   },
+   {
+    "line": "session.skins = cleaned;",
+    "anchor": "export class Lobby {"
+   },
+   {
+    "line": "const room = this.roomOf(session);",
+    "anchor": "export class Lobby {"
+   },
+   {
+    "line": "if (!room) return OK;",
+    "anchor": "export class Lobby {"
+   },
+   {
+    "line": "const seat = room.seatOf(session.playerId);",
+    "anchor": "export class Lobby {"
+   },
+   {
+    "line": "if (seat) seat.skins = cleaned;",
+    "anchor": "export class Lobby {"
+   },
+   {
+    "line": "if (!room.match) return OK;",
+    "anchor": "export class Lobby {"
+   },
+   {
+    "line": "if (typeof room.match.setSkins !== 'function') return fail(ERR.ROOM_STARTED, 'stored for the next match');",
+    "anchor": "export class Lobby {"
+   },
+   {
+    "line": "let r;",
+    "anchor": "export class Lobby {"
+   },
+   {
+    "line": "try {",
+    "anchor": "export class Lobby {"
+   },
+   {
+    "line": "r = room.match.setSkins(session.playerId, cleaned);",
+    "anchor": "export class Lobby {"
+   },
+   {
+    "line": "} catch (e) {",
+    "anchor": "export class Lobby {"
+   },
+   {
+    "line": "this.log.error(`[lobby] ${room.code} match.setSkins threw`, e);",
+    "anchor": "export class Lobby {"
+   },
+   {
+    "line": "return fail(ERR.INTERNAL);",
+    "anchor": "export class Lobby {"
+   },
+   {
+    "line": "}",
+    "anchor": "export class Lobby {"
+   },
+   {
+    "line": "if (r && typeof r === 'object' && r.error) {",
+    "anchor": "export class Lobby {"
+   },
+   {
+    "line": "return fail(isErrCode(r.error) ? r.error : ERR.INTERNAL, typeof r.detail === 'string' ? r.detail : undefined);",
+    "anchor": "export class Lobby {"
+   },
+   {
+    "line": "}",
+    "anchor": "export class Lobby {"
+   },
+   {
+    "line": "return OK;",
+    "anchor": "export class Lobby {"
+   },
+   {
+    "line": "}",
+    "anchor": "export class Lobby {"
+   },
+   {
+    "line": "skins: s.isBot ? null : s.skins || null,",
+    "anchor": "export class Lobby {"
+   },
+   {
+    "line": "skins: session.skins || null,",
+    "anchor": "export class Lobby {"
+   }
+  ],
+  "server/match/Match.js": [
+   {
+    "line": "setSkins(playerId, skins) {",
+    "anchor": "export class Match {"
+   },
+   {
+    "line": "const ps = this.players.get(playerId);",
+    "anchor": "export class Match {"
+   },
+   {
+    "line": "if (!ps || ps.isBot || ps.left) return fail(ERR.NOT_IN_ROOM);",
+    "anchor": "export class Match {"
+   },
+   {
+    "line": "let res = OK;",
+    "anchor": "export class Match {"
+   },
+   {
+    "line": "this.guard(() => {",
+    "anchor": "export class Match {"
+   },
+   {
+    "line": "ps.setSkins(skins);",
+    "anchor": "export class Match {"
+   },
+   {
+    "line": "this.markPublic();",
+    "anchor": "export class Match {"
+   },
+   {
+    "line": "});",
+    "anchor": "export class Match {"
+   },
+   {
+    "line": "return res;",
+    "anchor": "export class Match {"
+   },
+   {
+    "line": "}",
+    "anchor": "export class Match {"
+   },
+   {
+    "line": "...(Object.keys(ps.skins).length ? { skins: ps.skins } : {}),",
+    "anchor": "export class Match {"
+   },
+   {
+    "line": "skin: piece.kind === 'chess' ? (ps.skins?.[rec?.baseId || piece.id] || ps.skins?.[piece.id]) : undefined,",
+    "anchor": "export class Match {"
+   },
+   {
+    "line": "skin: piece.kind === 'chess' ? (ps.skins?.[rec?.baseId || piece.id] || ps.skins?.[piece.id]) : undefined,",
+    "anchor": "export class Match {"
+   }
+  ],
+  "server/match/PlayerState.js": [
+   {
+    "line": "this.skins = Object.freeze({});",
+    "anchor": "export class PlayerState {"
+   },
+   {
+    "line": "if (!this.isBot && seat.skins) this.setSkins(seat.skins);",
+    "anchor": "export class PlayerState {"
+   },
+   {
+    "line": "setSkins(skins) {",
+    "anchor": "export class PlayerState {"
+   },
+   {
+    "line": "if (this.isBot) return false;",
+    "anchor": "export class PlayerState {"
+   },
+   {
+    "line": "const out = {};",
+    "anchor": "export class PlayerState {"
+   },
+   {
+    "line": "if (skins && typeof skins === 'object' && !Array.isArray(skins)) {",
+    "anchor": "export class PlayerState {"
+   },
+   {
+    "line": "for (const [id, skinId] of Object.entries(skins)) {",
+    "anchor": "export class PlayerState {"
+   },
+   {
+    "line": "if (typeof skinId !== 'string' || !skinId) continue;",
+    "anchor": "export class PlayerState {"
+   },
+   {
+    "line": "const rec = this.gd.chess(id);",
+    "anchor": "export class PlayerState {"
+   },
+   {
+    "line": "if (!rec || rec.isGolden || rec.visible === false || rec.isHidden || rec.isDiy || (rec.baseId && rec.baseId !== id)) continue;",
+    "anchor": "export class PlayerState {"
+   },
+   {
+    "line": "out[id] = skinId;",
+    "anchor": "export class PlayerState {"
+   },
+   {
+    "line": "}",
+    "anchor": "export class PlayerState {"
+   },
+   {
+    "line": "}",
+    "anchor": "export class PlayerState {"
+   },
+   {
+    "line": "this.skins = Object.freeze(out);",
+    "anchor": "export class PlayerState {"
+   },
+   {
+    "line": "if (this.m?._privDirty) this.dirty();",
+    "anchor": "export class PlayerState {"
+   },
+   {
+    "line": "return Object.keys(out).length > 0;",
+    "anchor": "export class PlayerState {"
+   },
+   {
+    "line": "}",
+    "anchor": "export class PlayerState {"
+   },
+   {
+    "line": "const baseId = (this.gd.chess(piece.id) || {}).baseId || piece.id;",
+    "anchor": "export class PlayerState {"
+   },
+   {
+    "line": "const skin = this.skins[baseId] || this.skins[piece.id];",
+    "anchor": "export class PlayerState {"
+   },
+   {
+    "line": "if (skin) u.skin = skin;",
+    "anchor": "export class PlayerState {"
+   },
+   {
+    "line": "const baseId = (rec && rec.baseId) || p.id;",
+    "anchor": "export class PlayerState {"
+   },
+   {
+    "line": "const skin = p.kind === 'chess' ? (this.skins[baseId] || this.skins[p.id] || null) : null;",
+    "anchor": "export class PlayerState {"
+   },
+   {
+    "line": "...(skin ? { skin } : {}),",
+    "anchor": "export class PlayerState {"
+   }
+  ],
+  "server/sim/snapshot.js": [
+   {
+    "line": "skin: u.skin ?? undefined,",
+    "anchor": "export function unitInfo(u) {"
+   }
+  ],
+  "shared/protocol.js": [
+   {
+    "line": "export const SKIN_LIMITS = Object.freeze({ entries: 160, idLen: 64 });",
+    "anchor": "export function isBattleResult(v) {"
+   },
+   {
+    "line": "export const isSkinId = (v) => typeof v === 'string' && v.length > 0 && v.length <= SKIN_LIMITS.idLen && /^[A-Za-z0-9_@#+.\\-]+$/.test(v);",
+    "anchor": "export function isBattleResult(v) {"
+   },
+   {
+    "line": "export const isSkinSelection = (v) => isMap(v, SKIN_LIMITS.entries, isId, isSkinId);",
+    "anchor": "export function isBattleResult(v) {"
+   },
+   {
+    "line": "'room.skins': { skins: isSkinSelection },",
+    "anchor": "export const C2S = {"
+   }
+  ],
+  "tools/local-extract/extract.py": [
+   {
+    "line": "python3 tools/local-extract/fetch-cdn.py [--out <AB root>]   (no client installed: pull the bundles listed below",
+    "anchor": "Usage:"
+   },
+   {
+    "line": "from the official CDN and unpack them into that root)",
+    "anchor": "Usage:"
+   },
+   {
+    "line": "def has_shader_deps(ab_root):",
+    "anchor": "def dep_bundles(ab_root, kinds):"
+   },
+   {
+    "line": "\"\"\"Whether this AB root can resolve external shader references at all (the manifest's `source` says which).\"\"\"",
+    "anchor": "def dep_bundles(ab_root, kinds):"
+   },
+   {
+    "line": "return any(p.is_file() for p in Path(ab_root).glob(SHADER_DEPS))",
+    "anchor": "def dep_bundles(ab_root, kinds):"
+   },
+   {
+    "line": "# 'cdn' = tools/local-extract/fetch-cdn.py: the Android CDN publishes no shaders/*.ab, so every external shader",
+    "anchor": "def main():"
+   },
+   {
+    "line": "# reference in materials.json stays null there. test/local-extract.test.js asserts the names only for 'local-client'.",
+    "anchor": "def main():"
+   },
+   {
+    "line": "source = 'local-client' if has_shader_deps(ab_root) else 'cdn'",
+    "anchor": "def main():"
+   },
+   {
+    "line": "doc = {'version': 1, 'source': source, 'count': count, 'groups': groups}",
+    "anchor": "def main():"
+   },
+   {
+    "line": "print(f'done: {total} files extracted, manifest {args.manifest} ({count} entries, source {source})')",
+    "anchor": "def main():"
+   }
+  ]
+ }
+}
