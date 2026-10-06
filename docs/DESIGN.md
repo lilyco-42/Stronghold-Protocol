@@ -2471,3 +2471,20 @@ Reports after the 0.1.3 release. Each was checked against the official data and 
   `playtest5_blocking` (its 瑕光 S2 test included), `combat`, `engine-requests`, `kits_t1t2` / `kits_alt_t2` (小满),
   `kits_t3` / `kits_alt_t3` (瑕光), `kits_t5` / `kits_alt_t5` / `garrisons_battle` (缇缇) and the other sleep and block
   suites pass unchanged.
+
+## 25. Fork feature: 服务器跑马灯公告 (feat/server-announcement, 对标清单 #4)
+
+- **Seen**: 对标社区服 `play.simpfun.cn:14517` 有一条开服的人自己发的全服公告：文字在顶栏滚动 3 遍，每遍 30 秒、遍间隔 5 分钟（`shared/announcement.js`，1735 B，见 docs/TODO.md 与 `simpfun-fork-investigation-*.md` 的证据链）。我们没有这个功能。
+- **Official**: 无。官方没有这个界面，这条完全是运维侧的设施，所以数值（3 遍 / 30 秒 / 5 分钟 / 300 字）按对标对象取齐，不改。
+- **Now**: 四个模块，前后端共用一套纯函数规则。
+  - `shared/announcement.js`：`ANNOUNCEMENT`（passes 3 / scrollMs 30_000 / gapMs 300_000 / maxChars 300 / maxReceived 1200）、`announcementLifetime()`（690 000 ms）、`announcementPhase(startedAt, now)` → `{phase: 'scroll'|'gap'|'done', pass, waitMs, offsetMs?}`（`pass` 1-based；`now < startedAt` 夹到 0，非有限值读作 done）、`sanitizeAnnouncementText()`（去掉 C0/C1 与 bidi 覆写字符、折叠空白、trim）、`parseAnnouncementCommand(line)`（`^(?:\/?announce|公告)(?:\s+([\s\S]*))?$`，`help`/`clear`/`status` 子命令，长度按**码点**算）。
+  - `server/announcement.js`：`AnnouncementBoard` 持有**一条**公告 `{id, text, startedAt}`（不持久化：重启不该把过期公告翻出来）。`publish` 净化 + 长度校验 + **广播一帧** `server.announcement {announcement, serverNow}`；`clear` 广播 `announcement: null`；`current` 在读取时判过期并就地丢弃（过期不广播 —— 客户端自己会停）。
+  - 发布入口两条，都汇到同一个板：`server/console.js`（前台 TTY 操作台，`/announce …`；stdin 不是 TTY 时不接，`SP_CONSOLE=1` 强制）与 `server/index.js` 的 `POST /admin/announce`（`SP_ADMIN_TOKEN` 未设置时该路径 404；Bearer 令牌两侧 trim 后做 **sha256 + timingSafeEqual** 固定时间比较；体 `{text}|{action}|{command}` 或纯文本；8 KB 上限）。
+  - `public/js/ui/serverAnnouncement.js` + `public/css/server-announcement.css`：`announcementStore` 只存当前帧；`readAnnouncement` 校验 id ≤64 / text / 有限 startedAt 并净化，超过 `maxReceived` 直接读作「无公告」（伪造的大包不能让客户端排一篇长文）；`ServerAnnouncementHost` 按 `announcementPhase(notice.startedAt, serverNow())` 决定挂载，**只在 phase 变化时重渲染一次**（用 `waitMs` 定时唤醒），滚动交给一条 CSS keyframes。
+- **One frame, no re-broadcasts**: 各端自己算位置，所以没有每遍的流量，也没有「停止」帧可丢。
+- **Clock**: 用既有的 `store.serverNow()`（`net.js` 的 pong 采样 + `welcome.serverNow` bootstrap），**不新增 `clockOffset` 状态** —— 各端因此同步；信本地 `Date.now()` 会差到一整遍。
+- **Late joiner**: `lobby.onHello` 调 `announcements.sendTo(session)` 补发**同一 `startedAt`** 的帧；客户端用负的 `--sann-delay: -<offsetMs>ms` 让 CSS 动画从中途开始，所以中途进来的人接着播剩余遍数，不从头重播。**没有公告时 `sendTo` 不发帧**：`announcement: null` 本来就是客户端的默认状态（`welcome` 会清），每次 hello 补一帧是纯噪声，也会扰动 `test/lobby.test.js` 里 `match result replay` 钉死的帧序列。
+- **Chrome**: 公告条 `pointer-events: none`（点击穿透到游戏）、`z-index: var(--z-banner)`（40，空闲档）、`role="status" aria-live="polite"`、Preact 文本子节点（不解析 HTML）。`sp-ann` 类（`ui/device.js useDocClass`，与连接横幅的 `sp-conn` 同一套办法）把 `.toast-host` 从 `.22rem` 让到 `.52rem`；对局内按 `.sp-in-match` / `.sp-conn` 三段让位。
+- **Reduced motion**: `prefers-reduced-motion: reduce` 下 `animation: none` + 居中省略行，**时间表不变**（组件照旧在 scroll 阶段挂载）。
+- [ASSUMED]: 文本上限按码点而不是 UTF-16 单元（一个 emoji 对开服的人是一个字）；净化折叠连续空白（对标版本只把控制字符换成空格，我们更严）；过期公告不广播。
+- **Tests**: `test/announcement.test.js`（时序每个边界、净化、命令解析、板的状态机与广播触达、端点 404/401/405/400/413、WS 迟到者拿到同一 startedAt、清除后 hello 不发帧）、`test/ui/serverAnnouncement.test.js`（帧校验与接线）、`test/ui/serverAnnouncement.e2e.test.js`（headless Chrome：真滚动、点击穿透、toast 让位、迟到者从中间开始且偏移 ≈ 公告年龄、重连补发、清除后线上无帧、reduced-motion 降级）。⚠️ headless Chrome 报 `prefers-reduced-motion: reduce`，动效测试必须先 emulate `no-preference`。

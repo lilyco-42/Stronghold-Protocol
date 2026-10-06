@@ -194,16 +194,19 @@ export class Lobby {
    *   getData?: () => object,
    *   now?: () => number,
    *   seedFn?: () => number,
+   *   announcements?: import('./announcement.js').AnnouncementBoard,
    *   options?: Partial<typeof LOBBY_DEFAULTS>,
    * }} opts
    */
-  constructor({ registry, log = noopLog, MatchClass = DefaultMatch, getData = defaultGetData, now = Date.now, seedFn, options = {} }) {
+  constructor({ registry, log = noopLog, MatchClass = DefaultMatch, getData = defaultGetData, now = Date.now, seedFn, announcements = null, options = {} }) {
     this.registry = registry;
     this.log = log;
     this.MatchClass = MatchClass;
     this.getData = getData;
     this.now = now;
     this.seedFn = seedFn || (() => randomInt(2 ** 32));
+    /** @type {import('./announcement.js').AnnouncementBoard | null} server-wide marquee announcement, if enabled */
+    this.announcements = announcements;
     this.opts = { ...LOBBY_DEFAULTS, ...options };
     /** @type {Map<string, Room>} */
     this.rooms = new Map();
@@ -242,6 +245,10 @@ export class Lobby {
    * @param {{ resumed: boolean, repeat: boolean }} info
    */
   onHello(session, { resumed, repeat }) {
+    // Every hello — a first one, a resume, a repeated one — is answered with the announcement still inside its
+    // lifetime, so a late joiner plays only the REMAINING passes (the frame carries the original `startedAt`).
+    // Before the early return below, which only skips the room work.
+    this.announcements?.sendTo(session);
     if (!resumed && !repeat) return;
     const room = this.roomOf(session);
     if (!room) {

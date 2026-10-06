@@ -1,0 +1,73 @@
+/* Server announcement strip — public/js/ui/serverAnnouncement.js (shared/announcement.js owns the timing, the server
+   broadcasts one frame per announcement).
+   The bar is a fixed full-width ribbon at the top edge, `pointer-events: none` so it never steals a click from the game
+   underneath; the text is one inline-block whose left padding is a whole bar width, so `translateX(-100%)` carries it
+   from just off the right edge to fully off the left. One keyframe per pass, `--sann-duration` long; a late joiner gets
+   a NEGATIVE `--sann-delay` and therefore starts mid-pass exactly where everyone else is (no JS animation, so the
+   phase math in shared/announcement.js is the single source of truth for what is on screen).
+   Layout: outside a match the strip owns the top edge and the toasts step below it; in a match the top-centre capsule
+   and the ticker under it own the top (same 1.34rem offset the toasts and the connection banner use), so the strip
+   moves under them — and under the connection banner when that shows. `sp-ann` on <html> is set by the component. */
+
+.sann {
+  position: fixed;
+  left: 0;
+  right: 0;
+  top: var(--sa-t, 0px);
+  z-index: var(--z-banner);
+  height: .34rem;
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-select: none;
+  background: linear-gradient(90deg, rgba(8, 11, 10, 0) 0%, rgba(8, 11, 10, .86) 10%, rgba(8, 11, 10, .86) 90%, rgba(8, 11, 10, 0) 100%);
+  border-bottom: 1px solid var(--mint-a20);
+}
+
+.sann__strip {
+  flex: none;
+  display: inline-block;
+  padding-left: 100%;
+  white-space: nowrap;
+  font-family: var(--font-cjk);
+  font-size: .17rem;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: .02em;
+  color: var(--mint-400);
+  text-shadow: 0 0 .12rem rgba(23, 249, 183, .35);
+  will-change: transform;
+  animation: sann-scroll var(--sann-duration, 30000ms) linear var(--sann-delay, 0ms) both;
+}
+
+@keyframes sann-scroll {
+  from { transform: translateX(0); }
+  to { transform: translateX(-100%); }
+}
+
+/* ---- layout: step around the game's own chrome -------------------------------------------------------------- */
+/* outside a match: the strip is at the very top, so the toasts (which default to the top centre) drop below it */
+html.sp-ann:not(.sp-in-match) .toast-host { top: calc(.52rem + var(--sa-t, 0px)); }
+/* in a match: under the top-centre capsule + ticker */
+.sp-in-match .sann { top: calc(1.34rem + var(--sa-t, 0px)); }
+.sp-in-match.sp-ann .toast-host { top: calc(1.90rem + var(--sa-t, 0px)); }
+/* in a match with the connection banner too: banner 1.34rem, strip below it, toasts below the strip */
+.sp-in-match.sp-conn .sann { top: calc(2.00rem + var(--sa-t, 0px)); }
+.sp-in-match.sp-ann.sp-conn .toast-host { top: calc(2.56rem + var(--sa-t, 0px)); }
+
+/* ---- reduced motion ---------------------------------------------------------------------------------------- */
+/* No marquee at all: a still, centred, ellipsised line. The schedule is unchanged (the component still mounts the
+   strip for a pass and unmounts it for the gap), so the announcement stays readable without anything moving. */
+@media (prefers-reduced-motion: reduce) {
+  .sann__strip {
+    animation: none;
+    flex: 1 1 auto;
+    width: 100%;
+    padding-left: 0;
+    overflow: hidden;
+    text-align: center;
+    text-overflow: ellipsis;
+  }
+}

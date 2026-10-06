@@ -31,7 +31,7 @@
 | 1 | 自选外援（六星支援干员） | ✅ 16 位，可选技能 | ❌ | **P0** | [#1](../../issues/1) |
 | 2 | 房间内文字聊天 | ✅ 已上线 | ❌ | **P0** | [#2](../../issues/2) |
 | 3 | 匹配队列（含难度） | ✅ 独立屏幕 | ❌ | **P1** | [#3](../../issues/3) |
-| 4 | 服务器跑马灯公告 | ✅ 终端命令发布 | ❌ | **P1** | [#4](../../issues/4) |
+| 4 | 服务器跑马灯公告 | ✅ 终端命令发布 | ✅ 已实现（`feat/server-announcement`） | ~~P1~~ | [#4](../../issues/4) |
 | 5 | 更新公告弹窗 | ✅ 动态生成 | ❌ | **P2** | [#5](../../issues/5) |
 | 6 | 素材 CDN 直出 | ✅ | ✅ 已有（`cdn.lilyco42.top`） | — | — |
 | 7 | 干员皮肤 | ❌ | ✅ 已有（`feat/skins`） | — | — |
@@ -40,8 +40,9 @@
 > 每条 TODO 都已开成 Issue 跟踪（见上表 Issue 列）。
 > **建议的实现顺序：`#4 公告` → `#2 聊天` → `#3 匹配` → `#1 外援` → `#5 更新公告`** ——
 > 公告最小最独立、不碰上游核心文件；外援最大、改上游文件最多；更新公告依赖外援和皮肤提供动态内容。
+> **进度：#4 公告已完成**（分支 `feat/server-announcement`），下一步 `#2 聊天`。
 
-**结论**：功能上我们 2 项领先、5 项落后。落后的这 5 项里有 2 项是"社区服刚需"
+**结论**：功能上我们 3 项领先（含刚做完的公告）、4 项落后。落后的 4 项里有 2 项是"社区服刚需"
 （外援、聊天），优先级最高。
 
 ---
@@ -140,15 +141,30 @@
   用 RTL 覆盖字符伪造内容。
 - **渲染**：Preact 自动转义，公告条 `pointer-events: none` 穿透给下面的游戏。
 
-**我们的实现清单**：
+**我们的实现清单**（✅ 已完成，分支 `feat/server-announcement`）：
 
-- [ ] `shared/announcement.js`：`ANNOUNCEMENT` 常量、`announcementLifetime()`、
-      `announcementPhase(startedAt, now)`、`parseAnnouncementCommand(line)`
-- [ ] 服务端：终端命令接入（现有控制台）+ 广播 `server.announcement`（带 `serverNow`）
-- [ ] 前端：`js/ui/serverAnnouncement.js` + CSS，按 `phase` 驱动滚动与间隔
-- [ ] 时钟对齐：`clockOffset` 校正
-- [ ] 文本净化 + 长度上限（服务端 300、客户端 1200）
-- [ ] 中途加入只播剩余遍数
+- [x] `shared/announcement.js`：`ANNOUNCEMENT` 常量、`announcementLifetime()`、
+      `announcementPhase(startedAt, now)`、`parseAnnouncementCommand(line)`、`sanitizeAnnouncementText()`
+- [x] 服务端：`server/announcement.js` 的 `AnnouncementBoard`（状态 + 广播 + 命令解析）+
+      `server/console.js`（前台 TTY 操作台）+ `POST /admin/announce`（systemd / Docker 用，`SP_ADMIN_TOKEN` 保护）
+- [x] 前端：`public/js/ui/serverAnnouncement.js` + `public/css/server-announcement.css`，按 `phase` 驱动
+- [x] 时钟对齐：**复用既有的 `store.serverNow()`**（`net.js` 的 pong 采样 + `welcome.serverNow` bootstrap），
+      不再自己维护一份 `clockOffset`
+- [x] 文本净化 + 长度上限（服务端 300、客户端 1200），按**码点**计数（一个 emoji 算一个字）
+- [x] 中途加入只播剩余遍数：`lobby.onHello` 补发同一帧，客户端用 `--sann-delay: -<offsetMs>ms` 让 CSS 动画
+      从中途开始（不重头播、无 JS 动画）
+- [x] 测试：`test/announcement.test.js`（纯函数 + 板 + 端点 + WS 补发）、
+      `test/ui/serverAnnouncement.test.js`（帧校验 + 接线）、
+      `test/ui/serverAnnouncement.e2e.test.js`（headless Chrome：真滚动、点击穿透、toast 下移、迟到者从中间开始、
+      重连补发、清除后不再出现、reduced-motion 降级）
+
+**与他们不同的三点**（有意为之）：
+
+1. **发布接口两种都要**：他们只有终端命令（生产是 systemd → 其实没有 stdin）。我们前台接 TTY 操作台、
+   服务用 HTTP 端点，两条路都汇到同一个 `AnnouncementBoard`。
+2. **hello 时没有公告就不发帧**：`announcement: null` 是客户端的默认状态（`welcome` 会清），
+   每次 hello 都补一帧纯属噪声，也会扰动上游 `test/lobby.test.js` 里 `match result replay` 钉死的帧序列。
+3. **净化更严**：连续空白折叠成单个空格（他们只把控制字符替换为空格）。
 
 **成本低收益高**：`shared/announcement.js` 只有 1.7 KB，纯函数、无外部依赖，是这批功能里最好抄的一块。
 

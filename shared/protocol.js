@@ -309,6 +309,10 @@ export const C2S = {
 export const S2C = [
   'welcome', 'ok', 'error', 'pong',
   'room.state', 'room.closed',
+  // server.announcement { announcement: { id, text, startedAt } | null, serverNow } — the operator's marquee line
+  // (shared/announcement.js): broadcast once on publish, and unicast to every session on hello so a late joiner plays
+  // only the remaining passes. Every client derives its position from `startedAt` against serverNow (never Date.now()).
+  'server.announcement',
   'm.public', 'm.private', 'm.field', 'm.toast', 'm.ticker', 'm.emote', 'm.result',
   // m.unitStats { seq, round, units: [unitStatsEntry] } — the answer to g.unitStats (the requester only)
   'm.unitStats',

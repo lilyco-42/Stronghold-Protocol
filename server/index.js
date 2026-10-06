@@ -17,9 +17,16 @@
 //     (html & code/data: no-cache + revalidate; public/assets|fonts|vendor: 1 day; any `?v=` URL: immutable);
 //     single byte-range requests (206/416, used by <audio>); traversal & dotfile protection; 404 page.
 //   * GET /healthz → JSON status (protocol `version`, release `app`, rooms, matches, sessions, sockets).
+//   * POST /admin/announce → operator endpoint for the server-wide marquee announcement (server/announcement.js).
+//     Enabled only when SP_ADMIN_TOKEN is set (unset ⇒ 404: a server with no operator interface is not a broken one),
+//     then `Authorization: Bearer <token>` is required (compared in constant time). Body: JSON `{ text }` to publish,
+//     `{ action: 'clear' }` / `{ action: 'status' }`, or `{ command: '/announce …' }` — the same lines the operator
+//     console takes. Plain text bodies are published as-is. This is the interface a systemd deployment uses, because a
+//     service has no interactive stdin (server/console.js covers a foreground run).
 //   * WebSocket (ws) at /ws, maxPayload 64 KB → server/net.js Network → server/lobby.js Lobby.
 //   * Env: PORT (default 3000), HOST (default 0.0.0.0), TRUST_PROXY ('auto' default: honour CF-Connecting-IP /
-//     X-Real-IP / X-Forwarded-For only from loopback/private peers such as a local cloudflared; '1' always; '0' never).
+//     X-Real-IP / X-Forwarded-For only from loopback/private peers such as a local cloudflared; '1' always; '0' never),
+//     SP_ADMIN_TOKEN (enables POST /admin/announce), SP_CONSOLE=1 (attach the operator console even without a TTY).
 //     Prints LAN URLs on boot.
 //   * Per-network limits for internet clients (see net.js clientAddress; local/LAN peers are exempt): open sockets
 //     (maxConnectionsPerAddr, refused at upgrade with 429), rooms and running matches (lobby.js).
@@ -34,13 +41,15 @@ import fsp from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import zlib from 'node:zlib';
-import { createHash } from 'node:crypto';
+import { createHash, timingSafeEqual } from 'node:crypto';
 import { promisify } from 'node:util';
 import { pipeline } from 'node:stream/promises';
 import { fileURLToPath } from 'node:url';
 import { WebSocketServer } from 'ws';
 import { Network, SessionRegistry, NET_DEFAULTS } from './net.js';
 import { Lobby } from './lobby.js';
+import { AnnouncementBoard } from './announcement.js';
+import { installConsole } from './console.js';
 import { getData, loadData } from './data.js';
 import { PROTOCOL_VERSION, APP_VERSION } from '../shared/constants.js';
 import { MEDIA_PREFIX, AUDIO_EXTS } from '../shared/media.js';
@@ -330,6 +339,105 @@ function sendJson(req, res, status, obj) {
   res.end(req.method === 'HEAD' ? undefined : body);
 }
 
+// ---- operator endpoint: announcements ---------------------------------------------------------------
+
+/** Where the operator posts an announcement (server/announcement.js). */
+export const ADMIN_ANNOUNCE_PATH = '/admin/announce';
+/** Env var holding the bearer token; the endpoint does not exist while it is unset. */
+export const ADMIN_TOKEN_ENV = 'SP_ADMIN_TOKEN';
+/** An announcement is at most 300 characters — 8 KB is room for a JSON envelope and a mistake. */
+const ADMIN_MAX_BODY = 8 * 1024;
+
+/**
+ * Constant-time token comparison. Both sides are hashed first so the comparison runs on fixed-length buffers: a
+ * length check would otherwise leak the token's length through timing.
+ * @param {unknown} given @param {string} expected @returns {boolean}
+ */
+function tokenMatches(given, expected) {
+  if (typeof given !== 'string' || given.length === 0) return false;
+  return timingSafeEqual(createHash('sha256').update(given).digest(), createHash('sha256').update(expected).digest());
+}
+
+/** The bearer token of a request, or null. Surrounding whitespace is not part of a credential (RFC 6750). */
+function bearerOf(req) {
+  const h = req.headers.authorization;
+  if (typeof h !== 'string') return null;
+  const m = /^Bearer\s+(.+)$/i.exec(h.trim());
+  return m ? m[1].trim() : null;
+}
+
+/** Read at most `max` bytes of a request body. @returns {Promise<string>} */
+async function readBody(req, max) {
+  const chunks = [];
+  let size = 0;
+  for await (const chunk of req) {
+    size += chunk.length;
+    if (size > max) throw new RangeError('body too large');
+    chunks.push(chunk);
+  }
+  return Buffer.concat(chunks).toString('utf8');
+}
+
+/**
+ * `POST /admin/announce` — publish / clear / inspect the marquee announcement.
+ * @param {http.IncomingMessage} req @param {http.ServerResponse} res
+ * @param {import('./announcement.js').AnnouncementBoard} board
+ */
+async function handleAdminAnnounce(req, res, board) {
+  // Trimmed, so a stray space or newline from a hand-written EnvironmentFile does not lock the operator out — and a
+  // whitespace-only value counts as unset (404), never as an endpoint nobody can reach.
+  const token = (process.env[ADMIN_TOKEN_ENV] || '').trim();
+  if (!token) { sendJson(req, res, 404, { ok: false, error: 'not found' }); return; }
+  if (req.method !== 'POST') {
+    res.setHeader('Allow', 'POST');
+    sendJson(req, res, 405, { ok: false, error: 'method not allowed' });
+    return;
+  }
+  if (!tokenMatches(bearerOf(req), token)) {
+    res.setHeader('WWW-Authenticate', 'Bearer');
+    sendJson(req, res, 401, { ok: false, error: 'unauthorized' });
+    return;
+  }
+  let body;
+  try {
+    body = await readBody(req, ADMIN_MAX_BODY);
+  } catch {
+    sendJson(req, res, 413, { ok: false, error: 'body too large' });
+    return;
+  }
+  // A JSON envelope ({ text } / { action } / { command }), or a bare text body published as-is.
+  let parsed = null;
+  if (body.trim().startsWith('{')) {
+    try { parsed = JSON.parse(body); } catch { parsed = null; }
+    if (parsed === null) { sendJson(req, res, 400, { ok: false, error: 'invalid json' }); return; }
+  }
+  // A JSON body must say what it wants; without this an empty object would fall through to a bare `/announce` (which
+  // is the help text) and answer 200 to a typo.
+  let command;
+  if (parsed !== null) {
+    if (typeof parsed.command === 'string') command = parsed.command;
+    else if (parsed.action === 'clear') command = '/announce clear';
+    else if (parsed.action === 'status') command = '/announce status';
+    else if (typeof parsed.text === 'string') command = `/announce ${parsed.text}`;
+    else {
+      sendJson(req, res, 400, { ok: false, error: 'expected { text } | { action } | { command }' });
+      return;
+    }
+  } else {
+    if (!body.trim()) { sendJson(req, res, 400, { ok: false, error: 'empty body' }); return; }
+    command = `/announce ${body}`;
+  }
+  const result = board.handleCommand(command);
+  if (!result.handled) { sendJson(req, res, 400, { ok: false, error: 'unknown command' }); return; }
+  if (result.error) { sendJson(req, res, 400, { ok: false, error: result.error }); return; }
+  const a = board.current;
+  sendJson(req, res, 200, {
+    ok: true,
+    announcement: a ? { id: a.id, text: a.text, startedAt: a.startedAt } : null,
+    message: (result.lines || []).join(' '),
+  });
+}
+
 /** Split an absolute request URL into raw path + query (also accepts absolute-form URLs). */
 function splitUrl(url) {
   let u = url || '/';
@@ -609,7 +717,8 @@ function makeLogger(quiet) {
  *   heavyPerSec?: number, heavyBurst?: number, trustProxy?: 'auto' | boolean, soloReconnectWindowMs?: number,
  * }} [opts]
  * @returns {Promise<{ port: number, host: string, url: string, server: http.Server, wss: WebSocketServer,
- *                     lobby: Lobby, network: Network, registry: SessionRegistry, close: () => Promise<void> }>}
+ *                     lobby: Lobby, network: Network, registry: SessionRegistry,
+ *                     announcements: AnnouncementBoard, close: () => Promise<void> }>}
  */
 export async function startServer(opts = {}) {
   const port = opts.port ?? (process.env.PORT != null && process.env.PORT !== '' ? Number(process.env.PORT) : 3000);
@@ -633,7 +742,10 @@ export async function startServer(opts = {}) {
   for (const k of ['lobbyGraceMs', 'maxRooms', 'maxRoomsPerAddr', 'maxMatchesPerAddr', 'resyncMinGapMs', 'soloReconnectWindowMs']) {
     if (opts[k] != null) lobbyOptions[k] = opts[k];
   }
-  const lobby = new Lobby({ registry, log, MatchClass: opts.MatchClass, getData: () => data, seedFn: opts.seedFn, options: lobbyOptions });
+  // Server-wide marquee announcement (shared/announcement.js). The lobby hands it to every session that says hello,
+  // so a late joiner gets the remaining passes (lobby.onHello).
+  const announcements = new AnnouncementBoard({ registry, log });
+  const lobby = new Lobby({ registry, log, MatchClass: opts.MatchClass, getData: () => data, seedFn: opts.seedFn, options: lobbyOptions, announcements });
   const network = new Network({ registry, handler: lobby, log, options: netOptions });
   const serveStatic = createStaticHandler({ publicDir, dataDir, sharedDir, log });
   const startedAt = Date.now();
@@ -655,6 +767,8 @@ export async function startServer(opts = {}) {
     if (url.length > MAX_URL_LENGTH) { sendError(req, res, 414, '请求地址过长 · URI too long'); return; }
     const parts = splitUrl(url);
     if (!parts) { sendError(req, res, 400, '请求地址无效 · Bad request'); return; }
+    // Operator endpoint, before the static GET/HEAD path (it is a POST and answers JSON, not the 404 page).
+    if (parts.rawPath === ADMIN_ANNOUNCE_PATH) { await handleAdminAnnounce(req, res, announcements); return; }
     if (req.method !== 'GET' && req.method !== 'HEAD') {
       res.setHeader('Allow', 'GET, HEAD');
       sendError(req, res, 405, '不支持的请求方法 · Method not allowed');
@@ -737,7 +851,7 @@ export async function startServer(opts = {}) {
     return closing;
   }
 
-  return { port: actualPort, host, url, server, wss, lobby, network, registry, close };
+  return { port: actualPort, host, url, server, wss, lobby, network, registry, announcements, close };
 }
 
 // ---------------------------------------------------------------------------------------------------
@@ -770,12 +884,19 @@ async function main() {
     for (const u of lanUrls(srv.port)) console.log(`  LAN:     ${u}`);
   }
   console.log('  Internet: cloudflared tunnel --url ' + `http://localhost:${srv.port}` + '\n');
+  if (process.env[ADMIN_TOKEN_ENV]) {
+    console.log(`  Operator: POST ${ADMIN_ANNOUNCE_PATH}  (Authorization: Bearer $${ADMIN_TOKEN_ENV})\n`);
+  }
+  // Operator console: a foreground run has a TTY, a service does not (it uses POST /admin/announce). SP_CONSOLE=1
+  // forces it, e.g. to drive the server over a pipe.
+  const operatorConsole = installConsole({ board: srv.announcements, log: console, force: process.env.SP_CONSOLE === '1' });
 
   let stopping = false;
   const stop = (signal) => {
     if (stopping) { console.log('forced exit'); process.exit(1); }
     stopping = true;
     console.log(`\n[${signal}] shutting down…`);
+    operatorConsole?.close();
     setTimeout(() => process.exit(0), 5000).unref();
     srv.close().then(() => process.exit(0), () => process.exit(1));
   };

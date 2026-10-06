@@ -1,5 +1,15 @@
 # 更新记录
 
+## 未发布
+
+### 服务器公告
+
+- 开服的人可以发一条**全服跑马灯公告**：所有在线玩家（在大厅、房间里或对局中都一样）在屏幕顶栏看到文字滚动 3 遍，每遍 30 秒、遍间隔 5 分钟。公告条不挡点击（`pointer-events: none`），开 `prefers-reduced-motion: reduce` 时换成静止的居中省略行，时间表不变。
+- 发布方式两种：前台运行时终端里直接敲 `/announce 服务器 22:00 停机维护`（`/announce status` 查询、`/announce clear` 清除、「公告 …」等价）；作为服务（systemd / Docker，没有可交互的 stdin）运行时用 `POST /admin/announce`，设好 `SP_ADMIN_TOKEN` 后带 `Authorization: Bearer` 调用，`{"action":"clear"}` / `{"action":"status"}` / `{"command":"/announce …"}` 同样可用。详见 [docs/DEPLOY.md](docs/DEPLOY.md) §7 与 [README](README.md#服务器公告)。
+- 服务器**只在发布时广播一帧**（`server.announcement`，带 `id / text / startedAt`），各客户端自己按 `startedAt` 算当前该播哪一遍：没有每遍的流量，也没有「停止」帧可丢；**中途加入或重连的人只播剩下的遍数**，不会从头重播（`lobby.onHello` 补发同一帧）。时钟用既有的 `serverNow()`，所以各端进度一致。
+- 文本去掉控制字符（ESC 等 ANSI 转义不会跑到终端或日志里）和双向文本覆写字符，客户端按纯文本渲染；上限 300 字（按字符数，一个 emoji 算一个）。公告只在内存里，**重启即消失** —— 它是一条实时通知，不是配置。
+- 对标清单第 4 项，见 [docs/TODO.md](docs/TODO.md)。
+
 ## 0.1.4 — 2026-10-06
 
 0.1.3 之后的小版本：合并了多位贡献者的 PR，修正了高台和阿戈尔的规则，并修正了文档和测试。下一个版本（0.2.0）会做一次便于维护的重构、多语言支持，以及补位和自选编队。

@@ -242,6 +242,8 @@ services:
   WorkingDirectory=/opt/Stronghold-Protocol
   ExecStart=/usr/bin/node server/index.js
   Environment=PORT=3000 HOST=0.0.0.0
+  # 想用 HTTP 接口发服务器公告（见第 7 节）就再加一行，值换成自己的随机串：
+  # Environment=SP_ADMIN_TOKEN=请换成一串随机字符
   Restart=always
   RestartSec=5
   User=stronghold
@@ -283,3 +285,50 @@ services:
 **没有客户端的服务器**想要上表中的官方素材：从**同一版本**的完整包（[Releases](https://github.com/sganggs/Stronghold-Protocol/releases)）里，把 `public/assets/local/` 文件夹和 `data/local-assets.json` 复制到服务器项目目录下的相同位置。服务器每次请求都会重新读取这两处，不必重启，玩家刷新页面即可。一定要用与服务器代码相同版本的完整包：各版本提取的内容和清单可能不同（例如灼热 / 炽焰源石虫的模型是 0.1.0 之后才加入的），混用其他版本的文件会缺图或用错图。复制后 `node tools/doctor.mjs` 会显示本地素材的条目数和「3D 棋盘可用」。
 
 **3D 棋盘贴图的下载量**：每位玩家进入对局时都要从开服的电脑下载 3D 棋盘的 12 张贴图。提取时会给这 12 张各写一份 WebP（颜色贴图有损、质量 95，法线和数据贴图无损），清单里列的是 WebP，同名 PNG 留在旁边给裁切工具和 setup 用。这部分下载量从约 6.7 MB 降到约 2 MB，网速慢的远程联机最明显。只有 PNG 的本地素材（例如在这一改动之前提取的）可以用提取时的 Python 环境运行 `tools/local-extract/extract.py --webp` 就地补上，只需要 Pillow，不需要客户端。
+
+## 7. 服务器公告（可选）
+
+开服的人可以发一条**跑马灯公告**，所有在线玩家（在大厅、房间里或对局中都一样）会在屏幕顶栏看到它滚动 3 遍，每遍 30 秒、遍间隔 5 分钟。公告是**全服**的，不按房间区分；只存在内存里，**重启服务器就没了**（它是一条实时通知，不是配置，重启后不会把过期的公告重新翻出来）。
+
+实现见 `shared/announcement.js`（时序与文本规则，前后端共用）、`server/announcement.js`（状态与广播）、`public/js/ui/serverAnnouncement.js` + `public/css/server-announcement.css`（客户端）。服务器**只在发布时广播一帧**（`server.announcement`，带 `id / text / startedAt`），各客户端自己按 `startedAt` 算当前该播哪一遍，所以：没有每遍的流量、没有「停止」帧可丢、**中途加入或重连的人只播剩下的遍数**，不会从头重播（`lobby.onHello` 补发同一帧）。
+
+### 前台运行：终端操作台
+
+`npm start`（或 `scripts/start.sh` / `scripts\start-windows.bat`）时 stdin 是终端，操作台会自动接上：
+
+```
+操作台已就绪。输入 /announce help 查看公告用法。
+
+/announce 服务器 22:00 停机维护 10 分钟    发布（「公告 …」等价）
+/announce status                          查看当前公告与剩余时间
+/announce clear                           清除
+/announce help                            帮助
+```
+
+### 服务运行：HTTP 接口
+
+systemd / Docker 里没有可交互的 stdin，所以用 HTTP 接口。先设置 `SP_ADMIN_TOKEN`（不设置时该路径**不存在**，返回 404，而不是 401 —— 没开运维接口的服务器不是坏掉的服务器），然后：
+
+```bash
+curl -X POST http://127.0.0.1:3000/admin/announce \
+  -H "Authorization: Bearer $SP_ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"text":"服务器 22:00 停机维护 10 分钟"}'
+```
+
+| 请求体 | 作用 |
+|---|---|
+| `{"text":"…"}` | 发布（也可以直接发纯文本，不带 JSON） |
+| `{"action":"clear"}` | 清除当前公告 |
+| `{"action":"status"}` | 查询当前公告与剩余时间 |
+| `{"command":"/announce …"}` | 直接执行操作台的那些命令（含 `help`） |
+
+返回 `{"ok":true,"announcement":{"id","text","startedAt"},"message":"…"}`；`announcement` 为 `null` 表示当前没有公告。失败时 400 + `{"ok":false,"error":"…"}`（内容为空、超过 300 字、JSON 里没有 `text`/`action`/`command` 等）。
+
+注意：
+
+- **token 相当于开服密码**，只放在服务器本机或反向代理之后，不要写进前端、不要暴露到公网。比较用的是固定时间的哈希比较；两侧的首尾空白会被忽略（`EnvironmentFile` 里多一个换行也不会把人锁在外面）。
+- 公告文本会去掉控制字符（ESC 等 ANSI 转义不会跑到终端或日志里）和双向文本覆写字符，客户端按纯文本渲染（不解析 HTML），所以发什么都只是文字。
+- 上限 **300 字**（按字符数，一个 emoji 算一个）；超过会被拒绝，已发布的不会被替换。
+- 请求体上限 8 KB；接口只处理 `POST`，其他方法返回 405。
+- 公告条 `pointer-events: none`，不会挡住点击；开 `prefers-reduced-motion: reduce` 时跑马灯换成静止的居中省略行，时间表不变。

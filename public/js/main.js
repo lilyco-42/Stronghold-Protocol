@@ -21,6 +21,8 @@
 // re-layout; ui/compat.js polyfills are imported before anything else.
 // 干员调配 (DESIGN §16): an overlay over any route (<LoadoutHost/>, opened from lobby / room / briefing); its loadout is
 // kept in sync with the server by installLoadoutSync (room.loadout after every welcome and edit).
+// 服务器公告: installAnnouncements({ net }) feeds ui/serverAnnouncement.js's store from `server.announcement` frames;
+// <ServerAnnouncementHost/> renders the marquee in App's chrome layer (the server re-pushes the frame on every hello).
 // Game data: every text of the game is static data (/data/*.json) downloaded once per page; the in-match files are
 // warmed in the background as soon as the player is in a room (warmGameData), before the match needs them.
 
@@ -45,6 +47,7 @@ import { GuideHost } from './ui/guide.js';
 import { installDeviceSupport } from './ui/device.js';
 import { LoadoutHost } from './screens/loadout.js';
 import { installLoadoutSync } from './ui/loadoutSync.js';
+import { installAnnouncements, ServerAnnouncementHost } from './ui/serverAnnouncement.js';
 import { startBuildGuard } from './ui/buildGuard.js';
 
 const RESTORE_GRACE_MS = 1500;
@@ -272,6 +275,7 @@ function App() {
     <div class="app-bg" aria-hidden="true"></div>
     ${error ? html`<${ScreenCrashed} error=${error} reset=${resetError} />` : html`<${Screen} key=${route} />`}
     <${ConnectionBanner} />
+    <${ServerAnnouncementHost} />
     <${ToastHost} />
     <${UiHosts} />
     <${GuideHost} />
@@ -329,6 +333,9 @@ async function boot() {
 
   wireNet();
   installLoadoutSync({ net });
+  // Server announcements (server/announcement.js): subscribe before the first connect so the welcome frame's
+  // re-push is never missed. A running strip survives route changes (the host lives in App's chrome layer).
+  installAnnouncements({ net });
   net.attachBrowserHooks();
   // Audio: unlock on first gesture, BGM follows the route / match phase (js/audio.js).
   installAudio({ getManifest: () => data.get('assets'), subscribe: store.subscribe, getState: store.get, selectRoute, settings: settingsStore.get() });
