@@ -30,6 +30,8 @@ aklz4.py registers a decoder for it. This script pulls the art the web sources l
     the manifest lists the copy
 
 Usage:
+  python3 tools/local-extract/fetch-cdn.py [--out <AB root>]   (no client installed: pull the bundles listed below
+                                                                from the official CDN and unpack them into that root)
   python3 -m venv .venv && .venv/bin/pip install -r tools/local-extract/requirements.txt
   .venv/bin/python tools/local-extract/extract.py [--game <AB root>] [--out public/assets/local] [--only <subdir prefix>]
   python3 tools/local-extract/extract.py --print-jobs     (the job table as JSON; needs no dependencies)
@@ -279,6 +281,11 @@ def dep_bundles(ab_root, kinds):
     root = Path(ab_root)
     extra = [root / SHADER_DEPS_ROOT] if (root / SHADER_DEPS_ROOT).is_file() else []
     return sorted(p for p in root.glob(SHADER_DEPS) if p.is_file()) + extra
+
+
+def has_shader_deps(ab_root):
+    """Whether this AB root can resolve external shader references at all (the manifest's `source` says which)."""
+    return any(p.is_file() for p in Path(ab_root).glob(SHADER_DEPS))
 
 
 _NORMAL_Z = None
@@ -668,9 +675,12 @@ def main():
             print(f'warn: previous manifest unreadable ({e}); writing only the re-extracted groups', file=sys.stderr)
     groups = merge_manifest(old, manifest, set(manifest))  # a missing bundle keeps its previous group
     count = sum(len(v) for v in groups.values())
-    doc = {'version': 1, 'source': 'local-client', 'count': count, 'groups': groups}
+    # 'cdn' = tools/local-extract/fetch-cdn.py: the Android CDN publishes no shaders/*.ab, so every external shader
+    # reference in materials.json stays null there. test/local-extract.test.js asserts the names only for 'local-client'.
+    source = 'local-client' if has_shader_deps(ab_root) else 'cdn'
+    doc = {'version': 1, 'source': source, 'count': count, 'groups': groups}
     Path(args.manifest).write_text(json.dumps(doc, ensure_ascii=False, separators=(',', ':')), encoding='utf-8')
-    print(f'done: {total} files extracted, manifest {args.manifest} ({count} entries)')
+    print(f'done: {total} files extracted, manifest {args.manifest} ({count} entries, source {source})')
     return 0 if total else 1
 
 

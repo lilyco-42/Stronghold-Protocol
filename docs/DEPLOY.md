@@ -246,6 +246,8 @@ services:
 
 `public/assets/local/` 和 `data/local-assets.json` 是从本机安装的《明日方舟》客户端里提取的官方素材（`tools/local-extract`，DESIGN §13）：`node tools/setup.mjs` 检测到客户端时会询问是否提取，之后可以用 `node tools/setup.mjs --local` 重新提取，或用 `--game "<…/StreamingAssets/AB/Windows>"` 指定客户端目录。setup 从公开镜像下载的素材不包含这部分，所以在没有客户端的电脑上（例如 Linux 服务器）从源码部署时不会有它；Releases 的完整包里已经带上了。
 
+**没有装《明日方舟》客户端的机器也能提取**：这些 bundle 官方 CDN 上就有。`python3 tools/local-extract/fetch-cdn.py` 按 `extract.py` 自己的作业表逐个下载（23 个，约 43 MB），解压成 `--game` 需要的目录树，然后 `python3 tools/local-extract/extract.py --game <那个目录>`。CDN 的目录名随游戏版本变，用 `--version` 指定（社区镜像 [555me/hycdn](https://github.com/555me/hycdn) 的 `ak/` 列出了历次目录）。有两类拿不到，都是可选的：敌人美术包（`refs/arts/enm_art_*.ab` 靠内部索引命名，拼不出 URL，所以灼热 / 炽焰源石虫仍用网页替代模型）和 `shaders/*.ab`（只影响 materials.json 里的着色器名字）。CDN 对不存在的包返回的是 200 + 12 字节，脚本因此按字节判断，不看状态码。
+
 没有本地素材时游戏照常运行，只是下面几样换成替代样式：
 
 | 内容 | 没有本地素材时 |

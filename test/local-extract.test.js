@@ -128,10 +128,19 @@ describe('extracted board-scene files (when a local client was extracted)', { sk
     assert.equal(mats.MT_autochess.textures._BumpMap.texture, 'TX_autochessi_N');
     assert.ok(mats.MT_autochess.keywords.includes('_EMISSION'));
     assert.equal(mats.MT_autochessi_BG.shader, 'Torappu/Unlit/Texture');
-    // external shader references resolve through the shaders/*.ab bundles (they were all null before)
-    for (const k of ['MT_autochess', 'MT_autochess_Transparent', 'MT_autochess_common']) assert.equal(mats[k].shader, 'Torappu/Scene/StandardDirectional', k);
+    // External shader references resolve through the shaders/*.ab bundles (they were all null before). The Android
+    // CDN does not publish those (tools/local-extract/fetch-cdn.py can only name a bundle by its own path), so a
+    // 'cdn' manifest has every one of them null — that is the extraction's provenance, recorded by extract.py.
+    const noShaders = manifest.source !== 'local-client' ? ' (cdn extraction: no shaders/*.ab)' : '';
+    for (const k of ['MT_autochess', 'MT_autochess_Transparent', 'MT_autochess_common']) {
+      if (noShaders) assert.equal(mats[k].shader, null, k + noShaders);
+      else assert.equal(mats[k].shader, 'Torappu/Scene/StandardDirectional', k);
+    }
     const sand = JSON.parse(readFileSync(onDisk(manifest.groups['map/autochesssand'].materials.path), 'utf8'));
-    for (const [k, m] of Object.entries(sand)) assert.match(m.shader || '', /^Torappu\/Scene\/(StandardRealtimeShadow|StylizedWater)$/, k);
+    for (const [k, m] of Object.entries(sand)) {
+      if (noShaders) assert.equal(m.shader, null, k + noShaders);
+      else assert.match(m.shader || '', /^Torappu\/Scene\/(StandardRealtimeShadow|StylizedWater)$/, k);
+    }
     for (const m of Object.values(mats)) for (const t of Object.values(m.textures)) assert.ok(g[t.texture], `${t.texture} extracted`);
   });
 
