@@ -2,6 +2,13 @@
  "generated": "2026-10-06",
  "upstream": "upstream/master",
  "files": {
+  "data/assets.json": [
+   {
+    "line": "{\"version\":1,\"hash\":\"2249e4a0918a\",\"generator\":\"tools/fetch-assets.mjs\",\"stats\":{\"files\":5700,\"bytes\":331632595,\"chars\":…（整行 814222 字符）",
+    "anchor": "",
+    "opaque": true
+   }
+  ],
   "public/css/screens/loadout.css": [
    {
     "line": "单行垂直列表：每款皮肤独占一行，左侧头像、中间完整名称与系列、右侧状态标签。兼容旧机型 (Chromium 80-84)。 */",

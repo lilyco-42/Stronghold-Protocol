@@ -19,7 +19,8 @@ const UPSTREAM = 'upstream/master';
 const SKIP = [/^docs\//, /^test\//, /^NOTICE\.md$/];
 
 const git = (args, quiet = false) => execFileSync('git', args, {
-  cwd: ROOT, encoding: 'utf8', stdio: quiet ? ['ignore', 'pipe', 'ignore'] : ['ignore', 'pipe', 'pipe'],
+  cwd: ROOT, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024,
+  stdio: quiet ? ['ignore', 'pipe', 'ignore'] : ['ignore', 'pipe', 'pipe'],
 });
 
 /** Files upstream also has, i.e. ones we edited rather than created. The base is upstream/master's tip, not the
@@ -45,7 +46,14 @@ function ourLines(file) {
     const text = line.slice(1);
     const trimmed = text.trim();
     if (!trimmed || trimmed.startsWith('//') || trimmed.startsWith('/*') || trimmed.startsWith('*')) continue;
-    out.push({ line: trimmed, anchor: hunk?.context || '' });
+    // 单行数据文件（data/assets.json 整份 JSON 就是一行，1 MB+）：按「行」记账没有意义，截断存下并标 opaque，
+    // 让读报告的人知道这是一整个文件级的挂载点，而不是一条可逐行复核的补丁。
+    const opaque = trimmed.length > 4000;
+    out.push({
+      line: opaque ? `${trimmed.slice(0, 120)}…（整行 ${trimmed.length} 字符）` : trimmed,
+      anchor: hunk?.context || '',
+      ...(opaque ? { opaque: true } : {}),
+    });
   }
   return out;
 }
@@ -64,7 +72,8 @@ export function checkSurface(doc) {
   for (const [f, ours] of Object.entries(doc.files)) {
     let text;
     try { text = fs.readFileSync(path.join(ROOT, f), 'utf8'); } catch { problems.push(`${f}: 文件不见了`); continue; }
-    const missing = ours.filter((o) => !text.includes(o.line));
+    // opaque 条目存的是截断前缀（整份单行 JSON 不可能逐行复核），所以拿前缀查在不在。
+    const missing = ours.filter((o) => !text.includes(o.opaque ? o.line.split('…（整行')[0] : o.line));
     if (missing.length) {
       problems.push(`${f}: 我们加的 ${missing.length}/${ours.length} 行已不在文件里（上游合并冲掉了？）`);
       for (const m of missing.slice(0, 6)) problems.push(`    缺: ${m.line}`);
