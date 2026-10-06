@@ -23,6 +23,9 @@
 // kept in sync with the server by installLoadoutSync (room.loadout after every welcome and edit).
 // 服务器公告: installAnnouncements({ net }) feeds ui/serverAnnouncement.js's store from `server.announcement` frames;
 // <ServerAnnouncementHost/> renders the marquee in App's chrome layer (the server re-pushes the frame on every hello).
+// 同盟频道 (friend-room chat): installChat({ net }) feeds ui/roomChat.js's store from `room.chat` / `room.chatHistory`;
+// <RoomChatHost/> renders the draggable panel in the same chrome layer, so it follows the player from the room screen
+// into a match without a remount (it is keyed by the room code, not by the route).
 // Game data: every text of the game is static data (/data/*.json) downloaded once per page; the in-match files are
 // warmed in the background as soon as the player is in a room (warmGameData), before the match needs them.
 
@@ -48,6 +51,7 @@ import { installDeviceSupport } from './ui/device.js';
 import { LoadoutHost } from './screens/loadout.js';
 import { installLoadoutSync } from './ui/loadoutSync.js';
 import { installAnnouncements, ServerAnnouncementHost } from './ui/serverAnnouncement.js';
+import { installChat, RoomChatHost } from './ui/roomChat.js';
 import { startBuildGuard } from './ui/buildGuard.js';
 
 const RESTORE_GRACE_MS = 1500;
@@ -276,6 +280,7 @@ function App() {
     ${error ? html`<${ScreenCrashed} error=${error} reset=${resetError} />` : html`<${Screen} key=${route} />`}
     <${ConnectionBanner} />
     <${ServerAnnouncementHost} />
+    <${RoomChatHost} />
     <${ToastHost} />
     <${UiHosts} />
     <${GuideHost} />
@@ -336,6 +341,9 @@ async function boot() {
   // Server announcements (server/announcement.js): subscribe before the first connect so the welcome frame's
   // re-push is never missed. A running strip survives route changes (the host lives in App's chrome layer).
   installAnnouncements({ net });
+  // 同盟频道: subscribe before the first connect too — the room.state that carries `chatEnabled` and the history frame
+  // that follows a join/reconnect must not be missed. The panel lives in App's chrome layer and follows every route.
+  installChat({ net });
   net.attachBrowserHooks();
   // Audio: unlock on first gesture, BGM follows the route / match phase (js/audio.js).
   installAudio({ getManifest: () => data.get('assets'), subscribe: store.subscribe, getState: store.get, selectRoute, settings: settingsStore.get() });

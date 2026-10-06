@@ -2,6 +2,7 @@
 // Every client→server message is `{ t, rid?, ...fields }`. Unknown `t` or invalid fields ⇒ ERR.BAD_MSG.
 
 import { DIFFICULTIES, NAME_MAX_LEN, ROOM_CODE_LEN, MAX_SEATS, EMOTES, GEO } from './constants.js';
+import { CHAT } from './chat.js';
 
 // ---- tiny validators -------------------------------------------------------
 const isInt = (v, lo = -Infinity, hi = Infinity) => Number.isInteger(v) && v >= lo && v <= hi;
@@ -258,6 +259,10 @@ export const C2S = {
   // room.closed { reason: 'kicked' }). room.leave / g.leave leave a spectator seat like a player seat.
   'room.spectate': { code: (v) => isStr(v, ROOM_CODE_LEN + 2) && /^[A-Za-z0-9]+$/.test(v) },
   'room.removeSpectator': { playerId: isId },
+  // friend-room chat (shared/chat.js): one plain-text line to every member of the room, players and spectators alike —
+  // in its lobby or while its match runs. `text` is bounded in UTF-16 units here (the wire), in code points by the
+  // handler; the server sanitises it and answers with the broadcast `room.chat` carrying the stored message.
+  'room.chat': { text: (v) => isStr(v, CHAT.maxInput) },
 
   // match
   'g.infoReady': {},
@@ -309,6 +314,12 @@ export const C2S = {
 export const S2C = [
   'welcome', 'ok', 'error', 'pong',
   'room.state', 'room.closed',
+  // room.chat { code, message: { id, playerId, name, text, at } } — one line of the room's chat (shared/chat.js),
+  // broadcast to every member including its sender (the stored message with its server-assigned id and time is what
+  // everybody renders, so there is no optimistic copy to reconcile). `room.chatHistory { code, messages: [message] }`
+  // unicasts the room's log to a member who has none: a joiner, a spectator, or a reconnect. Both carry the room code,
+  // and a client drops a frame whose code is not the room it is in — a room change can never bleed into the next log.
+  'room.chat', 'room.chatHistory',
   // server.announcement { announcement: { id, text, startedAt } | null, serverNow } — the operator's marquee line
   // (shared/announcement.js): broadcast once on publish, and unicast to every session on hello so a late joiner plays
   // only the remaining passes. Every client derives its position from `startedAt` against serverNow (never Date.now()).

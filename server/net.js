@@ -106,6 +106,11 @@ export class Session {
     this.resyncAt = -Infinity;
     /** @type {Record<string, { skill: number, module: string|null }> | null} checked operator loadout (lobby-owned, DESIGN §16) */
     this.loadout = null;
+    /**
+     * @type {number} ms epoch of this session's last room.chat message (lobby-owned; shared/chat.js CHAT.intervalMs).
+     * On the SESSION, not on a seat: leaving and rejoining a room must not hand out a fresh rate-limit budget.
+     */
+    this.lastChatAt = 0;
     /** @type {string} client address of the latest connection (logging) */
     this.addr = '?';
     /** @type {string | null} per-network limit key of the latest connection (null = not limited), see clientAddress */

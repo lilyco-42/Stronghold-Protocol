@@ -76,9 +76,18 @@
 //     time → room.closed {kicked} to it. A spectator in a LOBBY room may take a free player seat with room.join of the same
 //     code; a player never switches to spectating in place (ALREADY). Disconnect / grace / reconnect / expiry work as for
 //     a player seat (the seat is kept and given back on resume).
+//   * Friend-room chat (shared/chat.js; a remake feature, the official room has none): room.chat { text } → one line to
+//     every member of the room, its spectators included, in its lobby or while its match runs. ▸ The log (≤
+//     CHAT.historyLimit messages, in memory, dropped with the room) is unicast to whoever has none — a joiner, a
+//     spectator, or a reconnect (room.chatHistory) — and every stored message is broadcast to the room, its sender
+//     included, so all clients render the same server-assigned id/time and no client keeps an optimistic copy.
+//     ▸ Per-session rate limit CHAT.intervalMs (a session, not a seat: leaving and rejoining a room does not reset it);
+//     the per-connection token bucket of net.js still applies on top. ▸ chatEnabled (LOBBY_DEFAULTS, SP_CHAT,
+//     `/chat off`) is carried by room.state, so a client never renders a panel whose sends would be refused.
 
 import { randomBytes, randomInt } from 'node:crypto';
 import { ERR, MAX_SEATS, MAX_SPECTATORS, ROOM_CODE_LEN, modeIdFor } from '../shared/constants.js';
+import { CHAT, CHAT_HELP, chatLength, parseChatCommand, sanitizeChat } from '../shared/chat.js';
 import { checkLoadout } from '../shared/protocol.js';
 import { encode, isDroppable, isErrCode, sendRaw, sendSession } from './net.js';
 import { getData as defaultGetData, lookup } from './data.js';
@@ -95,6 +104,7 @@ export const LOBBY_DEFAULTS = Object.freeze({
   maxMatchesPerAddr: 8,   // matches started from one client network that may run at once (0 = unlimited)
   resyncMinGapMs: 1000,   // heavy resyncs (match state / result replay) per session at most this often on repeated hellos
   soloReconnectWindowMs: null, // a dropped solo run stays resumable this long (null = data singleReconnectTime, 24 h)
+  chatEnabled: true,      // friend-room chat (shared/chat.js): SP_CHAT=0 or `/chat off` turns it off (room.state flag)
 });
 
 /** Official `singleReconnectTime` (s) when the data lacks it (constData, research 01 §1). */
@@ -132,6 +142,15 @@ export class Room {
     this.seats = new Array(MAX_SEATS).fill(null);
     /** @type {{ playerId: string, name: string, connected: boolean }[]} spectator seats, ≤ MAX_SPECTATORS (header) */
     this.spectators = [];
+    /**
+     * Friend-room chat log (shared/chat.js): the last CHAT.historyLimit messages, oldest first, in memory only — it
+     * dies with the room. `chatSeq` is the room's message id counter; it never rewinds, so a client can always order
+     * (and dedupe) by id even when a history frame and a live frame cross.
+     * @type {{ id: number, playerId: string, name: string, text: string, at: number }[]}
+     */
+    this.chat = [];
+    /** @type {number} */
+    this.chatSeq = 0;
     /** @type {any} running Match instance */
     this.match = null;
     /** @type {{ live: boolean, ended: boolean, disposed: boolean, match: any } | null} */
@@ -167,8 +186,13 @@ export class Room {
   /** Humans that have not departed, in seat order. @returns {Seat[]} */
   activeHumans() { return this.seats.filter((s) => s && !s.isBot && !s.left); }
 
-  /** `room.state` frame (DESIGN §8.1) plus `inMatch`. */
-  toState() {
+  /**
+   * `room.state` frame (DESIGN §8.1) plus `inMatch` and `chatEnabled`.
+   * `chatEnabled` is the Lobby's (SP_CHAT / `/chat off`), not the room's — passed in so the room itself stays a plain
+   * data holder. A client renders the chat panel only for `true`, so a disabled server never shows a dead input box.
+   * @param {boolean} [chatEnabled]
+   */
+  toState(chatEnabled = false) {
     return {
       t: 'room.state',
       code: this.code,
@@ -176,6 +200,7 @@ export class Room {
       mode: this.mode,
       difficulty: this.difficulty,
       inMatch: !!this.match,
+      chatEnabled: !!chatEnabled,
       seats: this.seats.map((s) => (s
         ? { seat: s.seat, playerId: s.playerId, name: s.name, isBot: s.isBot, ready: s.ready, connected: s.connected && !s.left }
         : null)),
@@ -208,6 +233,8 @@ export class Lobby {
     /** @type {import('./announcement.js').AnnouncementBoard | null} server-wide marquee announcement, if enabled */
     this.announcements = announcements;
     this.opts = { ...LOBBY_DEFAULTS, ...options };
+    /** @type {boolean} friend-room chat on? (`SP_CHAT=0` / `/chat off`); carried by every room.state broadcast */
+    this.chatEnabled = this.opts.chatEnabled !== false;
     /** @type {Map<string, Room>} */
     this.rooms = new Map();
     /** @type {Map<string, NodeJS.Timeout>} lobby grace timers by playerId */
@@ -275,6 +302,9 @@ export class Lobby {
     if (!room.hostId) { this.migrateHost(room); changed = true; }
     if (changed) this.broadcastState(room);
     else this.sendState(room, session);
+    // A reconnect missed whatever was said meanwhile; the log is unicast right after the state (and only when it is
+    // non-empty, so the resume protocol's frame order is untouched on a room that never used chat).
+    this.sendChatHistory(room, session);
     this.resync(session, !resumed);
   }
 
@@ -298,6 +328,7 @@ export class Lobby {
       case 'room.loadout': return this.loadout(session, msg);
       case 'room.spectate': return this.spectate(session, msg);
       case 'room.removeSpectator': return this.removeSpectator(session, msg);
+      case 'room.chat': return this.chat(session, msg);
       default:
         if (typeof msg.t === 'string' && msg.t.startsWith('g.')) return this.routeGame(session, msg);
         return fail(ERR.BAD_MSG, `unhandled type ${String(msg.t).slice(0, 32)}`);
@@ -394,6 +425,7 @@ export class Lobby {
     session.pendingResult = null;
     if (!room.hostId) room.hostId = session.playerId;
     this.broadcastState(room);
+    this.sendChatHistory(room, session);
     return OK;
   }
 
@@ -428,6 +460,7 @@ export class Lobby {
     session.pendingResult = null;
     this.broadcastState(room);
     if (room.match) this.callMatch(room, 'addSpectator', session.playerId);
+    this.sendChatHistory(room, session);
     return OK;
   }
 
@@ -447,6 +480,88 @@ export class Lobby {
       else { target.notice = 'kicked'; target.pendingResult = replay; }
     }
     return OK;
+  }
+
+  /**
+   * room.chat { text } — one plain-text line to every member of the room (players and spectators, in its lobby or while
+   * its match runs). The stored message (server-assigned id and time, sanitized text, the sender's name snapshotted) is
+   * what the whole room receives, the sender included: no client keeps an optimistic copy, so nothing can double up or
+   * drift. Rate limit: one message per session per CHAT.intervalMs — a *session*, so leaving and rejoining a room (or a
+   * reconnect) does not hand out a fresh budget. net.js's per-connection token bucket applies on top.
+   */
+  chat(session, { text }) {
+    const room = this.roomOf(session);
+    if (!room) return fail(ERR.NOT_IN_ROOM);
+    if (!this.chatEnabled) return fail(ERR.WRONG_PHASE, 'chat is disabled');
+    if (!room.seatOf(session.playerId) && !room.spectatorOf(session.playerId)) return fail(ERR.NOT_IN_ROOM);
+    const clean = sanitizeChat(text);
+    if (!clean) return fail(ERR.BAD_MSG, 'empty message');
+    if (chatLength(clean) > CHAT.maxLen) return fail(ERR.BAD_MSG, `message longer than ${CHAT.maxLen}`);
+    const now = this.now();
+    if (now - session.lastChatAt < CHAT.intervalMs) return fail(ERR.RATE, 'chat too fast');
+    session.lastChatAt = now;
+    /** @type {{ id: number, playerId: string, name: string, text: string, at: number }} */
+    const message = { id: ++room.chatSeq, playerId: session.playerId, name: session.name, text: clean, at: now };
+    room.chat.push(message);
+    if (room.chat.length > CHAT.historyLimit) room.chat.splice(0, room.chat.length - CHAT.historyLimit);
+    this.broadcastRoom(room, { t: 'room.chat', code: room.code, message });
+    return OK;
+  }
+
+  /**
+   * The room's chat log to one member — the joiner / spectator / reconnect path (lobby.join, lobby.spectate,
+   * onHello). Nothing is sent for an empty log: an empty log is the client's own default for a room it just entered
+   * (it resets when the room code changes), so a frame here would be pure noise on every join. What must arrive is a
+   * log that is NOT empty — a client that just arrived never saw those lines.
+   * @returns {boolean} whether a frame went out
+   */
+  sendChatHistory(room, session) {
+    if (!this.chatEnabled || room.disposed || !room.chat.length) return false;
+    return sendSession(session, { t: 'room.chatHistory', code: room.code, messages: room.chat });
+  }
+
+  /**
+   * Run one operator console line as a chat command (shared/chat.js parseChatCommand). The console tries this after the
+   * announcement board's own parser, so a line is claimed by exactly one of them.
+   * @param {unknown} line
+   * @returns {{ handled: boolean, lines?: string[], error?: string }}
+   */
+  handleCommand(line) {
+    const parsed = parseChatCommand(line);
+    if (!parsed) return { handled: false };
+    switch (parsed.action) {
+      case 'help':
+        return { handled: true, lines: CHAT_HELP.split('\n') };
+      case 'error':
+        return { handled: true, error: parsed.error };
+      case 'on':
+      case 'off': {
+        const want = parsed.action === 'on';
+        if (this.chatEnabled === want) return { handled: true, lines: [want ? '聊天已经是开启状态。' : '聊天已经是关闭状态。'] };
+        this.chatEnabled = want;
+        // Every room.state carries the flag, so one broadcast flips the panel in every open client at once.
+        for (const room of this.rooms.values()) this.broadcastState(room);
+        return { handled: true, lines: [want ? '已开启聊天。' : '已关闭聊天：客户端已收起聊天框，新消息一律拒绝。'] };
+      }
+      case 'clear': {
+        let messages = 0;
+        for (const room of this.rooms.values()) { messages += room.chat.length; room.chat.length = 0; }
+        // Clients keep what they already have; a reconnect (or a fresh join) gets an empty log and clears with it.
+        return { handled: true, lines: [messages ? `已清空 ${messages} 条聊天记录（客户端下次进入房间时清空）。` : '没有聊天记录。'] };
+      }
+      case 'status': {
+        let messages = 0;
+        for (const room of this.rooms.values()) messages += room.chat.length;
+        const enabled = this.chatEnabled ? '开启' : '关闭';
+        return {
+          handled: true,
+          lines: [`聊天：${enabled}（每 ${CHAT.intervalMs / 1000} 秒最多 1 条，单条上限 ${CHAT.maxLen} 字，每房间保留 ${CHAT.historyLimit} 条）。`,
+            `房间 ${this.rooms.size} 个，聊天记录共 ${messages} 条。`],
+        };
+      }
+      default:
+        return { handled: false };
+    }
   }
 
   ready(session, { ready }) {
@@ -937,6 +1052,7 @@ export class Lobby {
     if (room.disposed) return;
     room.disposed = true;
     if (this.rooms.get(room.code) === room) this.rooms.delete(room.code);
+    room.chat.length = 0; // the log dies with the room; releasing it now matters on a small box (no room = no reader)
     const ctx = room.matchCtx;
     room.match = null;
     room.matchCtx = null;
@@ -989,12 +1105,12 @@ export class Lobby {
 
   broadcastState(room) {
     if (room.disposed) return;
-    const data = encode(room.toState());
+    const data = encode(room.toState(this.chatEnabled));
     for (const session of this.memberSessions(room)) sendRaw(session.ws, data);
   }
 
   sendState(room, session) {
-    sendSession(session, room.toState());
+    sendSession(session, room.toState(this.chatEnabled));
   }
 
   /** Match broadcast: encode once, send to every connected member. @returns {string | null} the encoded frame */

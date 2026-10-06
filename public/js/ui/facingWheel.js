@@ -237,6 +237,10 @@ export function FacingWheel({ view, row, col, grid, name = '', onPreview, onComm
   useEffect(() => {
     const onKey = (e) => {
       const L = live.current;
+      // A text field owns the keyboard (the 同盟频道 chat input, ui/roomChat.js): capture runs before the field sees the
+      // key, so without this guard typing there would turn the wheel instead of moving the caret.
+      const t = e.target;
+      if (t && typeof t.closest === 'function' && t.closest('input, textarea, select, [contenteditable="true"]')) return;
       if (e.key === 'Escape') { e.preventDefault(); e.stopImmediatePropagation(); L.onCancel(); return; }
       const k = dirFromKey(e.key);
       if (k) { e.preventDefault(); e.stopImmediatePropagation(); setDir(k); return; }

@@ -695,6 +695,18 @@ export function parseTrustProxy(v) {
   return 'auto';
 }
 
+/**
+ * A boolean env var: `1/true/yes/on` → true, `0/false/no/off` → false, unset or anything else → `fallback`.
+ * @param {string | undefined} v @param {boolean} fallback
+ * @returns {boolean}
+ */
+export function parseBoolEnv(v, fallback) {
+  const s = String(v ?? '').trim().toLowerCase();
+  if (['1', 'true', 'yes', 'on'].includes(s)) return true;
+  if (['0', 'false', 'no', 'off'].includes(s)) return false;
+  return fallback;
+}
+
 function makeLogger(quiet) {
   if (quiet) return noopLog;
   return {
@@ -739,9 +751,12 @@ export async function startServer(opts = {}) {
   if (netOptions.trustProxy == null) netOptions.trustProxy = parseTrustProxy(process.env.TRUST_PROXY);
   const registry = new SessionRegistry({ reconnectWindowMs: netOptions.reconnectWindowMs ?? NET_DEFAULTS.reconnectWindowMs });
   const lobbyOptions = {};
-  for (const k of ['lobbyGraceMs', 'maxRooms', 'maxRoomsPerAddr', 'maxMatchesPerAddr', 'resyncMinGapMs', 'soloReconnectWindowMs']) {
+  for (const k of ['lobbyGraceMs', 'maxRooms', 'maxRoomsPerAddr', 'maxMatchesPerAddr', 'resyncMinGapMs', 'soloReconnectWindowMs', 'chatEnabled']) {
     if (opts[k] != null) lobbyOptions[k] = opts[k];
   }
+  // Friend-room chat (shared/chat.js): on by default; SP_CHAT=0 turns it off at boot, `/chat off` at runtime. The flag
+  // rides on every room.state, so a disabled server never shows a chat box whose sends would be refused.
+  if (lobbyOptions.chatEnabled == null) lobbyOptions.chatEnabled = parseBoolEnv(process.env.SP_CHAT, true);
   // Server-wide marquee announcement (shared/announcement.js). The lobby hands it to every session that says hello,
   // so a late joiner gets the remaining passes (lobby.onHello).
   const announcements = new AnnouncementBoard({ registry, log });
@@ -887,9 +902,17 @@ async function main() {
   if (process.env[ADMIN_TOKEN_ENV]) {
     console.log(`  Operator: POST ${ADMIN_ANNOUNCE_PATH}  (Authorization: Bearer $${ADMIN_TOKEN_ENV})\n`);
   }
+  if (!srv.lobby.chatEnabled) console.log('  Chat:     disabled (SP_CHAT) — /chat on turns it back on\n');
   // Operator console: a foreground run has a TTY, a service does not (it uses POST /admin/announce). SP_CONSOLE=1
-  // forces it, e.g. to drive the server over a pipe.
-  const operatorConsole = installConsole({ board: srv.announcements, log: console, force: process.env.SP_CONSOLE === '1' });
+  // forces it, e.g. to drive the server over a pipe. Both the announcement board and the lobby answer to it.
+  const operatorConsole = installConsole({
+    board: srv.announcements,
+    handlers: [srv.lobby],
+    hint: '未知命令。可用命令：/announce help、/chat help。',
+    banner: '操作台已就绪。输入 /announce help 或 /chat help 查看用法。',
+    log: console,
+    force: process.env.SP_CONSOLE === '1',
+  });
 
   let stopping = false;
   const stop = (signal) => {

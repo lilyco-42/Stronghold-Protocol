@@ -1,0 +1,315 @@
+/* Friend-room chat panel — public/js/ui/roomChat.js (shared/chat.js owns the wire rules, server/lobby.js the log).
+   A floating overlay: the room screen is a seat grid over a full-width bar and the match screen is a field over a shop
+   bar, so there is no column to dock into. `position: fixed`, collapsed to one pill at rest and expanded into a log +
+   input. Layering: above the screens (--z-screen) but below the connection banner, modals and toasts, so a dialog wins.
+
+   ▸ The position is the ANCHOR, and it is computed here rather than in JS. `--rchat-ax` / `--rchat-ay` are a fraction
+     of the free area (0 = the left/top edge, 1 = the right/bottom one); `left`/`top` place the anchor point and
+     `translate(-100% * a)` pulls the panel's own box back onto it, so the panel needs no measurement at all and a
+     resize, a rotation or a state change (the pill ↔ the open panel) cannot put it anywhere unexpected.
+     ⚠ Do NOT go back to measuring the box in JS and writing pixel offsets. It reads better, but it cannot be made
+     reliable: a layout effect can observe the PREVIOUS box (the element already carries the new class, the browser has
+     not reflected it yet), so the open panel would be placed where the collapsed pill fits — ~120 px too low, with its
+     input off the bottom of the window — and nothing would ever correct it. The e2e suite covers exactly that.
+     (chatAnchor() in the component is the inverse of this formula, for turning a drag back into an anchor.)
+
+   ▸ Safe-area insets are the CSS's own business here (env()), not the component's: they move the panel's edges. */
+
+.rchat {
+  --rchat-edge: .08rem;
+  --rchat-l: calc(var(--rchat-edge) + env(safe-area-inset-left, 0px));
+  --rchat-r: calc(var(--rchat-edge) + env(safe-area-inset-right, 0px));
+  --rchat-t: calc(var(--rchat-edge) + env(safe-area-inset-top, 0px));
+  --rchat-b: calc(var(--rchat-edge) + env(safe-area-inset-bottom, 0px));
+  position: fixed;
+  left: calc(var(--rchat-l) + var(--rchat-ax, 1) * (100% - var(--rchat-l) - var(--rchat-r)));
+  top: calc(var(--rchat-t) + var(--rchat-ay, .72) * (100% - var(--rchat-t) - var(--rchat-b)));
+  transform: translate(calc(var(--rchat-ax, 1) * -100%), calc(var(--rchat-ay, .72) * -100%));
+  z-index: var(--z-banner);
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  font-family: var(--font-cjk);
+  color: var(--text-hi);
+  background: var(--bg-glass);
+  border: 1px solid var(--line-2);
+  box-shadow: 0 .12rem .34rem rgba(0, 0, 0, .55);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+}
+
+.rchat.is-collapsed { width: 3.3rem; height: .46rem; }
+.rchat.is-open { width: 3.6rem; height: 4.6rem; }
+
+/* ---- header (drag handle + title / collapsed pill) -------------------------------------------- */
+
+.rchat__head {
+  flex: none;
+  height: .46rem;
+  display: flex;
+  align-items: center;
+  gap: .05rem;
+  padding: 0 .06rem;
+  border-bottom: 1px solid var(--line);
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.rchat.is-collapsed .rchat__head { border-bottom: 0; }
+
+.rchat__grip {
+  flex: none;
+  width: .28rem;
+  height: .34rem;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  background: none;
+  border: 0;
+  color: var(--text-dim);
+  cursor: grab;
+  touch-action: none;
+}
+
+.rchat__grip:active { cursor: grabbing; }
+.rchat__grip:hover { color: var(--text-lo); }
+/* the icon is three dots in a row; the handle wants them stacked */
+.rchat__grip-icon { transform: rotate(90deg); }
+
+.rchat__grip:focus-visible,
+.rchat__icon:focus-visible,
+.rchat__pill:focus-visible,
+.rchat__send:focus-visible {
+  outline: 1px solid var(--mint-600);
+  outline-offset: 1px;
+}
+
+.rchat__title {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: baseline;
+  gap: .08rem;
+  min-width: 0;
+  font-size: .15rem;
+  font-weight: 700;
+  color: var(--text-md);
+  white-space: nowrap;
+}
+
+.rchat__code { font-size: .12rem; letter-spacing: .06em; color: var(--mint-600); }
+
+.rchat__icon {
+  flex: none;
+  width: .28rem;
+  height: .34rem;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  background: none;
+  border: 0;
+  color: var(--text-lo);
+  cursor: pointer;
+}
+
+.rchat__icon:hover { color: var(--text-hi); }
+
+/* collapsed pill: label + newest line + unread badge (or ＋ when there is nothing new) */
+.rchat__pill {
+  flex: 1 1 auto;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: .08rem;
+  min-width: 0;
+  height: .34rem;
+  padding: 0;
+  background: none;
+  border: 0;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.rchat__pill-label {
+  display: inline-flex;
+  align-items: center;
+  gap: .04rem;
+  font-size: .13rem;
+  font-weight: 700;
+  color: var(--mint-400);
+  white-space: nowrap;
+}
+
+.rchat__pill-text {
+  min-width: 0;
+  font-size: .13rem;
+  color: var(--text-md);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rchat__pill-text.is-empty { color: var(--text-dim); }
+.rchat__pill:hover .rchat__pill-text { color: var(--text-hi); }
+.rchat__pill-plus { color: var(--text-dim); }
+
+.rchat__badge {
+  min-width: .2rem;
+  height: .2rem;
+  padding: 0 .05rem;
+  display: grid;
+  place-items: center;
+  border-radius: .1rem;
+  background: var(--red);
+  color: #fff;
+  font-family: var(--font-num);
+  font-size: .12rem;
+  font-weight: 700;
+  animation: rchat-pop var(--t-fast) var(--ease-out);
+}
+
+@keyframes rchat-pop {
+  from { transform: scale(.6); }
+  to { transform: scale(1); }
+}
+
+/* ---- body: log + jump + form + hint ----------------------------------------------------------- */
+
+.rchat__body {
+  position: relative;
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.rchat__log {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: .08rem .1rem;
+  display: flex;
+  flex-direction: column;
+  gap: .08rem;
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-3) transparent;
+}
+
+.rchat__msg { display: flex; flex-direction: column; gap: .01rem; }
+
+.rchat__meta {
+  display: flex;
+  align-items: baseline;
+  gap: .06rem;
+  font-size: .115rem;
+  line-height: 1.2;
+}
+
+.rchat__who { font-weight: 700; color: var(--text-lo); }
+.rchat__msg.is-mine .rchat__who { color: var(--mint-600); }
+.rchat__time { margin-left: auto; color: var(--text-dim); }
+
+.rchat__text {
+  margin: 0;
+  font-size: .145rem;
+  line-height: 1.35;
+  color: var(--text-md);
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.rchat__msg.is-mine .rchat__text { color: var(--text-hi); }
+
+.rchat__empty {
+  margin: .12rem 0;
+  font-size: .13rem;
+  line-height: 1.4;
+  text-align: center;
+  color: var(--text-dim);
+}
+
+/* the "you scrolled up and missed something" escape — never scroll under the reader's eyes */
+.rchat__jump {
+  position: absolute;
+  left: 50%;
+  bottom: .74rem;
+  transform: translateX(-50%);
+  padding: .04rem .1rem;
+  background: var(--mint-800);
+  border: 1px solid var(--mint-700);
+  color: var(--mint-400);
+  font-family: inherit;
+  font-size: .12rem;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+  box-shadow: 0 .06rem .18rem rgba(0, 0, 0, .5);
+}
+
+.rchat__jump:hover { background: var(--mint-700); color: var(--text-on-mint); }
+
+.rchat__form {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: .06rem;
+  padding: .05rem .08rem;
+  border-top: 1px solid var(--line);
+}
+
+.rchat__input {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: .3rem;
+  padding: 0 .08rem;
+  box-sizing: border-box;
+  background: var(--bg-1);
+  border: 1px solid var(--line-2);
+  color: var(--text-hi);
+  font-family: inherit;
+  font-size: .14rem;
+}
+
+.rchat__input::placeholder { color: var(--text-dim); }
+.rchat__input:focus { outline: none; border-color: var(--mint-600); }
+.rchat__input:disabled { opacity: .5; }
+
+.rchat__count { flex: none; font-size: .115rem; color: var(--text-dim); }
+.rchat__count.is-over { color: var(--red-premium); }
+
+.rchat__send {
+  flex: none;
+  height: .3rem;
+  padding: 0 .12rem;
+  background: var(--mint-800);
+  border: 1px solid var(--mint-700);
+  color: var(--mint-400);
+  font-family: inherit;
+  font-size: .14rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.rchat__send:not(:disabled):hover { background: var(--mint-700); color: var(--text-on-mint); }
+.rchat__send:disabled { opacity: .45; cursor: default; }
+
+.rchat__hint {
+  flex: none;
+  height: .26rem;
+  display: flex;
+  align-items: center;
+  padding: 0 .08rem;
+  font-size: .115rem;
+  color: var(--text-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rchat__hint.is-error { color: var(--red-premium); }
+
+/* ---- reduced motion ---------------------------------------------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+  .rchat__badge { animation: none; }
+}

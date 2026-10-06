@@ -2488,3 +2488,27 @@ Reports after the 0.1.3 release. Each was checked against the official data and 
 - **Reduced motion**: `prefers-reduced-motion: reduce` 下 `animation: none` + 居中省略行，**时间表不变**（组件照旧在 scroll 阶段挂载）。
 - [ASSUMED]: 文本上限按码点而不是 UTF-16 单元（一个 emoji 对开服的人是一个字）；净化折叠连续空白（对标版本只把控制字符换成空格，我们更严）；过期公告不广播。
 - **Tests**: `test/announcement.test.js`（时序每个边界、净化、命令解析、板的状态机与广播触达、端点 404/401/405/400/413、WS 迟到者拿到同一 startedAt、清除后 hello 不发帧）、`test/ui/serverAnnouncement.test.js`（帧校验与接线）、`test/ui/serverAnnouncement.e2e.test.js`（headless Chrome：真滚动、点击穿透、toast 让位、迟到者从中间开始且偏移 ≈ 公告年龄、重连补发、清除后线上无帧、reduced-motion 降级）。⚠️ headless Chrome 报 `prefers-reduced-motion: reduce`，动效测试必须先 emulate `no-preference`。
+
+## 26. Fork feature: 房间内文字聊天 (feat/room-chat, 对标清单 #2)
+
+- **Seen**: 对标社区服有一个房间内聊天面板 —— `js/ui/roomChat.js`（10 602 B）+ `js/ui/chatState.js`（2 467 B）+ `css/room-chat.css`，走 `room.chat` 协议；常量 `CHAT_MAX_LEN 200` / `CHAT_HISTORY_LIMIT 50` / `CHAT_INTERVAL_MS 1000`；`sanitizeChat` 把行内断点换成空格、**剔除**控制字符与 bidi 覆写字符，但保留 `\u200c`/`\u200d`；输入框的 `maxlength` 取 `maxLen * 2`（`<input maxlength>` 数 UTF-16 单元）。上线时还带着 `?v=20261005-chat-preview2`，说明是迭代中的功能。我们没有这个功能。
+- **Official**: 无。官方没有聊天界面，所以这是纯社交设施；规则（200 字 / 每秒 1 条 / 50 条历史）按对标对象取齐，不自己发明。
+- **Now**: 四个模块，前后端共用一套纯函数规则。
+  - `shared/chat.js`：`CHAT`（maxLen 200 / maxInput 400 / historyLimit 50 / intervalMs 1000 / maxReceived 400 / maxNameLen 24）、`chatLength()`（**码点**计数：`[...s].length`）、`sanitizeChat()`（NFC → 断点折成空格 → 剔除不可见字符 → 折叠连续空格 → trim）、`validChat()`、`readChatName()` / `readChatMessage()`（线上来的都当不可信输入复检）、`emptyChat()`、`mergeChat()`（**唯一的 reducer**，两个下行帧共用）、`latestChatPreview()`，以及操作台命令 `parseChatCommand()` / `CHAT_HELP`。
+  - `server/lobby.js`：`Room.chat`（内存里的最近 50 条，`chatSeq` 发号）、`Lobby.chat()`（净化 → 长度 → **会话**限流 → 存 → 广播）、`sendChatHistory()`（joiner / 观战者 / 重连补发）、`handleCommand()`（`/chat`）。`chatEnabled` 是 **Lobby 的**，不是房间的，随每个 `room.state` 广播（`Room.toState(chatEnabled)` 接参数，房间自己保持是个哑数据）。
+  - `public/js/ui/roomChat.js` + `public/css/room-chat.css`：模块级 `chatStore`（`installChat({net})` 是唯一写入者）、`RoomChatHost`（挂 App 的 chrome 层，`main.js`）、可拖动的 `RoomChat`。
+  - 协议：`room.chat {text}` 上行 / `room.chat {code, message}` + `room.chatHistory {code, messages}` 下行。
+- **The log is server-authored**: 服务端存下来再广播（带自增 id、服务器时间、**发送者名字的快照**），发送者自己也不做乐观插入 —— 没有第二份真相，也就没有重复或漂移。名字用快照，所以玩家离开后记录仍可读，改名不会改写历史。
+- **Two stores, and they must not be confused**: 日志在模块自己的 `chatStore` 里，连接状态与身份在**应用 store** 里。从应用 store 读 `s.chat` 能编译、能渲染、永远是空的（应用 store 根本没有 `chat` 这个键）—— 这个 bug 只有真实页面加载才能发现，静态检查一个也抓不到。
+- **Position is the CSS's job**: `--rchat-ax` / `--rchat-ay` 是**可用区域的比例**，`left/top` 放锚点、`translate(-100% * a)` 把面板自己的盒子拉回锚点上，所以组件**完全不测量**自己的尺寸。⚠️ 不要改回「在 JS 里量盒子再写像素偏移」：`useLayoutEffect` 会读到**上一个**盒子（元素已经带上新 class、浏览器还没反映），展开面板会被放到收起胶囊的位置 —— 低约 120 px，输入框落到窗口底部之外 —— 而且没有任何东西会纠正它。e2e 恰好覆盖这一点（`test/ui/roomChat.e2e.test.js` 的拖动 / 缩放 / 重载三项）。拖动是**增量式**的（在 anchor 上叠加位移），所以 `EDGE_PX` 与 CSS 的 `--rchat-edge` 只要接近即可，端点由 `normalizeChatAnchor` 钳死。
+- **Hidden in a solo room** (`showsChat()`): 一个人没有可以说话的对象，一个没有听众的输入框正是本项目到处在避免的「点了没反应」。服务端仍接受单人的发送意图，只是不画面板。（有意与对标版本不同，它在所有开了聊天的房间里都显示。）
+- **No corner-cycling button**（对标版本有一个）：手柄可拖动、聚焦后方向键也能移动，键盘本来就有移动面板的办法，没必要再占一个按钮。
+- **Stricter sanitising**（[ASSUMED]，有意比对标版本严）：额外剔除软连字符 `\u00ad`、`\u2060-\u206f` 格式字符与 BOM，做 NFC 规范化，折叠连续空白，**未配对的代理项也剔除**（写成一个扫描而不是正则：那个正则需要 lookbehind，而 lookbehind 在 Safari < 16.4 是 SyntaxError，会让整个模块挂掉 —— `test/client-static.test.js` 管这条）。`\u200c`/`\u200d` 保留，理由同上（合法 emoji 序列与波斯 / 阿拉伯 / 印度语拼写）。整体超过 `maxInput` 的输入**直接拒绝**，不静默截断。
+- **Rate limit is per SESSION** (`session.lastChatAt`)：离开房间再进、重连都**不会**刷新预算；被拒的消息**不消耗**预算。`net.js` 每连接的令牌桶仍然叠在上面。
+- **`/chat` is the only runtime switch, and it has no HTTP twin**: 对标版本没有这个开关。`SP_CHAT=0` 只在启动时决定，而操作员真正需要开关的时刻正是某个房间在刷屏的时刻 —— 那时人在终端前。`/chat off` 立即生效：每个 `room.state` 都带这个开关，所以一次广播就收起了**所有**已打开客户端的聊天框。公告那个 `POST /admin/announce` 是有用的（发布内容长、要从脚本调），而 `/chat off` 是一个两个词的扳机，多一个端点只是多一个能关掉聊天的入口。
+- **No frame when there is nothing to say**: `sendChatHistory` 对空日志**不发帧** —— 空日志本来就是客户端进入房间时的默认状态（房间码一变就重置），补一帧是纯噪声，也会扰动 `test/lobby.test.js` 钉死的帧序列。
+- **Tests**: 三层。
+  - `test/chat.test.js`（34 项）：长度与净化的每个边界（断点折叠 / 控制字符**剔除**而非替换 / bidi / 软连字符 / 零宽 / BOM / NFC / 未配对代理项 / 全不可见 → 空 / 超长整体拒绝）、`readChatMessage` 的伪造帧、`mergeChat` 的去重 / 排序 / 未读计数（**历史不涨未读**）/ 异房丢弃 / 换房 / 上限、操作台命令与多命令源按序认领、以及**真实 socket** 上的广播（coop / solo / 观战者 / 限流与被拒不消耗预算 / 预算属于会话 / 迟到者补历史 / 干净房间零帧 / 不在房间拒绝 / `/chat off` 实时开关 / 日志随房间销毁）。
+  - `test/ui/roomChat.test.js`（16 项）：anchor 数学（`normalizeChatAnchor` 钳位、`chatAnchor` 是 CSS 公式的逆、小视口给有限值、同一 anchor 在各窗口尺寸下是同一相对位置）、`showsChat`、`installChat` 的接线（订阅与全部解绑、离开的房间的帧被丢弃、`welcome` / `room.closed` 清空、上限截断）。
+  - `test/ui/roomChat.e2e.test.js`（10 项，headless Chrome + 真服务器）：真实启动验证（`__SP__` + `net.on` + 大厅渲染 + 干净 console）、coop 收起 / solo 完全不渲染、发送进日志、队友消息在**收起**状态下打角标并预览、限流保留草稿、拖动 + 位置以 anchor 持久化 + 重载还原、resize 仍在视口内、`/chat off` 取下 / `/chat on` 恢复、离房取下 + 新房空日志、重载后从服务端恢复。
+  - ⚠️ **headless Chrome 的样式重算是延迟到下一帧的**：加 class 之后的一帧内元素**带着 `is-open` 却仍按收起的 330×46 计算**。面板以下边缘为锚、向上生长，所以在这个窗口里量到的位置低约 400 px、输入框落在窗口底部之外 —— 而一旦真实输入事件强制重算，面板就跳走了，点击命中的是一个已经不存在的盒子（表现是 `pointerdown` 落在 `<html>` 上）。所以每个与面板交互的 helper 都等**盒子**稳定，而不是等 class（真实玩家不受影响：输入事件命中测试前会先重算样式；要等的是测量的一方）。

@@ -112,6 +112,7 @@ npm start          # 启动服务器：http://localhost:3000
 | `SP_VERIFY` | `off` | 服务器复算客户端上报的战斗结果：`off` / `sample`（约 1/8 抽查）/ `all`（全部复算，更耗 CPU） |
 | `TRUST_PROXY` | `auto` | 是否信任 `X-Forwarded-For` 等转发头：`auto` 只信任来自本机 / 内网的代理；`1` 总是；`0` 从不 |
 | `SP_ADMIN_TOKEN` | 空 | 设置后才开启服务器公告接口 `POST /admin/announce`（见下）；不设置时该路径返回 404 |
+| `SP_CHAT` | `1` | 房间内文字聊天。设为 `0` 在启动时关掉（运行中可以用操作台的 `/chat off` 再关，见下） |
 | `SP_CONSOLE` | 空 | 设为 `1` 时即使没有终端也接上操作台（前台运行时本来就是自动接上的） |
 | `DEBUG` | 空 | 设为任意值输出详细日志 |
 | `SP_NO_BROWSER` | 空 | 设为 `1` 时启动脚本不自动打开浏览器 |
@@ -141,6 +142,28 @@ curl -X POST http://127.0.0.1:3000/admin/announce \
 ```
 
 `{"action":"clear"}` 清除，`{"action":"status"}` 查询，`{"command":"/announce …"}` 直接执行上面那些终端命令；不带 JSON 直接发纯文本也可以。公告最多 300 字，只在内存里、**重启即消失**（它是一条实时通知，不是配置）。
+
+### 房间聊天
+
+同盟房间里可以打字聊天：右下角一个**可拖动的小面板**，收起时预览最新一条队友消息、有未读时显示条数，展开后是聊天记录加输入框。大厅里的观战者和对局中的队友都收得到。
+
+- 拖动标题栏左侧的 **⠿** 移动面板（聚焦后也可以用方向键，`Shift` 加速），`Esc` 收起。位置按可用区域的**比例**记住，换窗口大小、转屏都不会跑到屏幕外。
+- 一句话最多 **200 字**（按字符数，一个 emoji 算一个字），**同一会话每秒最多 1 条**；被限流拒掉的那条不会从输入框里消失，面板会说明原因。
+- **独立模拟（单人）不显示聊天面板** —— 一个人没有可以说话的对象。
+- 刷新或断线重连后，房间最近的 50 条会重新拉回来。
+- 消息按纯文本渲染，控制字符、双向文本覆写字符、零宽字符都会被去掉，换行折成一个空格。
+
+开服的人可以随时关掉：启动时设 `SP_CHAT=0`，或运行中在操作台敲 `/chat off`（前台运行时终端就是操作台）：
+
+```
+/chat              查看聊天开关与各房间的消息数
+/chat off          关闭聊天：已在房间的客户端立即收起聊天框，新消息被拒绝
+/chat on           重新开启聊天
+/chat clear        清空所有房间的聊天记录
+/chat help         帮助
+```
+
+关掉时所有已打开的客户端会**立即收起聊天框**（每个房间状态帧都带这个开关），新消息一律拒绝。聊天记录只在内存里，**重启服务器即清空**。
 
 ### 和朋友一起玩（局域网）
 
@@ -182,6 +205,7 @@ curl -X POST http://127.0.0.1:3000/admin/announce \
 | 方向轮盘键盘操作 | 方向键预览 · `Enter` 确认 · `Esc` 取消 |
 | 暂停（独立模拟） | 作战中（含最终攻势 / 隐秘核心）点顶栏的「暂停」或按 `Space`，再点「继续作战」（或 `Space`）继续；同盟模拟的作战不能暂停 |
 | 表情 | 左下角「交流」，左右滑动（或方向键）换主题，冷却 1 秒 |
+| 房间聊天 | 同盟房间里右下角的面板：拖动 **⠿** 移动（方向键也可以，`Shift` 加速）、`Esc` 收起；收起时胶囊上的数字是未读条数 |
 | 观战 | 自己的作战结束后（或休整期）点左侧队友头像 →「前往查看」；不参战的朋友可以在大厅输入同盟密钥点「观战」（每个同盟最多 2 名观战者，本作新增） |
 
 完整的规则、数值和小技巧见 **[docs/PLAYING.md](docs/PLAYING.md)**（游戏内左下角也有「玩法说明」）。
@@ -206,12 +230,15 @@ curl -X POST http://127.0.0.1:3000/admin/announce \
 
 ```bash
 npm run dev                 # node --watch：改动服务器代码后自动重启
-node --test                 # 单元 + 集成测试（约 3170 项；缺少素材 / 浏览器的用例会自动跳过）
+node --test                 # 单元 + 集成测试（约 3700 项；缺少素材 / 浏览器的用例会自动跳过）
 SP_E2E=1 node --test test/ui/mock.e2e.test.js        # 浏览器端到端测试，需要本机 Chrome（CHROME_PATH 可指定路径）
+SP_E2E=1 node --test test/ui/roomChat.e2e.test.js    # 房间聊天面板（同上，不需要素材）
 SP_REAL_E2E=1 node --test test/ui/real.e2e.test.js   # 需要 Chrome + 已下载的素材
 RENDER_E2E=1 node --test 'test/render/*.browser.test.js'   # 渲染测试，部分需要本地提取的棋盘贴图
 GOLDEN_FULL=1 node --test test/golden.test.js           # 黄金结果：固定种子的整套战斗与人机对局摘要（默认只跑快速子集）
 ```
+
+浏览器测试默认找 macOS 的 Chrome；Windows 上要指一下，例如 `CHROME_PATH="/c/Program Files/Google/Chrome/Application/chrome.exe"`。
 
 - 游戏数据由 `npm run build-data`（`tools/build-data.mjs`）从官方数据表生成，不要手工修改 `data/*.json`。
 - 只重构、不改玩法的提交不能改变 `test/golden/*.json`；有意改变玩法时运行 `npm run golden:update`，检查差异后随改动一起提交（见 [test/golden/README.md](test/golden/README.md)）。
