@@ -489,8 +489,8 @@ test('user playtest #6 (DESIGN §20): summons, skill triggers, blocking, push fo
   // the 机变 card and the card tap (§10 = §18.2 = §20.7)
   assert.match(sec(10), /a tap anywhere on the card, its confirm strip included, is the card's tap/);
   assert.match(sec(18), /Each card shows its full effect text \(§20\.7\)/);
-  // README: the test count stays in the right order of magnitude
-  assert.match(README, /约 31\d0 项/);
+  // README: the test count stays in the right order of magnitude (fork: the suite grew with #4 公告 and #2 聊天)
+  assert.match(README, /约 37\d0 项/);
 });
 
 test('user playtest #6 follow-up: a merge consuming a deployed copy puts the elite on that tile (code + research + META / PLAYING / SIM agree)', () => {
