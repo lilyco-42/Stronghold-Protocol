@@ -23,3 +23,17 @@ export function installedSkinIds() {
 
 /** Whether `skinId` may be downloaded / injected / listed in the manifest. */
 export const isInstalled = (ids, skinId) => ids.has(skinId);
+
+/**
+ * A hint for a machine that reaches GitHub only through a local proxy, or null when there is nothing to say.
+ *
+ * Node's global fetch ignores HTTP(S)_PROXY unless the process started with NODE_USE_ENV_PROXY=1 (Node 24+), so on
+ * such a machine every candidate URL fails with ECONNRESET while `curl` on the same URL returns 200 — a download tool
+ * that just reports "failed" here looks like a dead upstream URL. Measured on the dev machine 2026-10-06.
+ */
+export function proxyHint(env = process.env) {
+  const proxy = env.HTTPS_PROXY || env.https_proxy || env.ALL_PROXY || env.all_proxy;
+  if (!proxy || env.NODE_USE_ENV_PROXY) return null;
+  return `所有地址都连不上，而本机设了代理 ${proxy}：Node 的 fetch 默认不走代理，请用 ` +
+    `NODE_USE_ENV_PROXY=1 node tools/fetch-skin-… 重跑（curl 走代理所以能通，别误判成源站失效）`;
+}

@@ -642,7 +642,12 @@ describe('generated manifest data/assets.json', () => {
     const base = require('@pixi-spine/base');
     const r38 = require('@pixi-spine/runtime-3.8');
     const models = new Map();
-    for (const c of Object.values(manifest.chars)) for (const s of Object.values(c.spine || {})) models.set(s.skel, s);
+    for (const c of Object.values(manifest.chars)) {
+      for (const s of Object.values(c.spine || {})) models.set(s.skel, s);
+      // Installed skins too (docs/SKINS.md): a skin whose model fails to parse is invisible until somebody looks at
+      // the board — the unit just keeps wearing the default model — so this gate has to cover them.
+      for (const sk of Object.values(c.skins || {})) for (const s of Object.values(sk.spine || {})) models.set(s.skel, s);
+    }
     for (const e of Object.values(manifest.enemies)) if (e.spine) models.set(e.spine.skel, e.spine);
     for (const t of Object.values(manifest.tokens)) if (t.spine) models.set(t.spine.skel, t.spine);
     assert.ok(models.size > 400);

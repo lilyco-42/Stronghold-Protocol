@@ -2,7 +2,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { installedSkinIds, isInstalled } from './skin-selection.mjs';
+import { installedSkinIds, isInstalled, proxyHint } from './skin-selection.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const RESEARCH_PATH = path.join(ROOT, 'docs', 'research', '08-skins.json');
@@ -82,6 +82,7 @@ async function run() {
   await Promise.all(workers);
 
   console.log(`[skin-avatars] 完成: 新下载 ${downloaded}, 已存在 ${skipped}, 失败 ${failed}`);
+  if (failed) { const hint = proxyHint(); if (hint) console.error('提示：' + hint); }
 }
 
 run().catch((e) => {

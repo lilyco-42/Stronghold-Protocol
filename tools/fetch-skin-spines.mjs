@@ -2,7 +2,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { installedSkinIds, isInstalled } from './skin-selection.mjs';
+import { installedSkinIds, isInstalled, proxyHint } from './skin-selection.mjs';
+import { normalizeAtlas, atlasInfo } from './assets/atlas.mjs';
+import { pngSize } from './assets/formats.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const RESEARCH_PATH = path.join(ROOT, 'docs', 'research', '08-skins.json');
@@ -21,29 +23,29 @@ for (const [charId, skinList] of Object.entries(research.skins || {})) {
     const bs = s.battleSpine;
     if (!bs) continue;
 
-    // Front 朝向文件
-    if (bs.front) {
-      const frontDir = path.join(TARGET_BASE, charId, stem, 'front');
-      const skelUrl = bs.front.jsdelivrSkel || `https://cdn.jsdelivr.net/gh/fexli/ArknightsResource@main/spine/${charId}/${stem}/Front/${stem}.skel`;
-      const atlasUrl = `https://cdn.jsdelivr.net/gh/fexli/ArknightsResource@main/spine/${charId}/${stem}/Front/${stem}.atlas`;
-      const pngUrl = `https://cdn.jsdelivr.net/gh/fexli/ArknightsResource@main/spine/${charId}/${stem}/Front/${stem}.png`;
+    // 一个骨骼文件的候选地址：fexli 仓现在把皮肤骨骼放在 spine/<charId>/<stem>/Spine/（一份，前后朝向共用），
+    // 而这里原本按 <stem>/Front|Back 拼 —— 那是它更早的布局，实测 2026-10-06 六个地址全 404。
+    // 所以每个文件给出「新布局 → 旧布局」×「jsDelivr → raw」，最后才是研究表里自带的那条 URL。
+    const spineUrls = (side, ext) => {
+      const at = (host, dir) => `${host}/spine/${charId}/${stem}/${dir}/${stem}.${ext}`;
+      const js = (dir) => at('https://cdn.jsdelivr.net/gh/fexli/ArknightsResource@main', dir);
+      const raw = (dir) => at('https://raw.githubusercontent.com/fexli/ArknightsResource/main', dir);
+      const old = side === 'front' ? 'Front' : 'Back';
+      return [js('Spine'), js(old), raw('Spine'), raw(old)];
+    };
 
-      tasks.push({ charId, stem, side: 'front', file: `${stem}.skel`, dir: frontDir, url: skelUrl, fallback: bs.front.skel?.url });
-      tasks.push({ charId, stem, side: 'front', file: `${stem}.atlas`, dir: frontDir, url: atlasUrl, fallback: bs.front.atlas?.url });
-      tasks.push({ charId, stem, side: 'front', file: `${stem}.png`, dir: frontDir, url: pngUrl, fallback: bs.front.png?.url });
-    }
+    const addSide = (side, rec, dir) => {
+      for (const ext of ['skel', 'atlas', 'png']) {
+        const tableUrl = rec[ext]?.url;
+        tasks.push({
+          charId, stem, side, file: `${stem}.${ext}`, dir,
+          urls: tableUrl ? [...spineUrls(side, ext), tableUrl] : spineUrls(side, ext),
+        });
+      }
+    };
 
-    // Back 朝向文件
-    if (bs.back) {
-      const backDir = path.join(TARGET_BASE, charId, stem, 'back');
-      const skelUrl = bs.back.jsdelivrSkel || `https://cdn.jsdelivr.net/gh/fexli/ArknightsResource@main/spine/${charId}/${stem}/Back/${stem}.skel`;
-      const atlasUrl = `https://cdn.jsdelivr.net/gh/fexli/ArknightsResource@main/spine/${charId}/${stem}/Back/${stem}.atlas`;
-      const pngUrl = `https://cdn.jsdelivr.net/gh/fexli/ArknightsResource@main/spine/${charId}/${stem}/Back/${stem}.png`;
-
-      tasks.push({ charId, stem, side: 'back', file: `${stem}.skel`, dir: backDir, url: skelUrl, fallback: bs.back.skel?.url });
-      tasks.push({ charId, stem, side: 'back', file: `${stem}.atlas`, dir: backDir, url: atlasUrl, fallback: bs.back.atlas?.url });
-      tasks.push({ charId, stem, side: 'back', file: `${stem}.png`, dir: backDir, url: pngUrl, fallback: bs.back.png?.url });
-    }
+    if (bs.front) addSide('front', bs.front, path.join(TARGET_BASE, charId, stem, 'front'));
+    if (bs.back) addSide('back', bs.back, path.join(TARGET_BASE, charId, stem, 'back'));
   }
 }
 
@@ -66,7 +68,7 @@ async function downloadOne(t) {
     return 'skipped';
   }
 
-  const urls = [t.url, t.fallback].filter(Boolean);
+  const urls = t.urls || [t.url, t.fallback].filter(Boolean);
   for (const u of urls) {
     try {
       const res = await fetch(u, { headers: { 'User-Agent': 'Stronghold-Spine-Sync/1.0' } });
@@ -82,6 +84,35 @@ async function downloadOne(t) {
     }
   }
   return 'failed';
+}
+
+/**
+ * Normalize every downloaded atlas: fexli ships them without a `size:` page header, which pixi-spine divides by
+ * (see tools/assets/atlas.mjs, written for exactly this). Done after all downloads because the atlas and its PNG
+ * are separate concurrent tasks, so their order is not guaranteed. normalizeAtlas() is idempotent.
+ */
+function normalizeDownloadedAtlases() {
+  let fixed = 0;
+  const unsized = [];
+  for (const dir of new Set(activeTasks.map((t) => t.dir))) {
+    if (!fs.existsSync(dir)) continue;
+    for (const name of fs.readdirSync(dir).filter((n) => n.endsWith('.atlas'))) {
+      const file = path.join(dir, name);
+      const text = fs.readFileSync(file, 'utf8');
+      const sizes = new Map();
+      for (const p of atlasInfo(text).pages) {
+        const pageFile = path.join(dir, p);
+        if (!fs.existsSync(pageFile)) continue;
+        const sz = pngSize(fs.readFileSync(pageFile));
+        if (sz) sizes.set(p, sz);
+      }
+      const norm = normalizeAtlas(text, { pageSize: (p) => sizes.get(p) || null, pma: false });
+      if (norm.missingSize.length) unsized.push(`${name}(${norm.missingSize.join(',')})`);
+      if (norm.changed) { fs.writeFileSync(file, norm.text); fixed++; }
+    }
+  }
+  for (const w of unsized) console.error(`[skin-spines] ⚠ atlas 页缺尺寸、未规范化: ${w}（对应 png 没下下来，渲染会按 0 除）`);
+  return fixed;
 }
 
 async function main() {
@@ -104,7 +135,9 @@ async function main() {
   const workers = Array.from({ length: CONCURRENCY }, () => worker());
   await Promise.all(workers);
 
-  console.log(`[skin-spines] 完成: 新下载 ${downloaded}, 已存在 ${skipped}, 失败 ${failed}`);
+  const normalized = normalizeDownloadedAtlases();
+  console.log(`[skin-spines] 完成: 新下载 ${downloaded}, 已存在 ${skipped}, 失败 ${failed}${normalized ? `，规范化 atlas ${normalized} 份` : ''}`);
+  if (failed) { const hint = proxyHint(); if (hint) console.error('提示：' + hint); }
 }
 
 main().catch(e => {

@@ -13,6 +13,21 @@
 > 装素材的方式因此是**构建期**的：`tools/fetch-skin-*.mjs` + `tools/inject-skins-assets.mjs` 把选中的皮肤写进
 > `data/assets.json`；`data/skins-installed.json` 在本仓默认是空数组，也就是**一个皮肤都不下载**。
 > 想改成像文档那样按需安装，需要自己实现那半（并决定线上服务器允不允许由玩家触发外网下载）。
+>
+> 移植时另外补的三处（都不在原文档里）：
+> - **fexli 的目录布局变了**：皮肤骨骼现在在 `spine/<charId>/<stem>/Spine/`（一份，前后朝向共用），原文按
+>   `<stem>/Front|Back` 拼 URL，实测六个地址全 404。`fetch-skin-spines.mjs` 现在对每个文件依次试
+>   「新布局 → 旧布局」×「jsDelivr → raw」，最后才用研究表里自带的那条。
+> - **atlas 必须规范化**：fexli 的 atlas 没有 `size:` 页头，pixi-spine 会按 0 除；下完后统一走
+>   `tools/assets/atlas.mjs` 的 `normalizeAtlas()`（本仓为同一件事早就写好了），否则
+>   `test/assets.test.js` 的「每份 atlas 都要有 size:」直接红。
+> - **代理机器上 Node 下不动**：本机 `HTTPS_PROXY=127.0.0.1:7897` 时 `curl` 全 200 而 Node `fetch` 全
+>   `ECONNRESET`（Node 的 fetch 默认不理代理变量），看起来像源站失效。要 `NODE_USE_ENV_PROXY=1 node tools/fetch-skin-…`；
+>   两个下载工具现在会在失败时打出这句提示（`tools/skin-selection.mjs` 的 `proxyHint()`）。
+>
+> 一个**未验证**的顺序问题，别当成已知：`npm run assets` 成功重写 `data/assets.json` 时会不会保留 `chars[].skins`
+> 没测出来（那次被 shrink 闸门挡下、根本没写盘）。保险做法是 `npm run assets` 之后重跑一次
+> `node tools/inject-skins-assets.mjs`（幂等，输出只由 `data/skins-installed.json` 决定）。
 
 An operator's Spine model and avatar can be replaced by one of its official alternative outfits (时装). Written to
 be **portable**: nearly everything lives in new files, and the handful of edits to existing ones are listed below
