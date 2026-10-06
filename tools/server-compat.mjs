@@ -96,16 +96,28 @@ export async function probeVerbs(url, verbs, opts = {}) {
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  const urls = process.argv.slice(2).filter((a) => !a.startsWith('--'));
-  if (!urls.length) { console.error('用法: node tools/server-compat.mjs <ws://…> [更多服务器…]'); process.exit(2); }
-  const verbs = clientVerbs();
-  console.log(`客户端会发的动词（从 public/js 现抓）：${verbs.length} 个`);
-  console.log(verbs.join(' ') + '\n');
+  const args = process.argv.slice(2);
+  const urls = args.filter((a) => !a.startsWith('--'));
+  // `--extra=room.chat,queue.join` 问的是**反过来**的问题：这台服务器有没有我们客户端还没用的动词。
+  // 只看我们自己发的那 16 个，就永远看不见别人多做了什么（simpfun 的 room.chat 就是这么漏掉的）。
+  const extra = (args.find((a) => a.startsWith('--extra=')) || '').slice(8).split(',').map((s) => s.trim()).filter(Boolean);
+  if (!urls.length) { console.error('用法: node tools/server-compat.mjs <ws://…> [更多…] [--extra=room.chat,queue.join]'); process.exit(2); }
+  const verbs = [...new Set([...clientVerbs(), ...extra])].sort();
+  console.log(`客户端会发的动词（从 public/js 现抓）：${verbs.length - extra.length} 个${extra.length ? `；另加指定的 ${extra.length} 个：${extra.join(' ')}` : ''}`);
   const rows = [];
-  for (const u of urls) { const r = await probeVerbs(u, verbs); rows.push(r); console.log(`· ${u} → ${r.connected ? `缺 ${r.missing.length}${r.missing.length ? '：' + r.missing.join(',') : ''}` : '未连上 ' + r.note}`); }
-  const head = ['动词', ...urls.map((u) => new URL(u).host)];
-  console.log('\n' + head.join('\t'));
-  for (const v of verbs) console.log([v, ...rows.map((r) => (r.connected ? (r.missing.includes(v) ? '✗' : '✓') : '?'))].join('\t'));
+  for (const u of urls) {
+    const r = await probeVerbs(u, verbs);
+    rows.push(r);
+    const mine = r.missing.filter((v) => !extra.includes(v));
+    const got = r.present.filter((v) => extra.includes(v));
+    // 没等到应答的动词**不能算"支持"**，也不能算"缺"——那正是把一次网络抖动读成"这台服务器有皮肤"的方式。
+    const unknown = r.unknownAnswer.filter((v) => !extra.includes(v));
+    console.log(`· ${u} → ${!r.connected ? '未连上 ' + r.note : `我们发的缺 ${mine.length}${mine.length ? '：' + mine.join(',') : ''}${unknown.length ? `；未知 ${unknown.length}（没等到应答，别当支持）：${unknown.join(',')}` : ''}${extra.length ? `；额外有 ${got.length ? got.join(',') : '（无）'}` : ''}`}`);
+  }
+  console.log('\n动词\t' + ['目标', ...urls.map((u) => new URL(u).host)].join('\t'));
+  for (const v of verbs) {
+    console.log([v + (extra.includes(v) ? ' (额外)' : ''), ...rows.map((r) => (r.connected ? (r.missing.includes(v) ? '✗' : '✓') : '?'))].join('\t'));
+  }
   const bad = rows.filter((r) => !r.controlOk || r.unknownAnswer.length);
   if (bad.length) { console.log('\n⚠ 有服务器的对照没过/有未应答动词，上面那列按未知处理：' + bad.map((b) => b.url).join(', ')); process.exit(1); }
 }
