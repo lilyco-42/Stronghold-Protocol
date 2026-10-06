@@ -36,11 +36,10 @@ for (const [charId, skinList] of Object.entries(research.skins || {})) {
     if (!isInstalled(installed, skinId)) continue;
     const stem = s.stem;
 
-    // 提取 avatar：优先使用本地离线内置头像路径
+    // 头像只认本地文件：研究表里那条 avatar.url 指向 raw.githubusercontent.com，玩家侧在国内取不到，
+    // 而且它会变成 assets.json 里的外链，直接踩中客户端的零外链闸门。缺文件就写 null，让选择页退回干员原头像。
     const localAvatar = path.join(ROOT, 'public', 'assets', 'char', 'skin_avatar', `${stem}.png`);
-    const avatarUrl = fs.existsSync(localAvatar)
-      ? `/assets/char/skin_avatar/${stem}.png`
-      : (s.avatar?.url || null);
+    const avatarUrl = fs.existsSync(localAvatar) ? `/assets/char/skin_avatar/${stem}.png` : null;
 
     const skinEntry = {
       name: s.name,

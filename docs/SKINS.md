@@ -11,13 +11,18 @@
 > `sanitizeSkins`/`mergeSkins` 与分享码扩展，也漏了 `GAME_FILES` 必须加 `'skins'` —— 后者由
 > `test/ui/playtest3.test.js` 强制）。
 > 装素材的方式因此是**构建期**的：`tools/fetch-skin-*.mjs` + `tools/inject-skins-assets.mjs` 把选中的皮肤写进
-> `data/assets.json`；`data/skins-installed.json` 在本仓默认是空数组，也就是**一个皮肤都不下载**。
+> `data/assets.json`；清单就是 `data/skins-installed.json`。**本仓现在预装 12 款 starter 皮肤**（2026-10-06 起，
+> 见下节），改成空数组就退回「一个皮肤都不下载」，字节与不装皮肤时一致。
 > 想改成像文档那样按需安装，需要自己实现那半（并决定线上服务器允不允许由玩家触发外网下载）。
 >
 > 移植时另外补的三处（都不在原文档里）：
-> - **fexli 的目录布局变了**：皮肤骨骼现在在 `spine/<charId>/<stem>/Spine/`（一份，前后朝向共用），原文按
->   `<stem>/Front|Back` 拼 URL，实测六个地址全 404。`fetch-skin-spines.mjs` 现在对每个文件依次试
->   「新布局 → 旧布局」×「jsDelivr → raw」，最后才用研究表里自带的那条。
+> - **URL 要按多种布局依次探**：原文按 `<stem>/Front|Back` 拼 URL。2026-10-06 对表里前 121 款逐个 HEAD 了
+>   `Spine/` 与 `Front/` 两种布局：**119 款只有 `Front|Back`**（`Spine/` 404），1 款两种都有
+>   （`char_373_lionhd@snow#1`），1 款只有 `Spine/`（`char_1012_skadi2@boc#4`）。也就是说以 `Front|Back` 为主、
+>   `Spine/` 是少数派 —— 我先前那句「fexli 把布局改成 Spine/ 了，旧地址全 404」是拿一个样本当规律，错的。
+>   另外 front 与 back 是**两份不同的骨骼**（`char_199_yak` 的两张 png sha 和字节都不同），不能省一份。
+>   `fetch-skin-spines.mjs` 因此对每个文件依次试「jsDelivr → raw」×「Spine → Front/Back」，最后才用研究表里
+>   自带的那条，命中即止。
 > - **atlas 必须规范化**：fexli 的 atlas 没有 `size:` 页头，pixi-spine 会按 0 除；下完后统一走
 >   `tools/assets/atlas.mjs` 的 `normalizeAtlas()`（本仓为同一件事早就写好了），否则
 >   `test/assets.test.js` 的「每份 atlas 都要有 size:」直接红。
@@ -25,9 +30,33 @@
 >   `ECONNRESET`（Node 的 fetch 默认不理代理变量），看起来像源站失效。要 `NODE_USE_ENV_PROXY=1 node tools/fetch-skin-…`；
 >   两个下载工具现在会在失败时打出这句提示（`tools/skin-selection.mjs` 的 `proxyHint()`）。
 >
-> 一个**未验证**的顺序问题，别当成已知：`npm run assets` 成功重写 `data/assets.json` 时会不会保留 `chars[].skins`
-> 没测出来（那次被 shrink 闸门挡下、根本没写盘）。保险做法是 `npm run assets` 之后重跑一次
-> `node tools/inject-skins-assets.mjs`（幂等，输出只由 `data/skins-installed.json` 决定）。
+> 顺序问题是**实测过的**（2026-10-06，`node tools/fetch-assets.mjs --offline`）：重建清单时 `fetch-assets.mjs`
+> 里没有任何 `skins` 逻辑，它把 12 款皮肤的 84 条引用全列成「会丢的条目」，然后 **shrink 闸门拒绝写盘**
+> （输出 `data/assets.json (kept)`）。所以默认情况下皮肤不会被 `npm run assets` 吃掉，但 **`--allow-shrink` 会**
+> —— 加这个参数重跑之后必须再执行一次 `node tools/inject-skins-assets.mjs`（幂等，输出只由
+> `data/skins-installed.json` 决定）。
+
+## 本仓预装的 starter 皮肤（12 款，12.3 MB）
+
+`data/skins-installed.json` 现在是 12 条，全部落在**商店里买得到的 6★/5★ 干员**上（按 `data/chess.json` 的
+`visible && !isHidden` 筛过：174 款里 162 款在可购干员上，涉及 107 个干员）：
+
+能天使 野地秘行 · 斯卡蒂 驭浪 WR04 · 空弦 宣传策略 · 风笛 皇后一号 · 莫斯提马 除魅 · 水月 永恒玩家 ·
+歌蕾蒂娅 返航 · 琳琅诗怀雅 律动方格 · 伺夜 叙拉古的彼面 · 瑕光 异月灾裔 · 忍冬 失焦 · 信仰搅拌机 天穹肇始
+
+装它们用的命令就三条（`data/skins-installed.json` 是唯一输入）：
+
+```
+NODE_USE_ENV_PROXY=1 node tools/fetch-skin-spines.mjs    # 72 个文件：每款 front/back 各 skel+atlas+png
+NODE_USE_ENV_PROXY=1 node tools/fetch-skin-avatars.mjs   # 12 个 180×180 头像 → public/assets/char/skin_avatar/<stem>.png
+node tools/inject-skins-assets.mjs                       # 写进 data/assets.json 的 chars[].skins
+```
+
+2026-10-06 实测的落地状态：84 个文件全部下到、24 份 atlas 全部规范化（都带 `size:` 页）、24 个朝向的 atlas
+引用的 png 都在盘上；12 份 `.skel` 的版本串都是 **3.8.99**，与原皮一致，二进制里能找到清单 `anims` 要映射的
+`Idle/Start/Attack/Skill_2`；`room.skins` 带着 12 条下标发给本地服务器被接受、无 error；从 HTTP 侧取这 84 个
+URL 全部 200，合计 12.3 MB。**没测的那一件**：换皮后的骨骼在屏幕上真的动起来 —— 本机浏览器页签是
+`visibilityState=hidden`，rAF 不跑，截不到有效画面，这条要等一次真实浏览器验证。
 
 An operator's Spine model and avatar can be replaced by one of its official alternative outfits (时装). Written to
 be **portable**: nearly everything lives in new files, and the handful of edits to existing ones are listed below
