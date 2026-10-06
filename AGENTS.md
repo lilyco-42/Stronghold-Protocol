@@ -22,16 +22,20 @@
 | `6ea4a0e` | 网页侧也钉"零站外请求"（判据与客户端闸门一致：按引用形式扫，注释里的 URL 不算） | `test/webfonts-local.test.js` |
 | `4cef77b` | 网页版这一侧钉住 **node 服务怎么发镜像字体**（mime / 长缓存 / `font-display: swap` / 点路径一律 403），带正控制与变异复验 | `test/webfonts-serve.test.js` |
 
-## 2. 跑测试与已知的两条 CPU 闸
+## 2. 跑测试与已知的三条 CPU 阈值闸
 
 ```
 npm install --ignore-scripts ws        # 服务端只依赖 ws；postinstall 会去拷 vendor，跳过
 npm test                                 # 全量：node --test
 ```
 
-2026-10-05 16:41 在 `3dd1a2c` 整跑实测：**3643 项 / 3624 过 / 3 失败 / 16 跳过**。
+2026-10-06 在 `224eb92`（合并上游 `a9dfd17` 之后）整跑实测：**3707 项 / 3690 过 / 1 失败 / 16 跳过，退出码 1**；
+红的正是下面第三条闸（`best 0.688 ms/tick`，三次 0.800/0.688/0.871），**单独复跑 `node --test test/sim/perf.test.js test/sim/robustness.test.js` → 37/37 全过、退出码 0**。
+上一次记录：2026-10-05 16:41 在 `3dd1a2c` 整跑 **3643 项 / 3624 过 / 3 失败 / 16 跳过**（条数随负载变，见下）。
 那 3 条都是 0.5 ms/tick 的阈值闸，不是回归：`test/sim/perf.test.js:22`、`test/sim/perf.test.js:43`（两条 70 敌 + 10 干员的 benchmark）与
 `test/sim/robustness.test.js:739`（双人 BOSS 场）。**同一批文件单独复跑 37/37 全过**（`node --test test/sim/perf.test.js test/sim/robustness.test.js`）。
+📌 栈里报的行号是**断言所在行**，不是 `test(...)` 的声明行：合并后 BOSS 场那条的断言落在 `robustness.test.js:765`，
+而声明仍在 `:739`。按栈去改文档里的引用会把一个正确值改错 —— 认引用时先 `grep -n "best of 3"` 看声明行。
 判负载的依据：这三条闸测的是 `server/sim/**`，而本分支 `git diff upstream/master..HEAD -- server/sim test/sim` **为空**。
 ⚠️ 整跑红的条数会随本机负载变（同一天里 1→2→3 条都出现过），所以"几条失败"不能当判据 —— 判据是**失败的是不是这几条阈值闸**，
 是就单独复跑，不是就是真回归。
