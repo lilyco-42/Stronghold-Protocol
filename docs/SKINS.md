@@ -53,10 +53,16 @@ node tools/inject-skins-assets.mjs                       # 写进 data/assets.js
 ```
 
 2026-10-06 实测的落地状态：84 个文件全部下到、24 份 atlas 全部规范化（都带 `size:` 页）、24 个朝向的 atlas
-引用的 png 都在盘上；12 份 `.skel` 的版本串都是 **3.8.99**，与原皮一致，二进制里能找到清单 `anims` 要映射的
-`Idle/Start/Attack/Skill_2`；`room.skins` 带着 12 条下标发给本地服务器被接受、无 error；从 HTTP 侧取这 84 个
-URL 全部 200，合计 12.3 MB。**没测的那一件**：换皮后的骨骼在屏幕上真的动起来 —— 本机浏览器页签是
-`visibilityState=hidden`，rAF 不跑，截不到有效画面，这条要等一次真实浏览器验证。
+引用的 png 都在盘上、12 份 `.skel` 的版本串都是 **3.8.99**（与原皮一致）；`room.skins` 带着 12 条下标发给
+本地服务器被接受、无 error，能建能开局；从 HTTP 侧取这 84 个 URL 全部 200，合计 12.3 MB。
+
+**渲染这一件也验了，用的是真 Chrome + 页面自带的 pixi-spine**（`/dev/render-demo.html` 提供全局
+`PIXI`/`PIXI.spine`，然后走生产同一条 `assets.js` 的 `loadSpineData(entry)`）：24 个朝向**全部加载成功**
+（bone 数 36–145、动画 4–18 条），并且每款的动画名集合与**它自己原皮逐一对齐 —— 丢失 0、多出 0、清单
+`anims` 引用而皮肤里没有的 0**；再把「原皮 vs 皮肤」同框渲染成图，12 张都能画出且明显是两套美术。
+⚠️ 中间踩过一个假红：我第一版探针写死了 `Idle/Start/Attack/Skill_2` 四个名字去查，报「16 个朝向缺
+Skill_2」—— 而能天使的**原皮**本来也没有 `Skill_2`（她的集合是 `Attack,Default,Die,Idle,Start`）。
+按固定名单查动画名等于查自己的假设，必须拿同一干员的原皮做对照，只报「相对原皮少了什么」。
 
 An operator's Spine model and avatar can be replaced by one of its official alternative outfits (时装). Written to
 be **portable**: nearly everything lives in new files, and the handful of edits to existing ones are listed below
