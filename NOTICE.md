@@ -11,6 +11,7 @@ Copyright (C) 2026 Stronghold-Protocol contributors
 例外：
 
 - `tools/local-extract/aklz4.py` 来自 [isHarryh/Ark-Unpacker](https://github.com/isHarryh/Ark-Unpacker)，保持 BSD-3-Clause 许可（见 `tools/local-extract/LICENSE-Ark-Unpacker.txt`）。
+- 干员皮肤（时装）这套实现移植自 [Paper-Yuan/Stronghold-Protocol](https://github.com/Paper-Yuan/Stronghold-Protocol) 分支 `0.1.6-pre-skin`（同样以 GPL-3.0 发布）：`public/js/ui/skins.js`、`public/js/ui/skinPicker.js`、`tools/build-skins.mjs`、`tools/fetch-skin-{avatars,spines}.mjs`、`tools/inject-skins-assets.mjs`、`docs/SKINS.md`，以及 `shared/protocol.js` / `server/` / `public/js/` 里带 `docs/SKINS.md` 注释的皮肤改动块。素材表来自 Kengxxiao 的 `skin_table.json`，模型与头像来自 fexli 与 yuanyan3060 的公开素材仓。
 - 通过 npm 安装的第三方库（PixiJS、pixi-spine、Preact、htm、three.js、ws 等）和字体各自保留原许可证，见 [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md)。
 
 **附加许可（GPL-3.0 第 7 条）** — Additional permission under GNU GPL version 3 section 7:

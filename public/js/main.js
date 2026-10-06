@@ -39,12 +39,13 @@ import { TitleScreen, sanitizeName } from './screens/title.js';
 import { LobbyScreen, rememberRoom, parseRoomParam } from './screens/lobby.js';
 import { RoomScreen } from './screens/room.js';
 import { GameScreen } from './screens/game.js';
-import { installAudio } from './audio.js';
+import { installAudio, audio } from './audio.js';
 import { settingsStore } from './ui/settings.js';
 import { GuideHost } from './ui/guide.js';
 import { installDeviceSupport } from './ui/device.js';
 import { LoadoutHost } from './screens/loadout.js';
 import { installLoadoutSync } from './ui/loadoutSync.js';
+import { installSkinsSync } from './ui/skins.js';
 import { startBuildGuard } from './ui/buildGuard.js';
 
 const RESTORE_GRACE_MS = 1500;
@@ -329,10 +330,12 @@ async function boot() {
 
   wireNet();
   installLoadoutSync({ net });
+  installSkinsSync({ net });
   net.attachBrowserHooks();
   // Audio: unlock on first gesture, BGM follows the route / match phase (js/audio.js).
   installAudio({ getManifest: () => data.get('assets'), subscribe: store.subscribe, getState: store.get, selectRoute, settings: settingsStore.get() });
   data.load('assets').catch(() => {});
+  data.load('skins').catch(() => {});
   // Warm the data cache in the background (missing files are tolerated).
   data.loadAll('config').catch(() => {});
   // Optional local-client art manifest (emotes, tutorial pages, official UI sprites; DESIGN §13).
