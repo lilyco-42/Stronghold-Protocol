@@ -10,6 +10,10 @@ public/fonts/
 # tools/local-extract/extract.py → public/assets/local/** and this per-machine manifest
 # (optional: the client and the tests work without it; docs/DEPLOY.md §6 lists what falls back)
 data/local-assets.json
+# tools/voice-langs.mjs --write → 这个包到底内置了哪几种配音（数的是 public/assets/audio/voice/<lang>/ 的盘上文件）。
+# 不入库正是为了不制造静音：这份登记若与 gitignore 掉的语音文件分开部署（只搬 data/ 没搬 public/assets/），
+# 客户端就会把台词改写到 /voice/jp/… 然后 404 —— 比「没有这个开关」糟得多。
+data/voice-langs.json
 # download caches, upstream tables, ledgers, reports, setup state
 .cache/
 

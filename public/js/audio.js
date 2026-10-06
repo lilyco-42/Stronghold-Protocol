@@ -48,6 +48,7 @@
 
 import { PHASE } from '../../shared/constants.js';
 import { mediaUrl } from './media.js';
+import { voiceLangUrl } from './ext/voiceLang.js';
 
 const MAX_VOICES = 8;
 const UNIT_COOLDOWN_MS = 160;
@@ -837,7 +838,7 @@ export class AudioManager {
       if (!this.ctx || !this.voiceGain || this.volumes.muted || this.volumes.voice <= 0) return false;
       if (typeof charId !== 'string' || typeof slot !== 'string') return false;
       const line = this.getManifest()?.audio?.voice?.[charId]?.[slot];
-      const url = Array.isArray(line) ? line[Math.floor(Math.random() * line.length)] : line;
+      const url = voiceLangUrl(Array.isArray(line) ? line[Math.floor(Math.random() * line.length)] : line);
       if (typeof url !== 'string' || !url) return false;
       const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
       const verdict = this.voiceGate.request(slot, o.unitKey ?? null, now);

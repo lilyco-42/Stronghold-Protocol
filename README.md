@@ -173,6 +173,8 @@ npm start          # 启动服务器：http://localhost:3000
 | [docs/META.md](docs/META.md) | 对局与经济引擎（英文）：回合流程、商店、联防、最终攻势的实现细节 |
 | [docs/DATA.md](docs/DATA.md) | 由官方数据表生成的游戏数据（英文） |
 | [docs/ASSETS.md](docs/ASSETS.md) | 素材来源、目录结构与清单（英文） |
+| [docs/SKINS.md](docs/SKINS.md) | 干员皮肤：素材从哪来、怎么装进包、`room.skins` 与「仅自己可见」的降级 |
+| [docs/VOICE.md](docs/VOICE.md) | 配音语言切换：同名不同目录的推导、`data/voice-langs.json` 登记、为什么故意不入库 |
 | [docs/BALANCE.md](docs/BALANCE.md) | 难度模型与测量（英文） |
 | [docs/research/](docs/research/00-INDEX.md) | 官方规则、数据与界面的调研记录 |
 
