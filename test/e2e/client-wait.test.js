@@ -28,7 +28,10 @@ function fakePage(trueAfter) {
 }
 
 test('a wait longer than one slice keeps polling the same predicate until it holds', async () => {
-  const page = fakePage(95);
+  // 原来这里是 95 ms：单独跑 5/5 绿，完整套件里红过一次，报的是 `sliced (3 calls)` —— 三个 30 ms 片子的
+  // 实际耗时之和越过 95 ms 就够了，也就是每个定时器只要漂 2 ms。整机满载时这个余量太紧。
+  // 200 ms 要把平均漂移吃到 2.2× 才会误报，而整体 timeout 1000 ms 仍然宽松。
+  const page = fakePage(200);
   const fn = () => true;
   const got = await waitForFunctionLong(page, fn, { timeout: 1000, polling: 200, slice: 30 }, 'a', 2);
   assert.deepEqual(got, { handle: 'ok', args: ['a', 2] });
