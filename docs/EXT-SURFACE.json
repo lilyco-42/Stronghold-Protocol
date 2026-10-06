@@ -2,6 +2,34 @@
  "generated": "2026-10-06",
  "upstream": "upstream/master",
  "files": {
+  ".gitignore": [
+   {
+    "line": "# tools/voice-langs.mjs --write → 这个包到底内置了哪几种配音（数的是 public/assets/audio/voice/<lang>/ 的盘上文件）。",
+    "anchor": "data/local-assets.json"
+   },
+   {
+    "line": "# 不入库正是为了不制造静音：这份登记若与 gitignore 掉的语音文件分开部署（只搬 data/ 没搬 public/assets/），",
+    "anchor": "data/local-assets.json"
+   },
+   {
+    "line": "# 客户端就会把台词改写到 /voice/jp/… 然后 404 —— 比「没有这个开关」糟得多。",
+    "anchor": "data/local-assets.json"
+   },
+   {
+    "line": "data/voice-langs.json",
+    "anchor": "data/local-assets.json"
+   }
+  ],
+  "README.md": [
+   {
+    "line": "| [docs/SKINS.md](docs/SKINS.md) | 干员皮肤：素材从哪来、怎么装进包、`room.skins` 与「仅自己可见」的降级 |",
+    "anchor": "npm start          # 启动服务器：http://localhost:3000"
+   },
+   {
+    "line": "| [docs/VOICE.md](docs/VOICE.md) | 配音语言切换：同名不同目录的推导、`data/voice-langs.json` 登记、为什么故意不入库 |",
+    "anchor": "npm start          # 启动服务器：http://localhost:3000"
+   }
+  ],
   "data/assets.json": [
    {
     "line": "{\"version\":1,\"hash\":\"2249e4a0918a\",\"generator\":\"tools/fetch-assets.mjs\",\"stats\":{\"files\":5700,\"bytes\":331632595,\"chars\":…（整行 821075 字符）",
@@ -543,6 +571,16 @@
    {
     "line": "hasBack: (id, skinId) => hasBackSpine(m(), id, skinId),",
     "anchor": "export function createAssets(options) {"
+   }
+  ],
+  "public/js/audio.js": [
+   {
+    "line": "import { voiceLangUrl } from './ext/voiceLang.js';",
+    "anchor": "import { mediaUrl } from './media.js';"
+   },
+   {
+    "line": "const url = voiceLangUrl(Array.isArray(line) ? line[Math.floor(Math.random() * line.length)] : line);",
+    "anchor": "export class AudioManager {"
    }
   ],
   "public/js/data.js": [
@@ -1507,6 +1545,16 @@
    {
     "line": "return { ok: true, entries, skins };",
     "anchor": "export function parseImport(input) {"
+   }
+  ],
+  "public/js/ui/settings.js": [
+   {
+    "line": "import { VoiceLangRow } from '../ext/voiceLangUi.js';",
+    "anchor": "import { detectFeatures } from './device.js';"
+   },
+   {
+    "line": "<${VoiceLangRow} />",
+    "anchor": "export function SettingsModal({ open, onClose }) {"
    }
   ],
   "public/js/ui/teamPanel.js": [
