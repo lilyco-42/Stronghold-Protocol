@@ -26,16 +26,20 @@
 
 ## 一、差距总览
 
-| # | 功能 | 他们 | 我们 | 优先级 |
-|---|---|---|---|---|
-| 1 | 自选外援（六星支援干员） | ✅ 16 位，可选技能 | ❌ | **P0** |
-| 2 | 房间内文字聊天 | ✅ 已上线 | ❌ | **P0** |
-| 3 | 匹配队列（含难度） | ✅ 独立屏幕 | ❌ | **P1** |
-| 4 | 服务器跑马灯公告 | ✅ 终端命令发布 | ❌ | **P1** |
-| 5 | 更新公告弹窗 | ✅ 动态生成 | ❌ | **P2** |
-| 6 | 素材 CDN 直出 | ✅ | ✅ 已有（`cdn.lilyco42.top`） | — |
-| 7 | 干员皮肤 | ❌ | ✅ 已有（`feat/skins`） | — |
-| 8 | 字体自托管 | ❌（用 Google Fonts） | ✅ 已有（`public/webfonts/`） | — |
+| # | 功能 | 他们 | 我们 | 优先级 | Issue |
+|---|---|---|---|---|---|
+| 1 | 自选外援（六星支援干员） | ✅ 16 位，可选技能 | ❌ | **P0** | [#1](../../issues/1) |
+| 2 | 房间内文字聊天 | ✅ 已上线 | ❌ | **P0** | [#2](../../issues/2) |
+| 3 | 匹配队列（含难度） | ✅ 独立屏幕 | ❌ | **P1** | [#3](../../issues/3) |
+| 4 | 服务器跑马灯公告 | ✅ 终端命令发布 | ❌ | **P1** | [#4](../../issues/4) |
+| 5 | 更新公告弹窗 | ✅ 动态生成 | ❌ | **P2** | [#5](../../issues/5) |
+| 6 | 素材 CDN 直出 | ✅ | ✅ 已有（`cdn.lilyco42.top`） | — | — |
+| 7 | 干员皮肤 | ❌ | ✅ 已有（`feat/skins`） | — | — |
+| 8 | 字体自托管 | ❌（用 Google Fonts） | ✅ 已有（`public/webfonts/`） | — | — |
+
+> 每条 TODO 都已开成 Issue 跟踪（见上表 Issue 列）。
+> **建议的实现顺序：`#4 公告` → `#2 聊天` → `#3 匹配` → `#1 外援` → `#5 更新公告`** ——
+> 公告最小最独立、不碰上游核心文件；外援最大、改上游文件最多；更新公告依赖外援和皮肤提供动态内容。
 
 **结论**：功能上我们 2 项领先、5 项落后。落后的这 5 项里有 2 项是"社区服刚需"
 （外援、聊天），优先级最高。
@@ -44,7 +48,7 @@
 
 ## 二、TODO
 
-### P0-1 · 自选外援系统
+### P0-1 · 自选外援系统 · [#1](https://github.com/lilyco-42/Stronghold-Protocol/issues/1)
 
 **他们的设计**（从 `shared/supports.js` + `js/ui/supportPicker.js` 观察所得）：
 
@@ -86,7 +90,7 @@
 
 ---
 
-### P0-2 · 房间内文字聊天
+### P0-2 · 房间内文字聊天 · [#2](https://github.com/lilyco-42/Stronghold-Protocol/issues/2)
 
 **他们的设计**：`room.chat` 协议；前端 10.6 KB（`roomChat.js`）+ 2.5 KB（`chatState.js`），独立 CSS。
 上线时还带着 `?v=20261005-chat-preview2` 的预览版本号，说明是迭代中的功能。
@@ -103,7 +107,7 @@
 
 ---
 
-### P1-1 · 匹配队列
+### P1-1 · 匹配队列 · [#3](https://github.com/lilyco-42/Stronghold-Protocol/issues/3)
 
 **他们的设计**：独立屏幕 `js/screens/matchmaking.js`（4818 B）+ `css/screens/matchmaking.css`。
 协议 `room.matchmake`，难度用 `lobby.difficulty`。
@@ -119,7 +123,7 @@
 
 ---
 
-### P1-2 · 服务器跑马灯公告
+### P1-2 · 服务器跑马灯公告 · [#4](https://github.com/lilyco-42/Stronghold-Protocol/issues/4)
 
 **他们的设计**（`shared/announcement.js` + `js/ui/serverAnnouncement.js`）：
 
@@ -150,7 +154,7 @@
 
 ---
 
-### P2 · 更新公告弹窗
+### P2 · 更新公告弹窗 · [#5](https://github.com/lilyco-42/Stronghold-Protocol/issues/5)
 
 **他们的设计**：`js/ui/releaseNotes.js`（4416 B），每次打开页面弹一次（`installReleaseNotes()` 直接 `open`），
 关闭后可通过大厅 / 等待室 / 匹配页的「更新公告」按钮重新打开。
