@@ -407,7 +407,12 @@ const SYNC_TEXT = {
 
 /** The overlay screen. */
 function LoadoutScreen({ st }) {
-  const ready = useData('chess', 'bonds', 'assets', 'local', 'skins');
+  // 'skins' stays out of this gate on purpose: ui/skinPicker.js checks data.status('skins') itself, and the catalogue
+  // is only warmed with the rest of GAME_FILES once the player is in a room (main.js warmGameData) — gating the whole
+  // screen on a file that may never have been requested buys nothing. (Measured separately: opening this screen
+  // straight from the title hangs on 正在载入干员数据 on the unmodified 700637e too — see the skins notes; that is
+  // not caused by this line.)
+  const ready = useData('chess', 'bonds', 'assets', 'local');
   const phase = useStore((s) => s.match?.public?.phase || null);
   const inMatch = useStore((s) => !!s.room?.inMatch);
   // co-op briefing (INFO_CHECK, 25 s): the overlay covers the briefing's own countdown, so it shows the time left — the
