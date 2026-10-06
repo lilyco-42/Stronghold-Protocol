@@ -77,12 +77,18 @@ export const skinFor = (chessId) => skinsStore.get().entries[chessId] || null;
 export function availableSkins(charId) {
   const list = data.get('skins')?.chars?.[charId];
   if (!Array.isArray(list)) return [];
-  return list.map((s) => ({ id: s.id, name: s.name, group: s.group || '', installed: true }));
+  // `installed` must come from the manifest, not from a constant: the catalogue (data/skins.json) lists every skin
+  // the project KNOWS (174), while data/assets.json only carries the ones whose files are in THIS build (15 today).
+  // Hardcoding true here — which is what the source fork could do, since it bundles all 174 — makes the picker offer
+  // outfits with no models: the player taps one, the renderer falls back to the default, and it looks exactly like
+  // 「换皮肤没效果」.
+  const owned = data.get('assets')?.chars?.[charId]?.skins || {};
+  return list.map((s) => ({ id: s.id, name: s.name, group: s.group || '', installed: !!owned[s.id] }));
 }
 
 /** Whether this install has the files for a skin (all 174 skins are built-in). @param {string} charId */
 export function isInstalled(charId, skinId) {
-  return true;
+  return !!data.get('assets')?.chars?.[charId]?.skins?.[skinId];
 }
 
 /** Load what the picker needs (the catalogue, and the manifest that says what is installed). */

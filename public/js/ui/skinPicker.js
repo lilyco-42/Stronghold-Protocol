@@ -53,13 +53,15 @@ export function SkinSection({ chess }) {
   const list = availableSkins(charId);
   if (!list.length) return null; // 确认加载完且真无皮肤才隐藏
 
-  const chosen = s.entries[chessId] || null;
+  const chosenId = s.entries[chessId] || null;
+  // 只有真装了文件的才算"已装配"：选了没内置的款时渲染器会退回原皮，此时界面不该还标着那款。
+  const chosen = list.some((x) => x.id === chosenId && x.installed) ? chosenId : null;
   const defaultArt = data.get('assets')?.chars?.[charId]?.avatar || null;
 
   return html`<section class="lo-sec lo-sec--skin" data-testid="skin-section">
     <header class="lo-sec__head">
       <h3>皮肤<${MicroLabel}>SKIN<//></h3>
-      <span class="lo-sec__note">${list.length} 款可选</span>
+      <span class="lo-sec__note">${list.filter((x) => x.installed).length} 款可换${list.some((x) => !x.installed) ? ` · ${list.filter((x) => !x.installed).length} 款未内置` : ''}</span>
       ${s.sync === 'local' ? html`<span class="lo-sec__note" data-testid="skin-local-note"
         title="这台服务器没有 room.skins：你的选择存在本机、你自己的战场照常换皮，只是队友看不到">仅自己可见</span>` : null}
     </header>
@@ -81,9 +83,11 @@ export function SkinSection({ chess }) {
         const art = skinAvatar(charId, x.id) || defaultArt;
         const isEquipped = chosen === x.id;
         return html`<button key=${x.id} type="button" role="radio" aria-checked=${isEquipped ? 'true' : 'false'}
-            data-skin=${x.id}
-            class=${cx('lo-skin', isEquipped && 'is-on')}
-            onClick=${() => setSkin(chessId, x.id)}>
+            data-skin=${x.id} data-installed=${x.installed ? '1' : '0'}
+            disabled=${!x.installed}
+            title=${x.installed ? '' : '这套时装的模型不在这个安装包里'}
+            class=${cx('lo-skin', isEquipped && 'is-on', !x.installed && 'is-unavailable')}
+            onClick=${() => { if (x.installed) setSkin(chessId, x.id); }}>
           <span class="lo-skin__art">
             ${art
               ? html`<img src=${art} alt="" loading="lazy" onError=${(e) => {
@@ -97,7 +101,8 @@ export function SkinSection({ chess }) {
             <b class="lo-skin__name">${x.name}</b>
             <span class="lo-skin__group">${x.group || 'SPECIAL'}</span>
           </span>
-          ${isEquipped ? html`<span class="lo-skin__badge">已装配</span>` : null}
+          ${isEquipped ? html`<span class="lo-skin__badge">已装配</span>`
+            : !x.installed ? html`<span class="lo-skin__badge" data-testid="skin-missing-badge">未内置</span>` : null}
         </button>`;
       })}
     </div>
