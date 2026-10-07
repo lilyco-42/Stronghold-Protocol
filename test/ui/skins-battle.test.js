@@ -108,3 +108,15 @@ test('皮肤没内置时不写进视图字段（交给渲染器兜底，不加�
   picked({ [BASE]: 'char_498_inside@没有这个款#1' });
   assert.equal(skinForUnit(unit()), null, '本机 store 里存了但素材没进包 → 不递出去');
 });
+
+test('chess.json 还没加载时也能认（标题页就是这个状态，真浏览器里踩过）', () => {
+  whoami(ME);
+  // `data.lookup('chess', …)` 在文件加载前一律返回 null —— 对局文件是进了房间才预热的。
+  // 用一个清单里查不到的 defId 复现同一状态：charId 只能从 UnitInfo.spine 拿（snapshot.js 里 spine 就是 charId）。
+  const UNKNOWN = 'chess_还没加载的那张卡';
+  assert.equal(data.lookup('chess', UNKNOWN), null, '前提：这张卡在清单里查不到');
+  picked({ [UNKNOWN]: SKIN });
+  assert.equal(renderInfo(unit({ defId: UNKNOWN, spine: 'char_498_inside' })).skin, SKIN);
+  // 反过来，spine 也认不出的话不能瞎猜：那就没有任何依据说这件皮肤在包里
+  assert.equal(renderInfo(unit({ defId: UNKNOWN, spine: UNKNOWN })).skin, null);
+});

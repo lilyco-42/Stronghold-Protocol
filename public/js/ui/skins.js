@@ -90,8 +90,11 @@ export function skinForUnit(info) {
   // 选择存在基础卡上，战场上可能是精锐 / 模组形态 —— 同 PlayerState.js 的 `skins[baseId] || skins[piece.id]`
   const picked = skinFor(rec?.baseId) || skinFor(info.defId);
   if (!picked) return null;
-  // 素材没进包就不递出去：渲染器会静默退回原皮，玩家看不出为什么
-  return isInstalled(rec?.charId, picked) ? picked : null;
+  // 素材没进包就不递出去：渲染器会静默退回原皮，玩家看不出为什么。
+  // charId 不能只靠 chess.json —— 标题页还没加载它（进房间才预热对局文件），这时 UnitInfo.spine 就是 charId
+  // （snapshot.js 的 unitInfo：`spine: d.spine ?? d.charId`），两条都查一遍，别把兜底卡死在清单加载顺序上。
+  const charId = rec?.charId || (typeof info.spine === 'string' ? info.spine : null);
+  return isInstalled(charId, picked) ? picked : null;
 }
 
 /**
