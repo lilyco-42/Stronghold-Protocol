@@ -36,25 +36,34 @@
 > —— 加这个参数重跑之后必须再执行一次 `node tools/inject-skins-assets.mjs`（幂等，输出只由
 > `data/skins-installed.json` 决定）。
 
-## 本仓预装的 starter 皮肤（15 款，14.3 MB）
+## 本仓装了什么（2026-10-07 起：全量 169 款 / 175.5 MB）
 
-`data/skins-installed.json` 现在是 15 条，全部落在**商店里买得到的干员**上（按 `data/chess.json` 的
-`visible && !isHidden` 筛过：174 款里 162 款在可购干员上，涉及 107 个干员）：
+`data/skins-installed.json` 现在是 **169 条** —— 174 款里能穿的都装了。没装的那 5 款不是漏的，是**不能装**：
 
-能天使 野地秘行 · 斯卡蒂 驭浪 WR04 · 空弦 宣传策略 · 风笛 皇后一号 · 莫斯提马 除魅 · 水月 永恒玩家 ·
-歌蕾蒂娅 返航 · 琳琅诗怀雅 律动方格 · 伺夜 叙拉古的彼面 · 瑕光 异月灾裔 · 忍冬 失焦 · 信仰搅拌机 天穹肇始 ·
-**隐现 甜品大奖 · 角峰 沙滩护卫 GT.001 · 凛冬 遗迹游学者**（最后这三款是 1 费）
+| 没装的 | 为什么 |
+| --- | --- |
+| 魔王 追悼（`char_4134_cetsyr@epoque#50`）、安洁莉娜 质素访客（`char_291_aglina@boc#1`）、安洁莉娜 夏卉 FA017（`char_291_aglina@summer#5`） | `back` 朝向的 3 个文件在四个候选地址上全 404（实测 9 个失败文件 = 这 3 款 × skel/atlas/png）。原皮有 back 朝向，穿半件等于朝上部署时换回原皮 |
+| 格雷伊 八音蛋匠人（`char_253_greyy@epoque#8`）、莱恩哈特 希望巡游（`char_373_lionhd@snow#3`） | fexli 那两条路径下的是**宿舍模型**（只有 `Default/Interact/Move/Relax/Sit/Sleep/Special`，没有攻击动作）。`resolveRoles` 会把攻击"兜底"到 `Default`，于是清单看着齐全、闸门也过，但战场上他攻击时就是在宿舍坐着 |
 
-前 12 款全在 5★/6★ 身上 —— 那是个真问题：商店要升到高等级才买得到，一局不买 6★ 的玩家**整局都不会看到皮肤**，
-体感就是"换皮肤没效果"。所以补了 3 款 1 费的（隐现/角峰/凛冬，`chess_char_1_01_a`/`_1_02_a`/`_1_03_a`），
-第 1 回合买得到就能穿。选皮肤时**先问"玩家这一局碰得到吗"，再问"这个干员红不红"**。
+判据写在 `tools/inject-skins-assets.mjs` 的 `skinSpineSide()` 里（攻击动作必须是自己的一段，不是 idle 的别名；
+原皮有 back 而这套没有就整套不装），跑一次会打印"清单点了名但没装的 N 款"。**没装就不写进 `chars[].skins`** ——
+客户端的 `installed` 判的是这条记录在不在，写一条只有头像没骨骼的记录，就是 c17 修掉的那个"点了没反应"。
+
+注入器现在**按盘上那份 skel 算 `anims`**（`parseSkel` + `resolveRoles`，和 `tools/assets/spine.mjs` 给原皮做的是同一套），
+不再抄原皮的角色表。原因：实测 171 款里有 16 份骨骼的动作名与原皮不同（`Skill` vs `Skill_Start`、缺 `Skill_Loop`、
+back 缺 `Die` 等），抄过来会让 `test/assets.test.js` 播到不存在的动作直接抛 `Animation not found`，
+在玩家那边就是这件时装静默退回原皮。
+
+历史上这里是 12 款（2026-10-06 23:0x）→ 15 款（同日，补 3 款 1 费）。选皮肤时**先问"玩家这一局碰得到吗"**那条
+针对的是"只装 12 款"的年代；全量之后不再受这条约束，但 `data/chess.json` 的 `visible && !isHidden` 筛法
+仍然记着：174 款里 162 款在可购干员上。
 
 装它们用的命令就三条（`data/skins-installed.json` 是唯一输入）：
 
 ```
-NODE_USE_ENV_PROXY=1 node tools/fetch-skin-spines.mjs    # 90 个文件：每款 front/back 各 skel+atlas+png
-NODE_USE_ENV_PROXY=1 node tools/fetch-skin-avatars.mjs   # 15 个 180×180 头像 → public/assets/char/skin_avatar/<stem>.png
-node tools/inject-skins-assets.mjs                       # 写进 data/assets.json 的 chars[].skins
+NODE_USE_ENV_PROXY=1 node tools/fetch-skin-spines.mjs    # 全量 1044 个文件：每款 front/back 各 skel+atlas+png
+NODE_USE_ENV_PROXY=1 node tools/fetch-skin-avatars.mjs   # 180×180 头像 → public/assets/char/skin_avatar/<stem>.png
+node tools/inject-skins-assets.mjs                       # 写进 data/assets.json 的 chars[].skins（按盘上骨骼算动作）
 ```
 
 下面这几段数字是**12 款那一版**实测的（2026-10-06 23:0x）；后加的 3 款 1 费皮肤走的是同一套命令与同一套断言，

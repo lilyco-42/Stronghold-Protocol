@@ -17,7 +17,7 @@
 // (`server/sim/**` mentions `skin` exactly once, in the view snapshot), so the local store is a complete authority
 // for the player's own board. What is lost is only that teammates do not see it — and the picker says so.
 
-import { createStore, loadPref, savePref } from '../store.js';
+import { createStore, loadPref, savePref, store } from '../store.js';
 import { data } from '../data.js';
 
 export const SKINS_PREF = 'skins';
@@ -65,6 +65,34 @@ export function clearSkin(chessId) {
 
 /** The skin this browser picked for an operator, or null. */
 export const skinFor = (chessId) => skinsStore.get().entries[chessId] || null;
+
+/**
+ * The skin a **battlefield unit** should draw with, when the server did not say (`UnitInfo.skin` absent).
+ *
+ * Why this exists: `skin` reaches a unit only through the server (`PlayerState.skins` → `snapshot.js`), and
+ * `room.skins` is our branch's verb — the live box and every fan server run upstream, where the word does not
+ * exist at all (measured on an `upstream/master` worktree: `grep -rn skin server/ shared/protocol.js` → no hit).
+ * So on those servers `UnitInfo.skin` is never set and the battlefield drew the default model no matter what the
+ * player picked: the picker and the prep board looked right because `pieceInfo` falls back to `skinFor(baseId)`.
+ *
+ * The fallback therefore mirrors `pieceInfo`, with one addition: **only my own units**. The local store holds my
+ * picks, so applying them to a teammate's 能天使 would be inventing a choice nobody made. When the server does
+ * send a skin, that value wins (it means the server knows the verb, so teammates see it too).
+ *
+ * @param {{ side?: string, kind?: string, ownerId?: string|null, defId?: string|null }|null} info a UnitInfo
+ * @returns {string|null} the installed skinId to draw, or null for the default model
+ */
+export function skinForUnit(info) {
+  if (!info || info.side !== 'ally' || info.kind !== 'op') return null;
+  const me = store.get().me?.playerId ?? null;
+  if (me == null || info.ownerId !== me) return null;
+  const rec = data.lookup('chess', info.defId);
+  // 选择存在基础卡上，战场上可能是精锐 / 模组形态 —— 同 PlayerState.js 的 `skins[baseId] || skins[piece.id]`
+  const picked = skinFor(rec?.baseId) || skinFor(info.defId);
+  if (!picked) return null;
+  // 素材没进包就不递出去：渲染器会静默退回原皮，玩家看不出为什么
+  return isInstalled(rec?.charId, picked) ? picked : null;
+}
 
 /**
  * Every skin of an operator (built-in full set).

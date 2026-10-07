@@ -275,6 +275,10 @@ export class Battle {
     const u = this._makeAlly(ps, def, 'op', r, c, { uid: inp.uid, dir });
     u.items = [...(inp.items ?? [])];
     u.carry = inp.carryState ?? null;
+    // 时装是**视图字段**（PlayerState.battleInput 从 ps.skins 查到才给），不参与任何判定；
+    // snapshot.js 的 unitInfo 原样带出去，队友的战场才知道该画哪件。缺了这一步，`room.skins` 同步到
+    // 服务器也白同步 —— 战场上谁都看不到（玩家报「战斗时不显示皮肤」）。
+    if (typeof inp.skin === 'string' && inp.skin) u.skin = inp.skin;
     return u;
   }
 
