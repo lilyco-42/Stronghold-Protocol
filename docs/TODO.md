@@ -3,6 +3,9 @@
 > 调查日期：2026-10-07
 > 对标对象：`http://play.simpfun.cn:14517/`（托管在简幻欢平台，端口 14517）
 > 上游基线：`sganggs/Stronghold-Protocol` 的 `master` 分支
+> **已于 2026-10-07 同步到 `v0.1.4`**（上游 `master` 的尖端就是 tag `v0.1.4`，即我们生产在跑的版本）：
+> 我们的 `master` 与上游只差一个上游没有的文件 `docs/TODO.md`，三条 feature 分支 rebase 到它之上。
+> 同步的完整记录见 [DESIGN](DESIGN.md) §25–§27 与工作日志。
 
 ## 关于对标对象
 
@@ -43,7 +46,9 @@
 > **进度：#4 公告已完成**（分支 `feat/server-announcement`），**#2 聊天已完成**（分支 `feat/room-chat`，叠在 #4 之上），
 > **#3 匹配已完成**（分支 `feat/quick-match`，叠在 #2 之上），下一步 `#1 外援`。
 > 三条自研分支是一条叠一条的（`master` → `feat/server-announcement` → `feat/room-chat` → `feat/quick-match`），
-> 这样每个功能都能单独 review / revert，而 `master` 始终与上游 0 差异。
+> 这样每个功能都能单独 review / revert，而 `master` 始终只比上游多一个上游没有的文档文件 `docs/TODO.md`。
+> **2026-10-07 已把四条分支整体同步到上游 `v0.1.4`**（= 我们生产在跑的版本）；冲突面与踩坑记在
+> [§四「与上游 0.1.4 同步时的实测冲突面」](#-与上游-014-同步时的实测冲突面2026-10-07下次同步直接照抄这份清单)。
 
 **结论**：聊天、公告、匹配做完后，上表 8 项里我们 **2 项领先**（皮肤、字体自托管）、**4 项持平**（聊天、公告、匹配队列、素材 CDN）、
 **2 项落后**（外援、更新公告）。落后的 2 项里外援是「社区服刚需」，优先级最高；更新公告排在它后面，
@@ -261,8 +266,46 @@
      以及改了两处屏幕入口：`public/js/screens/room.js`（分流一行）与 `public/js/screens/lobby.js`（入口按钮）。
      新文件不参与冲突，冲突面就是上面那 5 个上游文件。
    - `test/docs-consistency.test.js`：README 的测试项数必须落在 `约 3X\d0 项`，而我们的套件比上游大
-     （现在 3739 项）。每次套件明显增长都要把这个范围跟着挪，否则只能把 README 写错。
+     （现在 3866 项）。每次套件明显增长都要把这个范围跟着挪，否则只能把 README 写错。
      这是**上游文件**，`git pull` 时留意这一行的冲突。
+
+### ⚠️ 与上游 0.1.4 同步时的实测冲突面（2026-10-07，下次同步直接照抄这份清单）
+
+上游 0.1.4 相对我们当时的基底（`a0a5419`，feedback3 尖端）改了 **147 个文件**，
+和我们三条 feature 分支重叠的**只有 8 个**：
+
+| 文件 | 上游改动 | 结果 |
+|---|---|---|
+| `shared/protocol.js` | +1/−1 | 自动合并（上游只改 1 行） |
+| `public/js/screens/room.js` | +3/−3 | 自动合并 |
+| `public/js/screens/lobby.js` | +38/−8 | 自动合并（上游改 `join` 的事件参数，我们加按钮，位置不重叠） |
+| `README.md` | +5/−3 | 自动合并 |
+| `CHANGELOG.md` | +57/−3 | **冲突** —— 都在顶部：把我们的 `## 未发布` 整块放到 `## 0.1.4` 之上 |
+| `docs/DEPLOY.md` | +28/−2 | **冲突** —— 上游在 §6 尾部加了一段 WebP 说明，我们在文件尾追加 §7/§8/§9；两段都留，顺序为「上游段 → 我们的新节」 |
+| `docs/DESIGN.md` | +379/−19 | **冲突** —— 上游新增 `## 24. Community reports after 0.1.3`，与我们当时占用的 §24 撞号；上游 §24 保留，我们的三节顺延 |
+| `test/docs-consistency.test.js` | +58/−3 | 自动合并（我们的正则改动和上游的新断言不在同一处） |
+
+**我们改动最重的文件上游一个都没动** —— `server/lobby.js`、`public/js/main.js`、`server/index.js`、
+`public/index.html`、`server/console.js`、`server/net.js`、`public/js/ui/facingWheel.js` 全部无冲突。
+**新文件（`shared/announcement.js` 等 9 个）永远不参与冲突。**
+
+#### ⚠️ DESIGN 章节号必须顺延 —— 上游也在用 §24
+我们 master 的 `docs/DESIGN.md` 到 §23 为止，所以自研章节当时取 §24/§25/§26 是**对的**；
+但上游 0.1.4 占用了 §24，**现在我们的三节是 §25/§26/§27**（公告 / 聊天 / 匹配）。
+⚠️ **下次上游再新增章节时，我们的编号要继续顺延**，同时改这几处引用：
+- `docs/DESIGN.md` 的节标题
+- `docs/TODO.md` 里 `[DESIGN §N](DESIGN.md)` 的链接（各功能一处的「我们的实现」行）
+- `docs/DEPLOY.md` 的 `§7/§8/§9`（这三个是**我们自己的**编号，与 DESIGN 无关，不受影响）
+- `CHANGELOG.md` 里 `docs/DEPLOY.md` 的引用
+⚠️ 区分清楚：仓库里大量 `§24.x` 引用是**上游的** §24（社区报告），**不要跟着改**。
+
+#### 同步的操作要点（`git rebase` 的坑）
+1. 本地若是**浅克隆**，先 `git fetch --unshallow origin`（并把 `remote.origin.fetch` 改成
+   `+refs/heads/*:refs/remotes/origin/*`），否则 `git merge-base` / `git log A..B` 全是假象。
+2. 叠放分支**不要**用 `git rebase <新父分支> <子分支>` —— 中间那层的提交内容被改过，
+   patch-id 变了，git 会**重放它**并产生一堆假冲突。要用
+   `git rebase --onto <新父分支> <旧的父分支尖端> <子分支>`，只重放子分支自己的提交。
+3. 冲突几乎都是「双方都在文件尾部追加」—— 保留双方、按时间顺序排好即可（见上表）。
 
 ---
 

@@ -252,7 +252,7 @@ curl -X POST http://127.0.0.1:3000/admin/announce \
 
 ```bash
 npm run dev                 # node --watch：改动服务器代码后自动重启
-node --test                 # 单元 + 集成测试（约 3700 项；缺少素材 / 浏览器的用例会自动跳过）
+node --test                 # 单元 + 集成测试（约 3870 项；缺少素材 / 浏览器的用例会自动跳过）
 SP_E2E=1 node --test test/ui/mock.e2e.test.js        # 浏览器端到端测试，需要本机 Chrome（CHROME_PATH 可指定路径）
 SP_E2E=1 node --test test/ui/roomChat.e2e.test.js    # 房间聊天面板（同上，不需要素材）
 SP_E2E=1 node --test test/ui/matchmaking.e2e.test.js # 快速匹配等待屏与发车（同上，不需要素材）
