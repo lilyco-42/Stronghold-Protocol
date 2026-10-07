@@ -1,5 +1,5 @@
 {
- "generated": "2026-10-06",
+ "generated": "2026-10-07",
  "upstream": "upstream/master",
  "files": {
   ".gitignore": [
@@ -32,7 +32,7 @@
   ],
   "data/assets.json": [
    {
-    "line": "{\"version\":1,\"hash\":\"2249e4a0918a\",\"generator\":\"tools/fetch-assets.mjs\",\"stats\":{\"files\":5700,\"bytes\":331632595,\"chars\":…（整行 821075 字符）",
+    "line": "{\"version\":1,\"hash\":\"2249e4a0918a\",\"generator\":\"tools/fetch-assets.mjs\",\"stats\":{\"files\":5700,\"bytes\":331632595,\"chars\":…（整行 1193497 字符）",
     "anchor": "",
     "opaque": true
    }
@@ -969,11 +969,11 @@
   ],
   "public/js/render/app.js": [
    {
-    "line": "import { skinFor } from '../ui/skins.js';",
+    "line": "import { skinFor, skinForUnit } from '../ui/skins.js';",
     "anchor": "import { promotionsOf } from './promote.js';"
    },
    {
-    "line": "skin: u.skin ?? null,",
+    "line": "skin: u.skin ?? skinForUnit(u) ?? null,",
     "anchor": "export function renderInfo(u) {"
    },
    {
@@ -1865,6 +1865,12 @@
    {
     "line": "...(skin ? { skin } : {}),",
     "anchor": "export class PlayerState {"
+   }
+  ],
+  "server/sim/Battle.js": [
+   {
+    "line": "if (typeof inp.skin === 'string' && inp.skin) u.skin = inp.skin;",
+    "anchor": "export class Battle {"
    }
   ],
   "server/sim/snapshot.js": [
