@@ -751,12 +751,19 @@ export async function startServer(opts = {}) {
   if (netOptions.trustProxy == null) netOptions.trustProxy = parseTrustProxy(process.env.TRUST_PROXY);
   const registry = new SessionRegistry({ reconnectWindowMs: netOptions.reconnectWindowMs ?? NET_DEFAULTS.reconnectWindowMs });
   const lobbyOptions = {};
-  for (const k of ['lobbyGraceMs', 'maxRooms', 'maxRoomsPerAddr', 'maxMatchesPerAddr', 'resyncMinGapMs', 'soloReconnectWindowMs', 'chatEnabled']) {
+  for (const k of ['lobbyGraceMs', 'maxRooms', 'maxRoomsPerAddr', 'maxMatchesPerAddr', 'resyncMinGapMs', 'soloReconnectWindowMs', 'chatEnabled', 'matchmakingTimeoutMs']) {
     if (opts[k] != null) lobbyOptions[k] = opts[k];
   }
   // Friend-room chat (shared/chat.js): on by default; SP_CHAT=0 turns it off at boot, `/chat off` at runtime. The flag
   // rides on every room.state, so a disabled server never shows a chat box whose sends would be refused.
   if (lobbyOptions.chatEnabled == null) lobbyOptions.chatEnabled = parseBoolEnv(process.env.SP_CHAT, true);
+  // Quick match (shared/matchmaking.js): how long a not-yet-full queue waits before starting with the doctors it has.
+  // SP_MATCH_TIMEOUT is in SECONDS (an operator thinks in seconds, the option is in ms) and `/match timeout` changes it
+  // on a running server.
+  if (lobbyOptions.matchmakingTimeoutMs == null) {
+    const sec = Number(process.env.SP_MATCH_TIMEOUT);
+    if (Number.isFinite(sec) && sec > 0) lobbyOptions.matchmakingTimeoutMs = sec * 1000;
+  }
   // Server-wide marquee announcement (shared/announcement.js). The lobby hands it to every session that says hello,
   // so a late joiner gets the remaining passes (lobby.onHello).
   const announcements = new AnnouncementBoard({ registry, log });
@@ -903,13 +910,17 @@ async function main() {
     console.log(`  Operator: POST ${ADMIN_ANNOUNCE_PATH}  (Authorization: Bearer $${ADMIN_TOKEN_ENV})\n`);
   }
   if (!srv.lobby.chatEnabled) console.log('  Chat:     disabled (SP_CHAT) — /chat on turns it back on\n');
+  // Only when it differs from the default: the wait is a live lever (`/match timeout`), not a setting to keep an eye on.
+  if (srv.lobby.opts.matchmakingTimeoutMs !== 60_000) {
+    console.log(`  Match:    queue wait ${srv.lobby.opts.matchmakingTimeoutMs / 1000} s (SP_MATCH_TIMEOUT) — /match status\n`);
+  }
   // Operator console: a foreground run has a TTY, a service does not (it uses POST /admin/announce). SP_CONSOLE=1
   // forces it, e.g. to drive the server over a pipe. Both the announcement board and the lobby answer to it.
   const operatorConsole = installConsole({
     board: srv.announcements,
     handlers: [srv.lobby],
-    hint: '未知命令。可用命令：/announce help、/chat help。',
-    banner: '操作台已就绪。输入 /announce help 或 /chat help 查看用法。',
+    hint: '未知命令。可用命令：/announce help、/chat help、/match help。',
+    banner: '操作台已就绪。输入 /announce help、/chat help 或 /match help 查看用法。',
     log: console,
     force: process.env.SP_CONSOLE === '1',
   });

@@ -22,6 +22,7 @@ import { LoadoutButton } from './loadout.js';
 import { net } from '../net.js';
 import { store, useStore, shallowEqual, emptyMatch, isSpectating } from '../store.js';
 import { difficultyInfo } from './lobby.js';
+import { MatchmakingScreen } from './matchmaking.js';
 
 /**
  * Seats padded to the room's capacity (co-op 4, solo 1), each null or a seat record.
@@ -199,6 +200,10 @@ export function RoomScreen() {
   const online = conn.status === 'online';
   const coop = room.mode !== 'solo';
   const facts = roomFacts(room, me.playerId);
+  // A waiting room (server/lobby.js matchmake): the queue's own screen replaces the whole room body — seats, ready and
+  // 开始模拟 all belong to the lobby room, and the queue has none of them. Everything else (chat, 干员调配) is chrome
+  // and stays. The seat grid is handed over as the room screen already normalized it, so both screens agree on it.
+  if (room.matchmaking && !room.inMatch) return html`<${MatchmakingScreen} room=${room} seats=${facts.seats} />`;
   const myReady = !!facts.mine?.ready;
   const info = difficultyInfo(room.mode, room.difficulty);
 

@@ -84,10 +84,30 @@
 //     ▸ Per-session rate limit CHAT.intervalMs (a session, not a seat: leaving and rejoining a room does not reset it);
 //     the per-connection token bucket of net.js still applies on top. ▸ chatEnabled (LOBBY_DEFAULTS, SP_CHAT,
 //     `/chat off`) is carried by room.state, so a client never renders a panel whose sends would be refused.
+//   * Quick match (shared/matchmaking.js; a remake feature, the official room has none): room.matchmake { difficulty }
+//     joins the waiting queue of one difficulty. ▸ ONE waiting room per difficulty: the first doctor to ask opens it
+//     (mode coop, `matchmaking`), everybody else asking for the same difficulty takes a free seat in it — so the queue
+//     is visible to its own members (the waiting screen draws the seat grid) instead of being an invisible list, and a
+//     fifth doctor opens a second room for that difficulty rather than waiting behind a queue that is already starting.
+//     ▸ A waiting room is an ORDINARY room in every other way: it has a code, a host, a chat log and 干员调配, and
+//     `room.state.matchmaking` is the only flag that tells a client to draw the waiting screen instead of the room. What
+//     shapes a lobby room is refused while it waits (QUEUE_REFUSED) — the queue has no ready flags, no AI seats and a
+//     fixed difficulty, so its start is the queue's decision alone.
+//     ▸ Start: MATCHMAKING.minPlayers doctors or more and the queue is full → at once; else when the wait
+//     (LOBBY_DEFAULTS.matchmakingTimeoutMs, SP_MATCH_TIMEOUT, `/match timeout`) runs out, with the doctors who are
+//     THERE — the seats of doctors still offline are freed (they are told `matchmaking_disconnected` on their next
+//     resume) rather than carried into a co-op run around an empty chair. A queue below minPlayers waits another round
+//     (a lone doctor is not started into a co-op run), and a start that cannot happen (per-network match limit, a
+//     throwing Match) ends the queue with room.closed {matchmaking_failed} instead of leaving everybody waiting for it.
+//     ▸ Leaving: room.cancelMatchmaking (or room.leave, or a switch to another room) frees the seat and answers
+//     `room.closed {reason:'matchmaking_cancelled'}` — the client returns to the lobby without a toast, because that is
+//     what the player just asked for. Whoever stays queued keeps waiting, and a doctor who stays disconnected past the
+//     lobby grace leaves the queue with `matchmaking_disconnected`.
 
 import { randomBytes, randomInt } from 'node:crypto';
 import { ERR, MAX_SEATS, MAX_SPECTATORS, ROOM_CODE_LEN, modeIdFor } from '../shared/constants.js';
 import { CHAT, CHAT_HELP, chatLength, parseChatCommand, sanitizeChat } from '../shared/chat.js';
+import { MATCHMAKING, MATCH_HELP, matchmakingCount, matchmakingRule, parseMatchCommand } from '../shared/matchmaking.js';
 import { checkLoadout } from '../shared/protocol.js';
 import { encode, isDroppable, isErrCode, sendRaw, sendSession } from './net.js';
 import { getData as defaultGetData, lookup } from './data.js';
@@ -105,6 +125,7 @@ export const LOBBY_DEFAULTS = Object.freeze({
   resyncMinGapMs: 1000,   // heavy resyncs (match state / result replay) per session at most this often on repeated hellos
   soloReconnectWindowMs: null, // a dropped solo run stays resumable this long (null = data singleReconnectTime, 24 h)
   chatEnabled: true,      // friend-room chat (shared/chat.js): SP_CHAT=0 or `/chat off` turns it off (room.state flag)
+  matchmakingTimeoutMs: MATCHMAKING.timeoutMs, // quick match: wait before a not-full queue starts with who is there
 });
 
 /** Official `singleReconnectTime` (s) when the data lacks it (constData, research 01 §1). */
@@ -116,6 +137,15 @@ export const BOT_NAMES = Object.freeze(['AI·华法琳', 'AI·阿米娅', 'AI·�
 const OK = Object.freeze({ ok: true });
 const fail = (code, detail) => (detail ? { error: code, detail } : { error: code });
 const noopLog = { info() {}, warn() {}, error() {}, debug() {} };
+
+/**
+ * `room.*` types a WAITING room refuses (header: matchmake): its start is the queue's decision, so nothing that shapes
+ * a lobby room may run while it waits. `room.leave` / `room.cancelMatchmaking` (leave the queue), `room.chat` and
+ * `room.loadout` (干员调配 while waiting) are deliberately NOT here — they are exactly what a waiting doctor may do.
+ */
+const QUEUE_REFUSED = new Set([
+  'room.join', 'room.spectate', 'room.ready', 'room.setDifficulty', 'room.addBot', 'room.removeBot', 'room.kick', 'room.start',
+]);
 
 /**
  * @typedef {{ seat: number, playerId: string, name: string, isBot: boolean, ready: boolean,
@@ -153,6 +183,17 @@ export class Room {
     this.chatSeq = 0;
     /** @type {any} running Match instance */
     this.match = null;
+    /**
+     * Quick match (header, shared/matchmaking.js): true while this room waits in the queue for that difficulty.
+     * `matchmakingSince` is when it started waiting (server ms, the waiting screen's clock) and
+     * `matchmakingTimeoutMs` the wait in force for it — snapshotted from the Lobby's option at every arm, so the number
+     * a client prints is the number the server waits.
+     */
+    this.matchmaking = false;
+    /** @type {number} */
+    this.matchmakingSince = 0;
+    /** @type {number} */
+    this.matchmakingTimeoutMs = 0;
     /** @type {{ live: boolean, ended: boolean, disposed: boolean, match: any } | null} */
     this.matchCtx = null;
     this.matchCount = 0;
@@ -201,6 +242,12 @@ export class Room {
       difficulty: this.difficulty,
       inMatch: !!this.match,
       chatEnabled: !!chatEnabled,
+      // Quick match (header): a client draws the waiting screen instead of the room while `matchmaking` is set and no
+      // match runs. `matchmakingSince` is SERVER ms (the screen derives the elapsed wait from store.serverNow()) and
+      // `matchmakingTimeoutSec` the rule in force for this queue — never guessed by the client.
+      matchmaking: !!this.matchmaking,
+      matchmakingSince: this.matchmaking ? this.matchmakingSince : 0,
+      matchmakingTimeoutSec: this.matchmaking ? Math.round(this.matchmakingTimeoutMs / 1000) : 0,
       seats: this.seats.map((s) => (s
         ? { seat: s.seat, playerId: s.playerId, name: s.name, isBot: s.isBot, ready: s.ready, connected: s.connected && !s.left }
         : null)),
@@ -237,6 +284,10 @@ export class Lobby {
     this.chatEnabled = this.opts.chatEnabled !== false;
     /** @type {Map<string, Room>} */
     this.rooms = new Map();
+    /** @type {Map<string, Room>} the waiting room of each difficulty (header: quick match) */
+    this.queues = new Map();
+    /** @type {Map<string, NodeJS.Timeout>} queue start timers by room code */
+    this.queueTimers = new Map();
     /** @type {Map<string, NodeJS.Timeout>} lobby grace timers by playerId */
     this.graceTimers = new Map();
     /** @type {Map<string, NodeJS.Timeout>} deferred (coalesced) resyncs by playerId */
@@ -254,12 +305,16 @@ export class Lobby {
     let humans = 0;
     let bots = 0;
     let spectators = 0;
+    let queued = 0;
     for (const r of this.rooms.values()) {
       if (r.match) matches++;
+      if (r.matchmaking) queued += matchmakingCount(r.seats);
       for (const s of r.seats) if (s && !s.left) (s.isBot ? bots++ : humans++);
       spectators += r.spectators.length;
     }
-    return { rooms: this.rooms.size, matches, humans, bots, spectators };
+    // `matching` / `queued`: the quick-match queues (waiting rooms and the doctors in them) — invisible from outside
+    // otherwise, and the first thing an operator wants to know about a quiet server.
+    return { rooms: this.rooms.size, matches, humans, bots, spectators, matching: this.queues.size, queued };
   }
 
   // ---------------------------------------------------------------------------------------------------
@@ -315,6 +370,11 @@ export class Lobby {
    * @returns {{ ok: true } | { error: string, detail?: string }}
    */
   onMessage(session, msg) {
+    // A waiting room refuses everything that shapes a lobby room (QUEUE_REFUSED): its start belongs to the queue.
+    if (QUEUE_REFUSED.has(msg.t)) {
+      const room = this.roomOf(session);
+      if (room && room.matchmaking) return fail(ERR.WRONG_PHASE, 'the room is waiting in the matchmaking queue');
+    }
     switch (msg.t) {
       case 'room.create': return this.create(session, msg);
       case 'room.join': return this.join(session, msg);
@@ -329,6 +389,8 @@ export class Lobby {
       case 'room.spectate': return this.spectate(session, msg);
       case 'room.removeSpectator': return this.removeSpectator(session, msg);
       case 'room.chat': return this.chat(session, msg);
+      case 'room.matchmake': return this.matchmake(session, msg);
+      case 'room.cancelMatchmaking': return this.cancelMatchmaking(session);
       default:
         if (typeof msg.t === 'string' && msg.t.startsWith('g.')) return this.routeGame(session, msg);
         return fail(ERR.BAD_MSG, `unhandled type ${String(msg.t).slice(0, 32)}`);
@@ -371,6 +433,9 @@ export class Lobby {
     this.graceTimers.clear();
     for (const t of this.resyncTimers.values()) clearTimeout(t);
     this.resyncTimers.clear();
+    for (const t of this.queueTimers.values()) clearTimeout(t);
+    this.queueTimers.clear();
+    this.queues.clear();
   }
 
   // ---------------------------------------------------------------------------------------------------
@@ -382,13 +447,9 @@ export class Lobby {
     if (cur && cur.match) return fail(ERR.ROOM_STARTED, 'leave your running match first');
     if (this.rooms.size >= this.opts.maxRooms) return fail(ERR.INTERNAL, 'too many rooms');
     const key = session.limitKey || null;
-    if (key && this.opts.maxRoomsPerAddr > 0) {
-      // The room being left disappears with this create when the creator is its only human (a spectator is none).
-      const leaving = cur && cur.ownerKey === key && cur.activeHumans().length === 1 && !cur.spectatorOf(session.playerId) ? 1 : 0;
-      if (this.countRooms((r) => r.ownerKey === key) - leaving >= this.opts.maxRoomsPerAddr) {
-        this.limitWarn(`room limit (${this.opts.maxRoomsPerAddr}) reached for ${session.addr}`);
-        return fail(ERR.RATE, 'too many rooms from your network');
-      }
+    if (this.tooManyRoomsFromAddr(session, cur)) {
+      this.limitWarn(`room limit (${this.opts.maxRoomsPerAddr}) reached for ${session.addr}`);
+      return fail(ERR.RATE, 'too many rooms from your network');
     }
     const code = this.genCode();
     if (!code) return fail(ERR.INTERNAL, 'no room code available');
@@ -404,6 +465,20 @@ export class Lobby {
     this.log.info(`[lobby] ${code} created (${mode}/${difficulty}) by ${session.name}`);
     this.broadcastState(room);
     return OK;
+  }
+
+  /**
+   * Whether one more room from this session's network is over the per-network room limit (room.create / room.matchmake).
+   * `cur` is the room the request is leaving: a room that disappears with the request (this session is its only human —
+   * a spectator is none) does not count against the limit. Logs nothing; the caller warns (it has the wording).
+   * @param {import('./net.js').Session} session @param {Room | null} cur
+   * @returns {boolean} true when the room must be refused
+   */
+  tooManyRoomsFromAddr(session, cur) {
+    const key = session.limitKey || null;
+    if (!key || !(this.opts.maxRoomsPerAddr > 0)) return false;
+    const leaving = cur && cur.ownerKey === key && cur.activeHumans().length === 1 && !cur.spectatorOf(session.playerId) ? 1 : 0;
+    return this.countRooms((r) => r.ownerKey === key) - leaving >= this.opts.maxRoomsPerAddr;
   }
 
   join(session, { code }) {
@@ -432,8 +507,83 @@ export class Lobby {
   leave(session) {
     const room = this.roomOf(session);
     if (!room) return fail(ERR.NOT_IN_ROOM);
+    const queued = !!room.matchmaking;
     this.removeMember(room, session.playerId);
+    this.noticeQueueExit(session, queued);
     return OK;
+  }
+
+  /**
+   * room.matchmake { difficulty } — quick match (header): join the waiting queue of one difficulty.
+   *
+   * The room is the unit of the queue, not the session: a doctor asking for a difficulty that already waits takes a
+   * free seat in that room, so the queue is visible to its own members and needs no separate wire shape. Asking again
+   * while already queued is idempotent (a resync), and asking for a difficulty whose queue is full opens a second
+   * waiting room — the doctor never waits behind a room that is about to start.
+   */
+  matchmake(session, { difficulty }) {
+    const cur = this.roomOf(session);
+    if (cur && cur.match) return fail(ERR.ROOM_STARTED, 'leave your running match first');
+    if (this.rooms.size >= this.opts.maxRooms) return fail(ERR.INTERNAL, 'too many rooms');
+    if (this.tooManyRoomsFromAddr(session, cur)) {
+      this.limitWarn(`room limit (${this.opts.maxRoomsPerAddr}) reached for ${session.addr}`);
+      return fail(ERR.RATE, 'too many rooms from your network');
+    }
+    let room = this.queues.get(difficulty) || null;
+    if (room && (room.disposed || room.match)) room = null;
+    if (room && room.seatOf(session.playerId)) { this.sendState(room, session); return OK; } // already queued here
+    if (room && room.freeSeat() < 0) room = null; // full: a fresh waiting room for this difficulty
+    if (!room) {
+      const code = this.genCode();
+      if (!code) return fail(ERR.INTERNAL, 'no room code available');
+      room = new Room(code, 'coop', difficulty, this.now());
+      room.matchmaking = true;
+      room.matchmakingSince = this.now();
+      room.ownerKey = session.limitKey || null;
+      this.rooms.set(code, room);
+      this.queues.set(difficulty, room);
+      this.armQueueTimer(room);
+      this.log.info(`[lobby] ${code} queue opened (coop/${difficulty}) by ${session.name}`);
+    }
+    if (cur && cur !== room) this.removeMember(cur, session.playerId);
+    const idx = room.freeSeat();
+    if (idx < 0) return fail(ERR.ROOM_FULL);
+    room.seats[idx] = this.humanSeat(idx, session);
+    session.roomCode = room.code;
+    session.notice = null;
+    session.pendingResult = null;
+    if (!room.hostId) room.hostId = session.playerId;
+    this.log.info(`[lobby] ${room.code} queued ${session.name} (${matchmakingCount(room.seats)}/${MAX_SEATS}, ${difficulty})`);
+    this.broadcastState(room);
+    this.sendChatHistory(room, session);
+    this.maybeStartQueue(room);
+    return OK;
+  }
+
+  /**
+   * room.cancelMatchmaking — leave the queue. A waiting room is an ordinary room, so this is room.leave with the
+   * queue's own wording: the doctor gets room.closed {matchmaking_cancelled} (the client returns to the lobby silently —
+   * it is what they just asked for) and whoever stays queued keeps waiting.
+   */
+  cancelMatchmaking(session) {
+    const room = this.roomOf(session);
+    if (!room) return fail(ERR.NOT_IN_ROOM);
+    if (!room.matchmaking) return fail(ERR.WRONG_PHASE, 'the room is not in the matchmaking queue');
+    this.removeMember(room, session.playerId);
+    this.noticeQueueExit(session, true);
+    return OK;
+  }
+
+  /**
+   * Tell a doctor who deliberately left a waiting room why the room is gone. Only a waiting room sends it: leaving a
+   * normal room is already answered by the client's own optimistic clear, and an extra frame there would disturb the
+   * frame order test/lobby.test.js pins.
+   * @param {import('./net.js').Session} session @param {boolean} queued whether the room was waiting
+   * @returns {boolean} whether a frame went out
+   */
+  noticeQueueExit(session, queued) {
+    if (!queued || !session.connected || session.roomCode != null) return false;
+    return sendSession(session, { t: 'room.closed', reason: 'matchmaking_cancelled' });
   }
 
   /**
@@ -527,6 +677,8 @@ export class Lobby {
    * @returns {{ handled: boolean, lines?: string[], error?: string }}
    */
   handleCommand(line) {
+    const match = parseMatchCommand(line);
+    if (match) return this.runMatchCommand(match);
     const parsed = parseChatCommand(line);
     if (!parsed) return { handled: false };
     switch (parsed.action) {
@@ -558,6 +710,44 @@ export class Lobby {
           lines: [`聊天：${enabled}（每 ${CHAT.intervalMs / 1000} 秒最多 1 条，单条上限 ${CHAT.maxLen} 字，每房间保留 ${CHAT.historyLimit} 条）。`,
             `房间 ${this.rooms.size} 个，聊天记录共 ${messages} 条。`],
         };
+      }
+      default:
+        return { handled: false };
+    }
+  }
+
+  /**
+   * Run one parsed `/match` line (shared/matchmaking.js). The wait is a live lever like `/chat off`: the queues in
+   * flight adopt it on their next arm, and every client in one is re-sent the state that carries the new number.
+   * @param {{ action: string, sec?: number, error?: string }} parsed
+   * @returns {{ handled: boolean, lines?: string[], error?: string }}
+   */
+  runMatchCommand(parsed) {
+    switch (parsed.action) {
+      case 'help':
+        return { handled: true, lines: MATCH_HELP.split('\n') };
+      case 'error':
+        return { handled: true, error: parsed.error };
+      case 'timeout': {
+        this.opts.matchmakingTimeoutMs = parsed.sec * 1000;
+        for (const room of this.queues.values()) {
+          room.matchmakingTimeoutMs = this.opts.matchmakingTimeoutMs;
+          this.broadcastState(room); // the waiting screens print the number: tell them now, not on the next change
+        }
+        return {
+          handled: true,
+          lines: [`匹配等待时间已设为 ${parsed.sec} 秒；${this.queues.size} 个进行中的队列将在下一次等待时采用。`],
+        };
+      }
+      case 'status': {
+        const sec = this.opts.matchmakingTimeoutMs / 1000;
+        const lines = [`匹配队列：${this.queues.size} 个，等待中 ${this.queuedCount()} 名博士（满 ${MAX_SEATS} 人立即开始，等待 ${sec} 秒）。`];
+        for (const room of this.queues.values()) {
+          const who = room.activeHumans().map((s) => `${s.name}${s.connected ? '' : '（离线）'}`).join('、') || '无';
+          lines.push(`  ${room.code} ${room.difficulty} ${this.queueCount(room)}/${MAX_SEATS} · ${who}`);
+        }
+        lines.push(matchmakingRule(sec));
+        return { handled: true, lines };
       }
       default:
         return { handled: false };
@@ -695,6 +885,115 @@ export class Lobby {
       return fail(isErrCode(r.error) ? r.error : ERR.INTERNAL, typeof r.detail === 'string' ? r.detail : undefined);
     }
     return OK;
+  }
+
+  // ---------------------------------------------------------------------------------------------------
+  // Matching queue (header: quick match)
+  // ---------------------------------------------------------------------------------------------------
+
+  /** Doctors a waiting room is counting (shared/matchmaking.js: the same count the waiting screen prints). */
+  queueCount(room) { return matchmakingCount(room.seats); }
+
+  /** Doctors waiting in every queue (the Lobby's own count, for `/match` and /healthz). */
+  queuedCount() {
+    let n = 0;
+    for (const room of this.queues.values()) n += this.queueCount(room);
+    return n;
+  }
+
+  /**
+   * (Re)arm a waiting room's start timer. The wait in force is snapshotted onto the room here, so the seconds a client
+   * prints are the seconds the server waits — and `/match timeout` reaches those clients with the state broadcast that
+   * follows it.
+   */
+  armQueueTimer(room) {
+    this.clearQueueTimer(room);
+    const ms = Number.isFinite(this.opts.matchmakingTimeoutMs) && this.opts.matchmakingTimeoutMs > 0
+      ? this.opts.matchmakingTimeoutMs
+      : MATCHMAKING.timeoutMs;
+    room.matchmakingTimeoutMs = ms;
+    const t = setTimeout(() => {
+      this.queueTimers.delete(room.code);
+      this.onQueueTimeout(room);
+    }, ms);
+    t.unref?.();
+    this.queueTimers.set(room.code, t);
+  }
+
+  /** @param {Room} room */
+  clearQueueTimer(room) {
+    const t = this.queueTimers.get(room.code);
+    if (t) { clearTimeout(t); this.queueTimers.delete(room.code); }
+  }
+
+  /**
+   * A waiting room's timer ran out: start with the doctors who are here, or wait another round.
+   * Below MATCHMAKING.minPlayers the queue re-arms — a lone doctor keeps waiting (that is the rule the waiting screen
+   * states), and the re-arm is what makes a second doctor who arrives late wait one round instead of the whole of one.
+   */
+  onQueueTimeout(room) {
+    if (room.disposed || room.match || !room.matchmaking) return;
+    if (this.queueCount(room) < MATCHMAKING.minPlayers) { this.armQueueTimer(room); return; }
+    this.startQueuedMatch(room);
+  }
+
+  /** The other half of the rule: a waiting room that just became full starts at once. */
+  maybeStartQueue(room) {
+    if (room.disposed || room.match || !room.matchmaking) return;
+    if (this.queueCount(room) < MAX_SEATS) return;
+    this.startQueuedMatch(room);
+  }
+
+  /**
+   * Start the match of a waiting room: leave the queue, drop the doctors who are not connected any more, then start it
+   * like any other room (startMatch).
+   *
+   * ▸ A seat whose doctor is offline is FREED rather than carried into the match: the queue starts with the doctors who
+   *   are actually here, and the dropped doctor is told why (`matchmaking_disconnected`) on their next resume. Carrying
+   *   them would start a co-op run around an empty chair; waiting for them would stall everybody on one flaky line.
+   * ▸ A start that cannot happen (the per-network match limit, or a Match constructor that throws) ends the queue with
+   *   room.closed {matchmaking_failed} for everyone: a waiting room that cannot start must not keep its doctors waiting.
+   */
+  startQueuedMatch(room) {
+    if (room.disposed || room.match || !room.matchmaking) return;
+    room.matchmaking = false;
+    this.clearQueueTimer(room);
+    if (this.queues.get(room.difficulty) === room) this.queues.delete(room.difficulty);
+    this.dropOfflineQueueMembers(room);
+    if (room.disposed) return;
+    if (this.queueCount(room) < MATCHMAKING.minPlayers) {
+      // Too few doctors left to start: back into the queue. Everything here is synchronous, so nothing else can have
+      // claimed this difficulty's slot in between — the room may take it back.
+      room.matchmaking = true;
+      this.queues.set(room.difficulty, room);
+      this.armQueueTimer(room);
+      return;
+    }
+    const hostSession = room.hostId ? this.registry.byId(room.hostId) : null;
+    const key = (hostSession && hostSession.limitKey) || null;
+    if (key && this.opts.maxMatchesPerAddr > 0 && this.countRooms((r) => !!r.match && r.matchKey === key) >= this.opts.maxMatchesPerAddr) {
+      this.limitWarn(`match limit (${this.opts.maxMatchesPerAddr}) reached for a queued match`);
+      this.disposeRoom(room, 'matchmaking_failed');
+      return;
+    }
+    this.log.info(`[lobby] ${room.code} queue starting (${this.queueCount(room)}/${MAX_SEATS}, ${room.difficulty})`);
+    const res = this.startMatch(room, key);
+    if (res && res.error) this.disposeRoom(room, 'matchmaking_failed');
+  }
+
+  /**
+   * Free the seats of a waiting room's doctors who are offline, telling each why on their next resume. Their lobby grace
+   * goes with the seat (removeMember clears it): the queue decided for them, so there is nothing left to wait for.
+   */
+  dropOfflineQueueMembers(room) {
+    for (const seat of room.activeHumans()) {
+      if (seat.connected) continue;
+      const session = this.registry.byId(seat.playerId);
+      if (session && session.roomCode === room.code) { session.notice = 'matchmaking_disconnected'; session.pendingResult = null; }
+      this.log.info(`[lobby] ${room.code} dropped ${seat.name} from the queue (offline)`);
+      this.removeMember(room, seat.playerId);
+      if (room.disposed) return;
+    }
   }
 
   // ---------------------------------------------------------------------------------------------------
@@ -1030,7 +1329,8 @@ export class Lobby {
       if (!s || s.connected) return;
       const session = this.registry.byId(playerId);
       if (session && session.roomCode === room.code) {
-        session.notice = 'timeout';
+        // A doctor removed while QUEUED is told that, not "you left the alliance": the queue is what they lost.
+        session.notice = room.matchmaking ? 'matchmaking_disconnected' : 'timeout';
         session.pendingResult = this.replayFor(room, playerId); // still shown after room.closed on resume
       }
       this.removeMember(room, playerId);
@@ -1052,6 +1352,11 @@ export class Lobby {
     if (room.disposed) return;
     room.disposed = true;
     if (this.rooms.get(room.code) === room) this.rooms.delete(room.code);
+    // Out of the queue: the timer dies with the room and the difficulty's slot is freed (only if it is still ours —
+    // a second waiting room of the same difficulty may have taken it while this one was starting).
+    room.matchmaking = false;
+    this.clearQueueTimer(room);
+    if (this.queues.get(room.difficulty) === room) this.queues.delete(room.difficulty);
     room.chat.length = 0; // the log dies with the room; releasing it now matters on a small box (no room = no reader)
     const ctx = room.matchCtx;
     room.match = null;

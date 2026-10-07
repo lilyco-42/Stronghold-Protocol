@@ -1,0 +1,114 @@
+/* ==========================================================================================
+   screens/matchmaking.css — 快速匹配等待屏 (public/js/screens/matchmaking.js).
+   One centred card: the difficulty, how long we have waited, the seat grid filling up, the
+   rule in force and the way out. Sized in rem against the root scale (theme.css), like every
+   other screen — no pixel constants that would break on a 640×360 phone.
+   ========================================================================================== */
+
+.mm-screen .topbar { height: 1.36rem; }
+
+.mm-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: grid;
+  place-items: center;
+  padding: .1rem .6rem .5rem;
+}
+
+.mm-card {
+  --bk-c: var(--mint-500);
+  display: flex;
+  flex-direction: column;
+  gap: .16rem;
+  width: min(100%, 8.4rem);
+  padding: .26rem .3rem .24rem;
+  background:
+    linear-gradient(180deg, rgba(78, 216, 175, .06), rgba(0, 0, 0, .38) 60%),
+    rgba(0, 0, 0, .34);
+  border: 1px solid var(--line);
+}
+
+/* ---- head: difficulty + the waiting clock -------------------------------------------------------------- */
+.mm-card__head { display: flex; align-items: center; justify-content: space-between; gap: .2rem; }
+.mm-card__clock {
+  font-size: .34rem;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--mint-400);
+  letter-spacing: .04em;
+  text-shadow: 0 0 .18rem rgba(23, 249, 183, .35);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- status + progress -------------------------------------------------------------------------------- */
+.mm-card__status { margin: 0; font-size: .2rem; color: var(--text-hi); text-align: center; }
+.mm-progress {
+  position: relative;
+  height: .1rem;
+  background: rgba(0, 0, 0, .5);
+  border: 1px solid var(--line-2);
+  overflow: hidden;
+}
+.mm-progress__fill {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, var(--mint-700), var(--mint-400));
+  box-shadow: 0 0 .14rem rgba(23, 249, 183, .45);
+  transition: width .3s var(--ease-out);
+}
+
+/* ---- the seat grid filling up ------------------------------------------------------------------------- */
+.mm-seats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: .14rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.mm-seat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: .05rem;
+  padding: .14rem .06rem .12rem;
+  background: rgba(255, 255, 255, .02);
+  border: 1px solid var(--line);
+  text-align: center;
+}
+.mm-seat.is-filled { border-color: var(--mint-800); background: var(--mint-a10); }
+.mm-seat.is-me { border-color: var(--mint-600); }
+.mm-seat.is-offline { border-color: var(--orange); background: var(--orange-a20); }
+.mm-seat__name {
+  max-width: 100%;
+  overflow: hidden;
+  font-size: .17rem;
+  color: var(--text-hi);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mm-seat.is-filled .mm-seat__name { color: var(--text-hi); }
+.mm-seat__state { font-size: .13rem; color: var(--text-lo); }
+.mm-seat.is-offline .mm-seat__state { color: var(--orange-hi); }
+
+/* ---- the rule in force + the way out ------------------------------------------------------------------ */
+.mm-card__hint {
+  display: flex;
+  align-items: flex-start;
+  gap: .07rem;
+  margin: 0;
+  font-size: .15rem;
+  line-height: 1.5;
+  color: var(--text-md);
+}
+.mm-card__hint .icon { flex: none; width: .17rem; height: .17rem; margin-top: .03rem; color: var(--mint-500); }
+
+.mm-card__actions { display: flex; align-items: center; justify-content: center; gap: .16rem; }
+.mm-card__note { margin: 0; font-size: .14rem; color: var(--text-lo); text-align: center; }
+
+/* A phone in portrait: the card is taller than the window, so let it scroll rather than clip the exit. */
+@media (max-aspect-ratio: 1/1) {
+  .mm-body { place-items: start center; overflow: auto; }
+  .mm-card { width: 100%; }
+  .mm-seats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}

@@ -261,6 +261,9 @@ export function LobbyScreen() {
     }
   };
   const create = () => run('create', () => net.request('room.create', { mode: roomMode, difficulty }));
+  // 快速匹配 (server/lobby.js matchmake): the same difficulty the cards above selected, and the server puts us in that
+  // difficulty's waiting room. Co-op only — a solo queue has nothing to match with, and 开始独立模拟 is right there.
+  const quickMatch = () => run('match', () => net.request('room.matchmake', { difficulty }));
   const join = (c = code) => {
     // `onClick=${join}` hands the click EVENT as the first argument, and a default parameter only applies to
     // `undefined` — codeArg keeps an event target out of the key and falls back to the input field
@@ -353,6 +356,10 @@ export function LobbyScreen() {
               ${roomMode === 'solo' ? '开始独立模拟' : '创建同盟'}
             <//>
           <//>
+          ${roomMode === 'coop' ? html`<${Tooltip} block=${true}
+            text=${online ? `与同一难度的博士自动组队，满 ${MAX_SEATS} 人立即开局；等待时间结束后按当前人数开局` : '正在连接服务器…'}>
+            <${Button} variant="secondary" size="xl" block=${true} icon="users" loading=${busy === 'match'} disabled=${!online} onClick=${quickMatch}>快速匹配<//>
+          <//>` : null}
           <div class="create-box__hint">
             ${online
               ? html`<span>${roomMode === 'solo' ? '创建后即可开始模拟' : '创建后可邀请好友或添加 AI 队友'}</span>`

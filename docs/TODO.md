@@ -30,7 +30,7 @@
 |---|---|---|---|---|---|
 | 1 | 自选外援（六星支援干员） | ✅ 16 位，可选技能 | ❌ | **P0** | [#1](../../issues/1) |
 | 2 | 房间内文字聊天 | ✅ 已上线 | ✅ 已实现（`feat/room-chat`） | ~~P0~~ | [#2](../../issues/2) |
-| 3 | 匹配队列（含难度） | ✅ 独立屏幕 | ❌ | **P1** | [#3](../../issues/3) |
+| 3 | 匹配队列（含难度） | ✅ 独立屏幕 | ✅ 已实现（`feat/quick-match`） | ~~P1~~ | [#3](../../issues/3) |
 | 4 | 服务器跑马灯公告 | ✅ 终端命令发布 | ✅ 已实现（`feat/server-announcement`） | ~~P1~~ | [#4](../../issues/4) |
 | 5 | 更新公告弹窗 | ✅ 动态生成 | ❌ | **P2** | [#5](../../issues/5) |
 | 6 | 素材 CDN 直出 | ✅ | ✅ 已有（`cdn.lilyco42.top`） | — | — |
@@ -40,10 +40,14 @@
 > 每条 TODO 都已开成 Issue 跟踪（见上表 Issue 列）。
 > **建议的实现顺序：`#4 公告` → `#2 聊天` → `#3 匹配` → `#1 外援` → `#5 更新公告`** ——
 > 公告最小最独立、不碰上游核心文件；外援最大、改上游文件最多；更新公告依赖外援和皮肤提供动态内容。
-> **进度：#4 公告已完成**（分支 `feat/server-announcement`），**#2 聊天已完成**（分支 `feat/room-chat`，叠在 #4 之上），下一步 `#3 匹配`。
+> **进度：#4 公告已完成**（分支 `feat/server-announcement`），**#2 聊天已完成**（分支 `feat/room-chat`，叠在 #4 之上），
+> **#3 匹配已完成**（分支 `feat/quick-match`，叠在 #2 之上），下一步 `#1 外援`。
+> 三条自研分支是一条叠一条的（`master` → `feat/server-announcement` → `feat/room-chat` → `feat/quick-match`），
+> 这样每个功能都能单独 review / revert，而 `master` 始终与上游 0 差异。
 
-**结论**：聊天与公告做完后，上表 8 项里我们 **2 项领先**（皮肤、字体自托管）、**3 项持平**（聊天、公告、素材 CDN）、
-**3 项落后**（外援、匹配队列、更新公告）。落后的 3 项里外援是「社区服刚需」，优先级最高。
+**结论**：聊天、公告、匹配做完后，上表 8 项里我们 **2 项领先**（皮肤、字体自托管）、**4 项持平**（聊天、公告、匹配队列、素材 CDN）、
+**2 项落后**（外援、更新公告）。落后的 2 项里外援是「社区服刚需」，优先级最高；更新公告排在它后面，
+因为它要拿外援和皮肤提供动态内容。
 
 ---
 
@@ -121,19 +125,40 @@
 
 ---
 
-### P1-1 · 匹配队列 · [#3](https://github.com/lilyco-42/Stronghold-Protocol/issues/3)
+### P1-1 · 匹配队列 · [#3](https://github.com/lilyco-42/Stronghold-Protocol/issues/3) · ✅ 已完成
 
 **他们的设计**：独立屏幕 `js/screens/matchmaking.js`（4818 B）+ `css/screens/matchmaking.css`。
 协议 `room.matchmake`，难度用 `lobby.difficulty`。
 失败原因分三类，前端给不同提示：`matchmaking_cancelled` / `matchmaking_disconnected` / `matchmaking_failed`。
 
-**我们的实现清单**：
+**我们的实现清单**（全部完成，分支 `feat/quick-match`）：
 
-- [ ] 服务端：匹配队列（按难度分桶），凑够人数开局
-- [ ] 协议：`room.matchmake`（入队/退队）、`lobby.difficulty`（难度选择）
-- [ ] 前端：`screens/matchmaking.js` + CSS，显示队列人数、等待时长、取消按钮
-- [ ] 三类中断原因的处理与文案
-- [ ] 边界：队列中掉线、开局瞬间取消、只有 1 人时的超时策略
+- [x] 服务端：匹配队列（按难度分桶），凑够人数开局
+- [x] 协议：`room.matchmake`（入队）+ `room.cancelMatchmaking`（退队）；难度**复用房间的 `difficulty`**
+      （不做独立的 `lobby.difficulty` —— 等待房就是一间真的房间，难度已经在它身上了）
+- [x] 前端：`public/js/screens/matchmaking.js` + `public/css/screens/matchmaking.css`，显示队列人数、等待时长、取消按钮
+- [x] 三类中断原因的处理与文案
+- [x] 边界：队列中掉线（**保留席位 60 秒**）、开局瞬间取消、只有 1 人时的超时策略（**继续等，重新布防**）
+
+**我们的实现**（细节见 [DESIGN §27](DESIGN.md)）：
+
+- `shared/matchmaking.js`（规则与文案，前后端共用）· `server/lobby.js`（`Lobby.queues` + `queueTimers`）·
+  `public/js/screens/matchmaking.js` + `public/css/screens/matchmaking.css` · 协议 `room.matchmake` / `room.cancelMatchmaking`。
+- **房间即队列**：队列不是服务端一张隐形的表，而是**一个真的房间**（有房号、房主、聊天记录、干员调配）。
+  同难度的第二个博士坐进同一间等待房，所以等待屏画的席位格就是队列本身 —— 不需要第二套下行结构，
+  也不会有「屏上的人数」和「服务端的人数」两个版本。
+- **发车策略（owner 2026-10-07）**：**满 4 人立即开**；不足 4 人时，等待时间（默认 60 秒）到了且已有 2 人以上，
+  就按**当前实际人数**开；**只有 1 人继续等**（一人开一局同盟不是「快速匹配」的意思，那是「独立模拟」）。
+- **等待期间照常可用**：`room.chat` 与 `room.loadout` 照常工作（等人时商量阵容、挑干员，正是该做的事）；
+  会**改变房间形态**的操作被 `QUEUE_REFUSED` 统一挡掉（`room.join` / `room.spectate` / `room.ready` /
+  `room.setDifficulty` / `room.addBot` / `room.removeBot` / `room.kick` / `room.start`）。
+- **有意与对标版本不同**：①不做房间人数 4–8（`MAX_SEATS` 仍是 4）；②不做好友整队匹配（`room.matchmakeParty`）；
+  ③不做在线人数面板（`/population`）；④**掉线不立即取消队列**，给 60 秒大厅宽限（一次网络抖动不该丢掉排队位置）；
+  ⑤等待秒数可由操作台 `/match timeout` 改，且**服务端把当前值发给客户端**（对标写死在客户端）；
+  ⑥队列的房号不对外暴露（`room.join` / `room.spectate` 对等待房返回 `WRONG_PHASE`）。
+  > ①②③ 各是一整套平衡层 / 协议层 / 端点，塞进 #3 只会把这一条做坏 —— **另开 Issue 跟踪**。
+- **操作台 `/match`**：`/match status` 看当前有几个队列、几个人在等、分别是谁、有没有掉线的；
+  `/match timeout <秒>` 运行中改等待时间（5–600）；`/match help` 帮助。`/healthz` 多出 `matching` / `queued`。
 
 ---
 
@@ -217,8 +242,8 @@
 
 1. **能回上游的就回上游** —— 外援、聊天、匹配这类通用功能，做成干净的 PR 提给 `sganggs`，
    让上游帮我们维护。他们那条路我们没必要重走。
-   > ⚠️ **实际选择（2026-10-07）：先不回上游。** `#4 公告` 与 `#2 聊天` 都落在自己的 feature 分支上
-   > （`feat/server-announcement` / `feat/room-chat`），`master` 保持与上游 0 差异。
+   > ⚠️ **实际选择（2026-10-07）：先不回上游。** `#4 公告`、`#2 聊天`、`#3 匹配` 都落在自己的 feature 分支上
+   > （`feat/server-announcement` / `feat/room-chat` / `feat/quick-match`，一条叠一条），`master` 保持与上游 0 差异。
    > 理由：这两个都是「社区服」取向的设施（运维通知 + 社交），不是官方玩法，上游未必收；
    > 而分支隔离已经拿到了真正重要的那个好处 —— `master` 能干净 `git pull`。
    > 等它们跑稳、社区服真的在用，再考虑挑一两个提 PR。
@@ -231,8 +256,12 @@
      （方向轮的键盘捕获要让开输入框：它的监听在捕获阶段，不挡的话在聊天框里打字会转轮盘）。
      **聊天面板挂 App 的 chrome 层，没有改 `screens/room.js` / `screens/lobby.js`** —— 一个组件、所有屏幕，
      而且路由切换不会打断对话。
+   - `#3 匹配`：`public/index.html`、`public/js/main.js`、`server/index.js`、`server/lobby.js`、`shared/protocol.js`
+     —— **多了两个上游没有的新文件** `shared/matchmaking.js` 与 `public/js/screens/matchmaking.js`，
+     以及改了两处屏幕入口：`public/js/screens/room.js`（分流一行）与 `public/js/screens/lobby.js`（入口按钮）。
+     新文件不参与冲突，冲突面就是上面那 5 个上游文件。
    - `test/docs-consistency.test.js`：README 的测试项数必须落在 `约 3X\d0 项`，而我们的套件比上游大
-     （现在 3704 项）。每次套件明显增长都要把这个范围跟着挪，否则只能把 README 写错。
+     （现在 3739 项）。每次套件明显增长都要把这个范围跟着挪，否则只能把 README 写错。
      这是**上游文件**，`git pull` 时留意这一行的冲突。
 
 ---

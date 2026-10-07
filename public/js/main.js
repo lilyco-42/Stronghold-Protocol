@@ -38,6 +38,7 @@ import { ConnectionBanner } from './ui/connBanner.js';
 import { ToastHost, toast, toastError, describeError } from './ui/toasts.js';
 import { net, identity, NetError } from './net.js';
 import { store, useStore, emptyMatch, selectRoute, sessionResetNotice, isSpectating } from './store.js';
+import { MATCHMAKING_CLOSE } from '../../shared/matchmaking.js';
 import { data } from './data.js';
 import { GAME_FILES } from './ui/gameComponents.js';
 import { TitleScreen, sanitizeName } from './screens/title.js';
@@ -189,11 +190,16 @@ function onRoomState(msg) {
   maybeFinishRestore();
 }
 
-const CLOSE_REASON = {
+// Null-prototype: the reason comes straight off the wire, and `CLOSE_REASON['__proto__']` on a normal object is
+// Object.prototype — a truthy "text" that would toast `[object Object]`.
+const CLOSE_REASON = Object.assign(Object.create(null), {
   // 'timeout' = this player was removed after staying disconnected past the lobby grace (server/lobby.js)
   host_left: '创建者已离开，同盟已解散', timeout: '由于长时间断开连接，你已离开同盟', empty: '同盟已解散',
   kicked: '你已被移出同盟', ended: '模拟已结束', expired: '同盟已过期', shutdown: '服务器维护中，同盟已关闭',
-};
+  // 快速匹配 (server/lobby.js matchmake): the queue's own three reasons, worded where the server's are
+  // (shared/matchmaking.js) — 'matchmaking_cancelled' is null: the player asked for it, so nothing is said.
+  ...MATCHMAKING_CLOSE,
+});
 
 function wireNet() {
   net.on('status', (snap) => {
@@ -213,7 +219,9 @@ function wireNet() {
   net.on('room.state', onRoomState);
   net.on('room.closed', (msg) => {
     backToLobby();
-    toast(CLOSE_REASON[msg.reason] || (typeof msg.reason === 'string' && msg.reason.length < 60 ? `同盟已关闭：${msg.reason}` : '同盟已关闭'), 'warn');
+    const text = CLOSE_REASON[msg.reason];
+    if (text === null) return; // 取消匹配: back to the lobby is the whole answer
+    toast(text || (typeof msg.reason === 'string' && msg.reason.length < 60 ? `同盟已关闭：${msg.reason}` : '同盟已关闭'), 'warn');
   });
   net.on('m.public', (msg) => { matchAt = Date.now(); store.patch('match', { public: payload(msg) }); maybeFinishRestore(); });
   net.on('m.private', (msg) => { matchAt = Date.now(); store.patch('match', { private: payload(msg) }); });

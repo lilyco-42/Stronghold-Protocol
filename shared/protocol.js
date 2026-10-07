@@ -263,6 +263,15 @@ export const C2S = {
   // in its lobby or while its match runs. `text` is bounded in UTF-16 units here (the wire), in code points by the
   // handler; the server sanitises it and answers with the broadcast `room.chat` carrying the stored message.
   'room.chat': { text: (v) => isStr(v, CHAT.maxInput) },
+  // quick match (shared/matchmaking.js; a remake feature, the official room has none): join the WAITING QUEUE of one
+  // difficulty. The server puts the session in that difficulty's waiting room (opening it if the queue is empty) and
+  // starts the match when it fills up, or with whoever is there once the queue's wait is over. The waiting room is an
+  // ordinary co-op room in every other way — room.state carries `matchmaking` (plus `matchmakingSince` /
+  // `matchmakingTimeoutSec`) so a client draws the waiting screen instead of the room, and room.chat / room.loadout
+  // keep working while it waits. room.cancelMatchmaking (or room.leave) leaves the queue with
+  // room.closed {reason:'matchmaking_cancelled'}.
+  'room.matchmake': { difficulty: (v) => DIFFICULTIES.includes(v) },
+  'room.cancelMatchmaking': {},
 
   // match
   'g.infoReady': {},
@@ -313,6 +322,11 @@ export const C2S = {
 // Server → client message types (documentation + client dispatch table keys).
 export const S2C = [
   'welcome', 'ok', 'error', 'pong',
+  // room.state { …, inMatch, chatEnabled, matchmaking, matchmakingSince, matchmakingTimeoutSec, seats, spectators } ·
+  // room.closed { reason } — reasons: 'timeout' | 'kicked' | 'empty' | 'shutdown' (server/lobby.js header) plus the
+  // queue's own 'matchmaking_cancelled' (the player left the queue: the client stays silent) |
+  // 'matchmaking_disconnected' (removed after the lobby grace, or dropped by a queue that started without them) |
+  // 'matchmaking_failed' (the queue could not start a match).
   'room.state', 'room.closed',
   // room.chat { code, message: { id, playerId, name, text, at } } — one line of the room's chat (shared/chat.js),
   // broadcast to every member including its sender (the stored message with its server-assigned id and time is what
