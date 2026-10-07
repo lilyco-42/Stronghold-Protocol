@@ -119,17 +119,37 @@ Cache-Control: no-cache
   走 `/ws` 则不受 CORS 约束，但那要在 `shared/protocol.js` 里加动词、并按上游的扩展点规则走。
   客户端两边都能配合，**但一次只实现一种**，别同时给两个真源。
 
-## 8. 实测记录（2026-10-08，只读探测：`/ws` 握手 + 页面）
+## 8. 实测记录（2026-10-08 复测，只读探测：`/ws` 握手 + `/healthz` 字段）
 
-| 地址 | `/ws` | 结论 |
-| --- | --- | --- |
-| `http://play.simpfun.cn:14517/` | 握手通 | 可列 |
-| `http://43.161.201.122:14517/` | 握手通 | 可列（与上一条同一台，域名/IP 各一） |
-| `https://weishuxieyiwangye.cn:8443/` | **403** | 不列（页面 200，`/ws` 被挡） |
-| `https://ark-proto.stardust.matce.cn/` | **403** | 不列（页面 401，HTTP 认证在前） |
-| `https://play.nekocraft.net:9888/` | **403** | 不列 |
-| `https://stronghold.lunar.ag/` | **403** | 不列 |
-| `https://sp.lain42.top/`（阳性对照） | 握手通 | 探测脚本本身没问题 |
+⚠️ 这张表**改过**。第一版的探测是从打包用的那台机器发的，结论是"只有 2 台能握手，其余 4 台回 403"。
+复测时发现那台机器的 DNS 正把这些域名解析到代理的 fake-IP 段（`nslookup play.simpfun.cn` → `198.18.0.177`），
+所以它给出的阴性结果不可信。下表换一个视角重测（自己的服务器上做只读 curl，不写不改不重启），
+并且每一行都带上可核对的 `/healthz` 字段。至于当初那四条 403 是代理造成的还是那几台当时确实没放开 `/ws`
+（其中一台 `uptime 83468 s`，也就是复测前约 23 小时才起），两个来源都给不出解释 —— 不写因果，只把数记下来。
 
-四台回 403 的有两种可能：它们的 `/ws` 挂在别的路径上，或者要求先过口令/带 cookie。
-这正是"写死进客户端"会一直出错的原因 —— 交给目录接口，由服务器作者自己填规范地址，客户端只负责试。
+| 地址 | `/ws` | `/healthz` | 结论 |
+| --- | --- | --- | --- |
+| `http://play.simpfun.cn:14517/` | **101** | `app 0.1.3`，`uptime 83468 s`，`build 516f1c…` | 可列 |
+| `http://43.161.201.122:14517/` | **101** | `app 0.2.1`，`uptime 8892 s`，`build bfbee97…` | 可列。**与上一条不是同一台**：版本号与开机时长都对不上，只是同端口 |
+| `https://weishuxieyiwangye.cn:8443/` | **101** | `version 0.1.3`，`runtime cloudflare`，`build local` | 可列（第一版记的 403 已推翻） |
+| `https://play.nekocraft.net:9888/` | **101** | `version 0.1.3`，`runtime cloudflare`，`build 5e7f8af` | 可列（同上） |
+| `https://stronghold.lunar.ag/` | **426** | `version 0.1.4`，`runtime cloudflare`，`build bef482f` | 不列：`/healthz` 通，但 `/ws` 回 426（Upgrade Required），握手不成 |
+| `https://ark-proto.stardust.matce.cn/` | **403** | `/healthz` 也是 404 | 不列（两个视角一致） |
+| `https://sp.lain42.top/`（我们自己的服） | 环回 `404` | `app 0.2.1`，`sockets 15` | 不是一张对照表：服务器从**本机** curl 自己的 `/ws` 不算 WebSocket 客户端，所以这一行只说明"`/healthz` 活着"。第一版把它当"阳性对照"是错的。握手要从**外部**测（玩家侧或第三方视角） |
+
+⚠️ 还有一个空白要承认：`101` 只证明"这个地址的 `/ws` 完成了 WebSocket 升级"，
+它**不等于客户端连上就能玩**（登录、建房、进对局是另一回事）。这张表到此为止只回答"能不能握手"；
+"能握手的能不能玩"由 `#47` 那套带阳性对照的探针回答，测完才能把它写进"可列"。
+
+复现命令（在**没有 fake-IP 代理**的机器上跑；`--max-time` 别让卡死的探测拖住你）：
+
+```bash
+curl -sS --max-time 10 "$h/healthz"
+curl -sS -o /dev/null -w '%{http_code}\n' --max-time 10 \
+  -H 'Connection: Upgrade' -H 'Upgrade: websocket' \
+  -H 'Sec-WebSocket-Version: 13' -H 'Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==' "$h/ws"
+```
+
+`101` 是这里唯一算数的阳性信号（真的完成了 WebSocket 升级），`426` / `403` 都连不上。
+另外注意 `runtime: cloudflare` 那几台套了 CDN：`/ws` 从我这儿通，不代表玩家那边也通 ——
+CDN 的 WebSocket 开关在服主手上。这也正是别把地址写死进客户端、交给目录接口由服主自己填的理由之一。
