@@ -161,19 +161,21 @@ Three properties are load-bearing:
 | `server/lobby.js` | `onMessage` | `case 'room.skins'` / `case 'room.skin.install'` |
 | `server/lobby.js` | after `loadout()` | `skins()` — no phase gate (unlike the loadout: a skin is cosmetic and public) — and `skinInstall()`, which acknowledges at once and broadcasts `skins.changed` to **every** session on completion |
 | `server/lobby.js` | `humanSeat()` & `startMatch()` | passes `skins` from session to seat and from room seats to `new Match()` |
-| `server/match/Match.js` | after `setLoadout` | `setSkins()` — any phase, `markPublic()` |
-| `server/match/Match.js` | `publicView().players[]` | `...(Object.keys(ps.skins).length ? { skins: ps.skins } : {})` — omitted when empty, so the payload is unchanged for players with no skins |
-| `server/match/Match.js` | prep view units | `skin: ps.skins?.[rec?.baseId || piece.id] || ps.skins?.[piece.id]` — supports both base and golden/promoted pieces |
+| `server/match/match/platform.js` | after `setLoadout` | `setSkins()` — any phase, `markPublic()`（0.2.0 把 `Match` 拆成 `match/*.js`，这里原来是 `Match.js`） |
+| `server/match/match/views.js` | `publicView().players[]` | `...(Object.keys(ps.skins).length ? { skins: ps.skins } : {})` — omitted when empty, so the payload is unchanged for players with no skins |
+| `server/match/match/views.js` | 两处单位视图（战场 units / 整备预览 units） | `skin: piece.kind === 'chess' ? (ps.skins?.[rec?.baseId || piece.id] || ps.skins?.[piece.id]) : undefined` — supports both base and golden/promoted pieces |
 | `server/match/PlayerState.js` | ctor | `this.skins = Object.freeze({})` + restore from `seat.skins` |
-| `server/match/PlayerState.js` | after `setLoadout` | `setSkins()` — bots refused, same gate as above, calls `this.dirty()` |
-| `server/match/PlayerState.js` | `battleInput()` | `const baseId = (rec && rec.baseId) || piece.id; const skin = this.skins[baseId] || this.skins[piece.id]; if (skin) u.skin = skin;` — preserves skin when upgraded to golden |
-| `server/match/PlayerState.js` | `pieceView()` | includes `skin` on prep board/hand/temp piece views |
+| `server/match/player/basics.js` | after `setLoadout` | `setSkins()` — bots refused, same gate as above, calls `this.dirty()` |
+| `server/match/player/round.js` | `battleInput()` | `const skinRec = this.gd.chess(piece.id); const skin = this.skins[(skinRec && skinRec.baseId) || piece.id] || this.skins[piece.id]; if (skin) u.skin = skin;` — preserves skin when upgraded to golden |
+| `server/match/player/views.js` | `pieceView()` | includes `skin` on prep board/hand/temp piece views |
+| `server/sim/battle/players.js` | `_createAllyFromInput()` | `if (typeof inp.skin === 'string' && inp.skin) u.skin = inp.skin;` — 没有这一行，服务器同步了皮肤也传不到战场（0.2.0 把 `Battle.js` 拆成 `sim/battle/*.js`） |
 | `server/sim/snapshot.js` | `unitInfo()` | `skin: u.skin ?? undefined` — **`undefined`, not `null`**: `JSON.stringify` drops it, so the `DESIGN §8.2` wire-format contract test still passes and an install with no skins is byte-identical to before |
 | `public/js/assets.js` | `spineEntry()` | `opts.skin` → `chars[id].skins[id].spine`, else the operator's own model |
 | `public/js/assets.js` | `avatarUrl()` & `hasBackSpine()` | supports `opts.skin` for avatar; `hasBack(id, skinId)` forwards skin |
 | `public/js/render/units.js` | `_loadSpine()` & `_loadPicture()` | passes `skin: this.info.skin` to spine and avatar diamond fallback |
 | `public/js/render/units.js` | `_wantsBack()` | asks `hasBack(id, this.info.skin)` |
-| `public/js/render/app.js` | `pieceInfo()` and `addInfo()` | `skin: piece.skin ?? skinFor(baseId) ?? null` / `skin: u.skin ?? null`; `sig` includes `skin` to drop cache on switch |
+| `public/js/render/app/info.js` | `renderInfo()` | `skin: u.skin ?? skinForUnit(u) ?? null` — 服务器发的优先，没发就用本机选的那件（只画自己的单位）。0.2.0 把这段从 `app.js` 拆到 `app/info.js` |
+| `public/js/render/app.js` | `pieceInfo()` | `skin: piece.skin ?? skinFor(baseId) ?? skinFor(piece.id) ?? null`；`sig` 里带上 `skin`，换装才会丢缓存重画 |
 | `public/js/data.js` | `DATA_FILES` | `skins: 'skins.json'` |
 | `public/js/ui/gameComponents.js` | `GAME_FILES` | `'skins'` — `test/ui/playtest3.test.js` requires every file the in-match UI reads to be awaited by the match screen, and 干员调配 is reachable during a match |
 | `public/js/screens/loadout.js` | imports + `Detail()` | import `SkinSection`, then `<${SkinSection} chess=${chess} />`. **Two lines** — the section itself is entirely in `ui/skinPicker.js` |

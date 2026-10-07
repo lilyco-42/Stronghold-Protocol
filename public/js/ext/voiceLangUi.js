@@ -10,6 +10,7 @@ import { html, MicroLabel } from '../ui/components.js';
 import { data } from '../data.js';
 import { audio } from '../audio.js';
 import { loadVoiceLangs, availableLangs, voiceLang, setVoiceLang, VOICE_LANG_LABELS, voiceLangsDoc } from './voiceLang.js';
+import { t } from '../../../shared/i18n.js';
 
 /** 试听用的干员：清单里第一个有 `select` 台词的（按 id 排序，稳定）。换语言时播同一句，玩家听得出差别。 */
 function previewChar() {
@@ -33,19 +34,21 @@ export function VoiceLangRow() {
   if (langs.length < 2) return null;
   const cur = voiceLang();
   const doc = voiceLangsDoc();
+  // VOICE_LANG_LABELS 是模块级表（求值时还读不到当前语言），所以在这里过一次 t()
+  const labelOf = (id) => t(VOICE_LANG_LABELS[id] || id);
 
   return html`<div class="set-row" data-testid="voice-lang-row">
-    <span class="set-row__label">配音语言<${MicroLabel}>VOICE LANG<//></span>
-    <div class="set-seg" role="radiogroup" aria-label="配音语言">
+    <span class="set-row__label">${t('配音语言')}<${MicroLabel}>VOICE LANG<//></span>
+    <div class="set-seg" role="radiogroup" aria-label=${t('配音语言')}>
       ${langs.map((id) => html`<button key=${id} type="button" role="radio" data-voice-lang=${id}
         aria-checked=${cur === id ? 'true' : 'false'} class=${cur === id ? 'is-on' : ''}
-        title=${`${VOICE_LANG_LABELS[id] || id} · ${doc?.langs?.[id]?.files ?? '?'} 条`}
+        title=${t('{0} · {1} 条', { 0: labelOf(id), 1: doc?.langs?.[id]?.files ?? '?' })}
         onClick=${() => {
           if (!setVoiceLang(id)) return;
           bump((n) => n + 1);
           const char = previewChar();
           if (char) audio.voice(char, 'select'); // 换完立刻听见差别；audio 从不抛错
-        }}>${VOICE_LANG_LABELS[id] || id}</button>`)}
+        }}>${labelOf(id)}</button>`)}
     </div>
   </div>`;
 }

@@ -8,6 +8,7 @@ import { html, MicroLabel } from './components.js';
 import { useStore, shallowEqual } from '../store.js';
 import { data } from '../data.js';
 import { skinsStore, availableSkins, loadSkinData, setSkin, clearSkin } from './skins.js';
+import { t } from '../../../shared/i18n.js';
 
 const cx = (...p) => p.flat().filter(Boolean).join(' ');
 
@@ -44,8 +45,8 @@ export function SkinSection({ chess }) {
   if (!skinsReady) {
     return html`<section class="lo-sec lo-sec--skin" data-testid="skin-section">
       <header class="lo-sec__head">
-        <h3>皮肤<${MicroLabel}>SKIN<//></h3>
-        <span class="lo-sec__note">正在载入配置…</span>
+        <h3>${t('皮肤')}<${MicroLabel}>SKIN<//></h3>
+        <span class="lo-sec__note">${t('正在载入配置…')}</span>
       </header>
     </section>`;
   }
@@ -60,12 +61,12 @@ export function SkinSection({ chess }) {
 
   return html`<section class="lo-sec lo-sec--skin" data-testid="skin-section">
     <header class="lo-sec__head">
-      <h3>皮肤<${MicroLabel}>SKIN<//></h3>
-      <span class="lo-sec__note">${list.filter((x) => x.installed).length} 款可换${list.some((x) => !x.installed) ? ` · ${list.filter((x) => !x.installed).length} 款未内置` : ''}</span>
+      <h3>${t('皮肤')}<${MicroLabel}>SKIN<//></h3>
+      <span class="lo-sec__note">${t('{0} 款可换', { 0: list.filter((x) => x.installed).length })}${list.some((x) => !x.installed) ? t(' · {0} 款未内置', { 0: list.filter((x) => !x.installed).length }) : ''}</span>
       ${s.sync === 'local' ? html`<span class="lo-sec__note" data-testid="skin-local-note"
-        title="这台服务器没有 room.skins：你的选择存在本机、你自己的战场照常换皮，只是队友看不到">仅自己可见</span>` : null}
+        title=${t('这台服务器没有 room.skins：你的选择存在本机、你自己的战场照常换皮，只是队友看不到')}>${t('仅自己可见')}</span>` : null}
     </header>
-    <div class="lo-skins" role="radiogroup" aria-label="选择皮肤">
+    <div class="lo-skins" role="radiogroup" aria-label=${t('选择皮肤')}>
       <button type="button" role="radio" aria-checked=${chosen ? 'false' : 'true'} data-skin=""
         class=${cx('lo-skin', 'lo-skin--default', !chosen && 'is-on')} onClick=${() => clearSkin(chessId)}>
         <span class="lo-skin__art">
@@ -74,10 +75,10 @@ export function SkinSection({ chess }) {
             : html`<span class="lo-skin__art--none"></span>`}
         </span>
         <span class="lo-skin__text">
-          <b class="lo-skin__name">默认</b>
+          <b class="lo-skin__name">${t('默认')}</b>
           <span class="lo-skin__group">DEFAULT</span>
         </span>
-        ${!chosen ? html`<span class="lo-skin__badge">已装配</span>` : null}
+        ${!chosen ? html`<span class="lo-skin__badge">${t('已装配')}</span>` : null}
       </button>
       ${list.map((x) => {
         const art = skinAvatar(charId, x.id) || defaultArt;
@@ -85,7 +86,7 @@ export function SkinSection({ chess }) {
         return html`<button key=${x.id} type="button" role="radio" aria-checked=${isEquipped ? 'true' : 'false'}
             data-skin=${x.id} data-installed=${x.installed ? '1' : '0'}
             disabled=${!x.installed}
-            title=${x.installed ? '' : '这套时装的模型不在这个安装包里'}
+            title=${x.installed ? '' : t('这套时装的模型不在这个安装包里')}
             class=${cx('lo-skin', isEquipped && 'is-on', !x.installed && 'is-unavailable')}
             onClick=${() => { if (x.installed) setSkin(chessId, x.id); }}>
           <span class="lo-skin__art">
@@ -101,8 +102,8 @@ export function SkinSection({ chess }) {
             <b class="lo-skin__name">${x.name}</b>
             <span class="lo-skin__group">${x.group || 'SPECIAL'}</span>
           </span>
-          ${isEquipped ? html`<span class="lo-skin__badge">已装配</span>`
-            : !x.installed ? html`<span class="lo-skin__badge" data-testid="skin-missing-badge">未内置</span>` : null}
+          ${isEquipped ? html`<span class="lo-skin__badge">${t('已装配')}</span>`
+            : !x.installed ? html`<span class="lo-skin__badge" data-testid="skin-missing-badge">${t('未内置')}</span>` : null}
         </button>`;
       })}
     </div>

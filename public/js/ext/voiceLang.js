@@ -10,6 +10,7 @@
 // 这一点是「时装页摆出来却一款都没有」那个坑的直接教训。
 import { data } from '../data.js';
 import { loadPref, savePref } from '../store.js';
+import { N_ } from '../../../shared/i18n.js';
 
 /** `data/voice-langs.json` 在 data.js 里的名字（文件名同名的连字符形式）。 */
 export const VOICE_LANGS_FILE = 'voice-langs';
@@ -17,7 +18,7 @@ export const VOICE_LANG_PREF = 'voiceLang';
 /** 清单里的中文语音路径形状；不匹配（比如上游换了目录）就原样返回，绝不猜。 */
 const VOICE_RE = /^\/assets\/audio\/voice\/([a-z]{2})\/(.+)$/;
 /** 界面文案。只在这里列，设置行与提示共用一份。 */
-export const VOICE_LANG_LABELS = Object.freeze({ cn: '中文', jp: '日语', en: '英语', kr: '韩语' });
+export const VOICE_LANG_LABELS = Object.freeze({ cn: N_('中文'), jp: N_('日语'), en: N_('英语'), kr: N_('韩语') });
 const FALLBACK = 'cn';
 
 /** 预热登记（一次，走 data.js 的重试与降级）。 */
