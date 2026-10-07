@@ -55,6 +55,7 @@ function skinSpineSide(charId, stem, side, skillIndices) {
 }
 
 const skipped = [];
+const noBack = [];
 const missingArt = [];
 let skinLabel = '';
 
@@ -105,13 +106,13 @@ for (const [charId, skinList] of Object.entries(research.skins || {})) {
     }
     skinEntry.spine = { front: front.entry };
     const back = skinSpineSide(charId, stem, 'back', indices);
-    if (!back.entry && charRec.spine?.back) {
-      // 原皮有 back 朝向而这套没有（实测 3 款：魔王 追悼、安洁莉娜 质素访客 / 夏卉 FA017）：朝上部署时模型会换回原皮，
-      // 玩家看到的是"半件时装"。所以整套都不装。
-      skipped.push(`${skinId}：缺 back 朝向（${back.why}）`);
-      continue;
-    }
     if (back.entry) skinEntry.spine.back = back.entry;
+    else if (charRec.spine?.back) {
+      // 官方就没给这款背面骨骼（实测 3 款：魔王 追悼、安洁莉娜 质素访客 / 夏卉 FA017，四个镜像源全只有
+      // Front 与 build）。渲染层 `assets.js spineEntry()` 在没有 back 时用的是**这件皮肤自己的 front**，
+      // 不是回落到原皮 —— 所以时装不会"消失"，只是朝上部署时看到的是正面图。照常装，只记一笔。
+      noBack.push(skinId);
+    }
 
     mine[skinId] = skinEntry;
     injectedCount++;
@@ -136,6 +137,10 @@ console.log(`✔ 成功向 data/assets.json 注入 ${charsCount} 名干员的共
 if (skipped.length) {
   console.log(`⚠ 清单点了名但没装的 ${skipped.length} 款（选择页会标成「未内置」）：`);
   for (const s of skipped) console.log('   ·', s);
+}
+if (noBack.length) {
+  console.log(`ℹ ${noBack.length} 款没有背面骨骼（官方素材只有 Front + build；朝上部署时渲染这件皮肤自己的正面，不会换回原皮）：`);
+  for (const s of noBack) console.log('   ·', s);
 }
 if (missingArt.length) {
   console.log(`⚠ ${missingArt.length} 份骨骼有附件不在自己的 atlas 里（渲染时那部分会缺）：`);

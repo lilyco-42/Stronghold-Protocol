@@ -25,6 +25,28 @@ export function installedSkinIds() {
 export const isInstalled = (ids, skinId) => ids.has(skinId);
 
 /**
+ * Is this skeleton a **battle** model, or a 宿舍 / 基建 one?
+ *
+ * Measured 2026-10-07: fexli ships `spine/<char>/<stem>/Spine/` for some outfits and that copy is the
+ * *dorm / interact* skeleton (`Default/Interact/Move/Relax/Sit/Sleep/Special`), while `Front|Back/` next to it
+ * holds the real battle model (`Attack/Default/Die/Idle/Start`). A directory-preference rule cannot tell those
+ * apart — only the animation set can. `resolveRoles` happily aliases a missing attack onto the idle clip, so the
+ * check has to be "the attack clip is its own animation", not merely "attack resolved".
+ *
+ * @param {string[]} animationNames names straight out of the .skel
+ * @param {Record<string, string|null>} [roles] a resolveRoles() result for those names
+ */
+export function isBattleSkeleton(animationNames, roles) {
+  const names = Array.isArray(animationNames) ? animationNames : [];
+  if (!names.length) return false;
+  const r = roles;
+  if (!r) return false;
+  if (!r.idle) return false;
+  const attackLoop = r.attack?.loop;
+  return !!attackLoop && attackLoop !== r.idle;
+}
+
+/**
  * A hint for a machine that reaches GitHub only through a local proxy, or null when there is nothing to say.
  *
  * Node's global fetch ignores HTTP(S)_PROXY unless the process started with NODE_USE_ENV_PROXY=1 (Node 24+), so on

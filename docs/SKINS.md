@@ -36,27 +36,40 @@
 > —— 加这个参数重跑之后必须再执行一次 `node tools/inject-skins-assets.mjs`（幂等，输出只由
 > `data/skins-installed.json` 决定）。
 
-## 本仓装了什么（2026-10-07 起：全量 169 款 / 175.5 MB）
+## 本仓装了什么（2026-10-07 起：全量 174 款 / 179.4 MB / 1207 个文件）
 
-`data/skins-installed.json` 现在是 **169 条** —— 174 款里能穿的都装了。没装的那 5 款不是漏的，是**不能装**：
+`data/skins-installed.json` 是 **174 条 = 全部**，一款都不排除。中间踩过两个坑，都改成按内容判，不按约定猜：
 
-| 没装的 | 为什么 |
-| --- | --- |
-| 魔王 追悼（`char_4134_cetsyr@epoque#50`）、安洁莉娜 质素访客（`char_291_aglina@boc#1`）、安洁莉娜 夏卉 FA017（`char_291_aglina@summer#5`） | `back` 朝向的 3 个文件在四个候选地址上全 404（实测 9 个失败文件 = 这 3 款 × skel/atlas/png）。原皮有 back 朝向，穿半件等于朝上部署时换回原皮 |
-| 格雷伊 八音蛋匠人（`char_253_greyy@epoque#8`）、莱恩哈特 希望巡游（`char_373_lionhd@snow#3`） | fexli 那两条路径下的是**宿舍模型**（只有 `Default/Interact/Move/Relax/Sit/Sleep/Special`，没有攻击动作）。`resolveRoles` 会把攻击"兜底"到 `Default`，于是清单看着齐全、闸门也过，但战场上他攻击时就是在宿舍坐着 |
+**坑一：下载器按目录顺序选骨骼，把宿舍模型当战斗模型装了。** fexli 仓里同一款皮肤可能同时有
+`spine/<char>/<stem>/Spine/` 与 `…/<stem>/Front|Back/` 两份。`char_253_greyy_epoque_8`（格雷伊 八音蛋匠人）
+和 `char_373_lionhd_snow_3`（莱恩哈特 希望巡游）的 `Spine/` 那份是**宿舍/交互模型**
+（`Default/Interact/Move/Relax/Sit/Sleep/Special`），`Front|Back` 才是战斗模型
+（`Attack/Default/Die/Idle/Start[/Skill]`）。旧下载器"新布局 Spine/ 优先"，于是拿到宿舍那份，被注入器挡掉 ——
+**当时我写成"官方素材就是宿舍模型"，那是错的**：素材有，是我们取错了目录。
+现在 `fetch-skin-spines.mjs` 每个朝向逐个候选取 skel+atlas、解析动作集、过 `isBattleSkeleton()` 才用，
+盘上已有的那份也重新校验，不合格就换目录重下（自愈、幂等）；png 还要对得上 atlas 声明的页，
+防止骨骼与贴图来自两份模型。
 
-判据写在 `tools/inject-skins-assets.mjs` 的 `skinSpineSide()` 里（攻击动作必须是自己的一段，不是 idle 的别名；
-原皮有 back 而这套没有就整套不装），跑一次会打印"清单点了名但没装的 N 款"。**没装就不写进 `chars[].skins`** ——
-客户端的 `installed` 判的是这条记录在不在，写一条只有头像没骨骼的记录，就是 c17 修掉的那个"点了没反应"。
+**坑二：把"皮肤没有 back"当成缺陷。** 魔王 追悼（`char_4134_cetsyr@epoque#50`）、安洁莉娜 质素访客
+（`char_291_aglina@boc#1`）、安洁莉娜 夏卉 FA017（`char_291_aglina@summer#5`）的背面骨骼在四个候选地址 +
+两个独立镜像（`kiraio-moe/Arknights-Base` 全库有 262 条 `BattleBack`，含别的皮肤；`Aceship/Arknight-Images`）
+上都搜不到 —— 而**这两个干员的原皮自己也只有 `front`**（`data/assets.json` 里 `chars.char_291_aglina.spine`
+只有 front）。也就是说游戏里根本没有她们的背面模型，朝上部署时原皮用的就是正面图，皮肤用正面图**与原皮完全对称**。
+统计口径：169 款"原皮有 back"的皮肤全部有 back；其余 5 款的主人本来就没有背面模型。
+（`assets.js spineEntry()` 在没有 back 时用的是这件皮肤自己的 front，不是回落原皮，所以也不存在"半件时装"。）
 
-注入器现在**按盘上那份 skel 算 `anims`**（`parseSkel` + `resolveRoles`，和 `tools/assets/spine.mjs` 给原皮做的是同一套），
-不再抄原皮的角色表。原因：实测 171 款里有 16 份骨骼的动作名与原皮不同（`Skill` vs `Skill_Start`、缺 `Skill_Loop`、
-back 缺 `Die` 等），抄过来会让 `test/assets.test.js` 播到不存在的动作直接抛 `Animation not found`，
-在玩家那边就是这件时装静默退回原皮。
+判据写在 `tools/inject-skins-assets.mjs` 的 `skinSpineSide()` + `tools/skin-selection.mjs` 的
+`isBattleSkeleton()`：攻击动作必须是**自己的一段**，不是 idle 的别名（`resolveRoles` 会把缺失的攻击兜底成
+idle，光看"attack 有没有值"判不出来）。**不合格就不写进 `chars[].skins`** —— 客户端的 `installed` 判的是这条
+记录在不在，写一条只有头像没骨骼的记录，就是 c17 修掉的那个"点了没反应"。
 
-历史上这里是 12 款（2026-10-06 23:0x）→ 15 款（同日，补 3 款 1 费）。选皮肤时**先问"玩家这一局碰得到吗"**那条
-针对的是"只装 12 款"的年代；全量之后不再受这条约束，但 `data/chess.json` 的 `visible && !isHidden` 筛法
-仍然记着：174 款里 162 款在可购干员上。
+注入器同时**按盘上那份 skel 算 `anims`**（`parseSkel` + `resolveRoles`，和 `tools/assets/spine.mjs` 给原皮做的
+同一套），不再抄原皮角色表：实测 171 款里有 16 份骨骼动作名与原皮不同（`Skill` vs `Skill_Start`、缺
+`Skill_Loop`、back 缺 `Die`），抄过来会让 `test/assets.test.js` 播到不存在的动作直接抛 `Animation not found`，
+在玩家那边就是这件时装静默退回原皮。`textures` / `pma` 也一并从 atlas 真实页算。
+
+历史上这里是 12 款（2026-10-06 23:0x）→ 15 款（同日，补 3 款 1 费）→ 169 款 → **174 款**。"先问玩家这一局
+碰得到吗"那条针对的是"只装 12 款"的年代；全量之后不再受这条约束。
 
 装它们用的命令就三条（`data/skins-installed.json` 是唯一输入）：
 
