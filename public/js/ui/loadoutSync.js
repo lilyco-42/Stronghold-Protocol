@@ -175,7 +175,9 @@ function installPrefSync({ net, timers, target, notify, key, stateKey, msgType, 
       // 玩家自己的板子照常生效，只是不同步给别人；状态牌因此能直接说"这台服务器不认这个操作"，
       // 而不是先闪一下「同步失败」。知道的前提来自 VERB_MIN_APP（读到过对方 app 版本）或对方明确拒过。
       if (typeof net.verbAvailable === 'function' && !net.verbAvailable(msgType).ok) {
-        lastSent = json; pendingJson = null; edited = false;
+        // 不写 lastSent：它的语义是"服务器收过的内容"，而我们一个包都没发。写了之后，玩家把刚才的勾选取消掉
+        // 就会命中上面那条 `json === lastSent`，状态牌在旧服上显示「已同步」—— 正是这次要消灭的那类假状态。
+        pendingJson = null; edited = false;
         setState('local');
         return;
       }

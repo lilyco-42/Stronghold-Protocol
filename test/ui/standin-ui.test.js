@@ -24,7 +24,7 @@ globalThis.fetch = async (url) => {
 };
 
 const M = await import('../../public/js/ui/ownershipModel.js');
-const { installOwnershipSync, SYNC_DEBOUNCE_MS } = await import('../../public/js/ui/loadoutSync.js');
+const { installOwnershipSync, installDiySync, SYNC_DEBOUNCE_MS } = await import('../../public/js/ui/loadoutSync.js');
 const { createStore } = await import('../../public/js/store.js');
 const G = await import('../../public/js/ui/gameLogic.js');
 const { ChessCard } = await import('../../public/js/ui/shopBar.js');
@@ -189,6 +189,59 @@ test('ownership sync: room.ownership after welcome and after edits (debounced); 
   assert.deepEqual(net.sent.at(-1), { t: 'room.ownership', notOwned: [] });
   assert.equal(target.get().ownSync, 'synced');
   s.dispose();
+});
+
+// 客户端认出"这台服务器根本不认这个动词"时（VERB_MIN_APP 说它需要 0.2.0，或对方明确回过 unhandled type），
+// 就一个包都不要发 —— 这是 c23 那次改动（干员持有 / 自选编队不再发注定被拒的同步）的唯一证据。
+// 上面那条测试的 fakeNet 没有 verbAvailable，走的还是"照发"的老路径，所以三条都要钉住：
+// 知道不认 → 不发；不知道（老客户端形状）→ 照发；说认 → 照发（阳性对照，否则"不发"可能只是引擎坏了）。
+test('ownership + diy sync: 已知服务器不认时一次都不发，本机 store 仍是权威', async () => {
+  const cases = [
+    { name: 'ownership', verb: 'room.ownership', install: installOwnershipSync, key: 'notOwned', stateKey: 'ownSync', seed: [SILVER], edit: [SILVER, SARIA] },
+    { name: 'diy', verb: 'room.diy', install: installDiySync, key: 'diy', stateKey: 'diySync', seed: [SILVER], edit: [SILVER, SARIA] },
+  ];
+  for (const c of cases) {
+    const net = fakeNet();
+    net.verbAvailable = (t) => (t === c.verb ? { ok: false, reason: 'older-server' } : { ok: true });
+    const T = fakeTimers();
+    const target = createStore({ [c.key]: c.seed, open: false, [c.stateKey]: 'idle' });
+    const s = c.install({ net, timers: T, target, notify: () => {} });
+
+    net.emit('welcome', {});
+    await T.advance(SYNC_DEBOUNCE_MS + 10);
+    assert.deepEqual(net.sent, [], `${c.name}: 知道对方不认还发，玩家要等一个来回才看到「同步失败」`);
+    assert.equal(target.get()[c.stateKey], 'local', `${c.name}: 状态牌该说"只存在本机"`);
+
+    target.set({ [c.key]: c.edit });
+    await T.advance(SYNC_DEBOUNCE_MS + 10);
+    assert.deepEqual(net.sent, [], `${c.name}: 编辑同样不发`);
+    assert.equal(target.get()[c.stateKey], 'local');
+    assert.equal(target.get()[c.key].length, 2, `${c.name}: 本机 store 必须照旧收下 —— 这才是"只存在本机"的含义`);
+
+    // 玩家真的会这么操作：勾一下再取消，内容回到 welcome 时那一份。状态牌必须还是"只存在本机"，
+    // 不能因为"内容和上次一样"就显示「已同步」—— 那台服务器从头到尾没收到过任何东西。
+    target.set({ [c.key]: c.seed });
+    await T.advance(SYNC_DEBOUNCE_MS + 10);
+    assert.deepEqual(net.sent, [], `${c.name}: 回退也不发`);
+    assert.equal(target.get()[c.stateKey], 'local', `${c.name}: 取消勾选后不许显示「已同步」`);
+    s.dispose();
+  }
+});
+
+test('ownership sync: 服务器认（或客户端认不出对方版本）时照发 —— 上一条的阳性对照', async () => {
+  for (const verbAvailable of [() => ({ ok: true }), undefined]) {
+    const net = fakeNet();
+    if (verbAvailable) net.verbAvailable = verbAvailable; // 没有这个方法 = 老 net 的形状，必须不受影响
+    const T = fakeTimers();
+    const target = createStore({ notOwned: [SILVER], open: false, ownSync: 'idle' });
+    const s = installOwnershipSync({ net, timers: T, target, notify: () => {} });
+    net.emit('welcome', {});
+    await T.advance(SYNC_DEBOUNCE_MS + 10);
+    assert.deepEqual(net.sent, [{ t: 'room.ownership', notOwned: [SILVER] }],
+      `verbAvailable=${verbAvailable ? 'ok' : '（老 net，没有这个方法）'} 时必须真的发出去`);
+    assert.equal(target.get().ownSync, 'synced');
+    s.dispose();
+  }
 });
 
 // ---- match UI -------------------------------------------------------------------------------------------------------------
