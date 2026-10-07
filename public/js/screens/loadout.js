@@ -419,6 +419,7 @@ function Filters({ m, filters, onFilters, bonds }) {
 const SYNC_TEXT = {
   idle: ['', ''], pending: [N_('保存中…'), 'is-busy'], sending: [N_('同步中…'), 'is-busy'], synced: [N_('已同步'), 'is-ok'],
   locked: [N_('本局已锁定 · 下一局生效'), 'is-warn'], error: [N_('同步失败'), 'is-bad'],
+  local: [N_('这台服务器不认这个操作 · 只存在本机'), 'is-warn'],
 };
 /** The 干员持有 tab's status line: the setting never applies to a running match. */
 const OWN_SYNC_TEXT = { ...SYNC_TEXT, locked: [N_('下一局生效'), 'is-warn'] };

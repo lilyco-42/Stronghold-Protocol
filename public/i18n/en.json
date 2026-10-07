@@ -288,6 +288,7 @@
   "已同步": "Synced",
   "本局已锁定 · 下一局生效": "Locked for this match · applies next match",
   "同步失败": "Sync failed",
+  "这台服务器不认这个操作 · 只存在本机": "This server does not know that operation - saved on this device only",
   "全部恢复默认": "Reset All to Default",
   "已复制到剪贴板": "Copied to clipboard",
   "复制失败，请在文本框中手动全选复制": "Copy failed, please select all in the text box and copy manually",

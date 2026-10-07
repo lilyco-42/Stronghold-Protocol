@@ -236,7 +236,8 @@ export class Net {
     this.retryAt = 0;          // epoch ms of the next reconnect attempt (0 = none)
     this.ping = null;          // last RTT in ms
     this.lastError = null;     // last NetError relevant to the connection (e.g. hello rejected)
-    this.serverApp = null;     // server `app` version, read best-effort from its /healthz (null = unknown)
+    this.serverApp = null;     // server `app` version: from `welcome.app` when the server sends it, else from /healthz (null = unknown)
+    this.welcomeApp = null;      // what `welcome` told us; kept so a CORS-blocked /healthz cannot erase the version we already know
     this.serverInfoFailed = false; // the /healthz read was tried and did not answer: stay optimistic
     this.clockOffset = 0;
     this.clockSynced = false;
@@ -488,6 +489,11 @@ export class Net {
     this.playerId = msg.playerId ?? null;
     this.attempt = 0;
     this.lastError = null;
+    // 服务器在 welcome 里自带版本号。这是唯一**不依赖 CORS** 的通道：/healthz 那一路要代理层
+    // 回头给 access-control-allow-origin（实测线上只有 /healthz 带，静态路由与页面都不带），
+    // 而打包客户端在 127.0.0.1 的 origin 上问远程服务器，没那头就是读不到。
+    // 老服务器没这个字段就维持 null，仍按 /healthz 走 —— 两边都不必改，多版本连接不会误伤。
+    if (typeof msg.app === 'string' && msg.app) { this.welcomeApp = msg.app; if (!this.serverApp) this.serverApp = msg.app; }
     if (Number.isFinite(msg.serverNow)) this._addClockSample(msg.serverNow + (this.ping ?? 0) / 2 - this.now(), Infinity);
     this._setStatus('online');
     this._flushQueue();
@@ -509,10 +515,10 @@ export class Net {
       const res = await fetchFn(url, { cache: 'no-store' });
       if (!res || !res.ok) { this.serverInfoFailed = true; return; }
       const body = await res.json();
-      this.serverApp = typeof body?.app === 'string' && body.app ? body.app : null;
+      this.serverApp = typeof body?.app === 'string' && body.app ? body.app : (this.welcomeApp || null);
       if (this.serverApp === null) this.serverInfoFailed = true;
     } catch {
-      this.serverApp = null;
+      this.serverApp = this.welcomeApp || null;
       this.serverInfoFailed = true;
     }
     this._emit('serverInfo', { app: this.serverApp, url });
