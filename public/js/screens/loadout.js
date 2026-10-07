@@ -26,6 +26,7 @@ import { chessStatsBlock, traitText, chessTalents } from '../ui/detailPanel.js';
 import { chessLoadout } from '../ui/gameLogic.js';
 import { data, useData, localAsset, DATA_FILES } from '../data.js';
 import { useStore } from '../store.js';
+import { net } from '../net.js';
 import { PHASE } from '../../../shared/constants.js';
 import {
   MODULE_NONE, PROF_ORDER, PROF_NAME, rosterOf, filterRoster, recordsOf, chessOptions, effectiveChoice, setChoice, resetChoice,
@@ -618,6 +619,13 @@ function LoadoutScreen({ st }) {
 
   const [syncText, syncCls] = tab === 'ownership' ? OWN_SYNC_TEXT[st.ownSync] || OWN_SYNC_TEXT.idle
     : tab === 'diy' ? DIY_SYNC_TEXT[st.diySync] || DIY_SYNC_TEXT.idle : SYNC_TEXT[st.sync] || SYNC_TEXT.idle;
+  // 0.2.0 才有 room.ownership / room.diy：连在旧服务器（线上 0.1.4 就是）上时这两个 tab 必然同步失败，而
+  // 「同步失败」会被读成自己网不好。verbUnavailableText 只在确实读到过对方版本太低/明确拒过这个动词时非空，
+  // 所以别的原因（真断线、服务器 500）仍旧走原文案，不会被这句话掩盖掉。
+  const syncVerb = tab === 'ownership' ? 'room.ownership' : tab === 'diy' ? 'room.diy' : null;
+  const syncWhy = syncVerb && syncCls === 'is-bad' ? net.verbUnavailableText(syncVerb) : '';
+  const syncLabel = syncWhy || (syncText ? t(syncText) : '');
+  const syncCls2 = syncWhy ? 'is-warn' : syncCls;
   const fromText = st.from === 'briefing' ? t('确认本局信息阶段结束前可调整本局配置') : t('开始模拟前可调整干员携带的技能与模组，干员等级不可调整');
   // 干员持有 is out of match: a running match keeps the list its seat had at its start
   const ownLocked = inMatch && !!phase && phase !== PHASE.LOBBY;
@@ -645,20 +653,20 @@ function LoadoutScreen({ st }) {
         </div>
       </div>
       ${tab === 'diy' ? html`<div class="lo-top__right">
-        ${syncText ? html`<span class=${cx('lo-sync', syncCls)} role="status" data-testid="diy-sync">${t(syncText)}</span>` : null}
+        ${syncText ? html`<span class=${cx('lo-sync', syncCls2)} role="status" data-testid="diy-sync">${syncLabel}</span>` : null}
         <span class="lo-count">${t('已选')} <b class="num">${nDiy}</b><span class="num t-dim">/4</span></span>
         <${Button} variant="ghost" size="sm" data-testid="diy-export" disabled=${!nDiy} onClick=${openExport} title=${t('导出自选编队（可复制或下载）')}>${t('导出')}<//>
         <${Button} variant="ghost" size="sm" data-testid="diy-import" disabled=${!ready} onClick=${openImport} title=${t('导入自选编队（粘贴或选择文件）')}>${t('导入')}<//>
         <${Button} variant="secondary" size="sm" icon="refresh" data-testid="diy-reset" disabled=${!nDiy} onClick=${clearDiy}>${t('全部清空')}<//>
       </div>` : tab === 'ownership' ? html`<div class="lo-top__right">
-        ${syncText ? html`<span class=${cx('lo-sync', syncCls)} role="status" data-testid="ownership-sync">${t(syncText)}</span>` : null}
+        ${syncText ? html`<span class=${cx('lo-sync', syncCls2)} role="status" data-testid="ownership-sync">${syncLabel}</span>` : null}
         <span class="lo-count">${t('未持有')} <b class="num">${nNotOwned}</b><span class="num t-dim">/${ownRoster.length}</span></span>
         <${Button} variant="ghost" size="sm" data-testid="ownership-export" disabled=${!nNotOwned} onClick=${openExport} title=${t('导出干员持有（可复制或下载）')}>${t('导出')}<//>
         <${Button} variant="ghost" size="sm" data-testid="ownership-import" disabled=${!ready} onClick=${openImport} title=${t('导入干员持有（粘贴或选择文件）')}>${t('导入')}<//>
         <${Button} variant="secondary" size="sm" icon="refresh" data-testid="ownership-reset" disabled=${!nNotOwned} onClick=${ownAll}>${t('全部持有')}<//>
       </div>` : html`<div class="lo-top__right">
         ${inMatch && hasDeadline(infoDeadline) ? html`<${Countdown} deadline=${infoDeadline} size="sm" gauge=${false} label=${t('调配截止')} class="lo-deadline" />` : null}
-        ${syncText ? html`<span class=${cx('lo-sync', syncCls)} role="status">${t(syncText)}</span>` : null}
+        ${syncText ? html`<span class=${cx('lo-sync', syncCls2)} role="status">${syncLabel}</span>` : null}
         <span class="lo-count">${t('已调整')} <b class="num">${nChanged}</b><span class="num t-dim">/${roster.length}</span></span>
         <${Button} variant="ghost" size="sm" data-testid="loadout-export" disabled=${!nChanged} onClick=${openExport} title=${t('导出当前调配（可复制或下载）')}>${t('导出')}<//>
         <${Button} variant="ghost" size="sm" data-testid="loadout-import" disabled=${!ready} onClick=${openImport} title=${t('导入调配（粘贴或选择文件）')}>${t('导入')}<//>

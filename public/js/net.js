@@ -178,8 +178,11 @@ export function healthUrl(wsUrl = defaultWsUrl(), loc = globalThis.location) {
  * `room.kick` are absent from `shared/protocol.js` through 0.1.2 and present in 0.1.3 (`4276617`). This only decides
  * whether to grey a control out BEFORE the first click; the server's own `unhandled type` reply stays the authority,
  * so an unknown version (or a fork that backported it) never locks a working feature away.
+ * `room.ownership` / `room.diy` are 0.2.0's (measured the same way: `git show v0.1.4:shared/protocol.js | grep -c
+ * room.ownership` → 0, v0.2.0 → 11). They belong to the 干员调配 tabs' sync, whose state line would otherwise read
+ * 「同步失败」 on every server older than the client and be read as a bad connection.
  */
-export const VERB_MIN_APP = Object.freeze({ 'room.spectate': '0.1.3', 'room.kick': '0.1.3', 'room.removeSpectator': '0.1.3' });
+export const VERB_MIN_APP = Object.freeze({ 'room.spectate': '0.1.3', 'room.kick': '0.1.3', 'room.removeSpectator': '0.1.3', 'room.ownership': '0.2.0', 'room.diy': '0.2.0' });
 
 /** @param {string} a @param {string} b @returns {boolean} whether dotted version `a` is at least `b` */
 export function versionAtLeast(a, b) {

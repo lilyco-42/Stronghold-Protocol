@@ -181,3 +181,30 @@ test('a server that CLAIMS 0.1.3 but refuses the verb on the wire still gets gre
   await elsewhere._probeServerInfo();
   assert.equal(elsewhere.verbAvailable('room.spectate').ok, true, 'the learned refusal must not leak across servers');
 });
+
+test('0.2.0 verbs are pinned so an older server says so instead of a bare 同步失败', async () => {
+  // Measured on the tags, the same way the 0.1.3 trio was: `git show v0.1.4:shared/protocol.js | grep -c ownership`
+  // → 0 and v0.2.0 → 11. Without a pin the 干员持有 / 自选编队 tabs only learn the refusal from the reply, so a player
+  // on a 0.1.4 server sees 「同步失败」 (reads as: my connection is bad) for what is really "this server has no such verb".
+  assert.equal(VERB_MIN_APP['room.ownership'], '0.2.0');
+  assert.equal(VERB_MIN_APP['room.diy'], '0.2.0');
+
+  const old = new Net({ url: 'wss://prod-014.test/ws', fetchFn: async () => ({ ok: true, json: async () => ({ app: '0.1.4', protocol: 1 }) }) });
+  await old._probeServerInfo();
+  assert.deepEqual(old.verbAvailable('room.ownership'), { ok: false, reason: 'older-server' });
+  assert.deepEqual(old.verbAvailable('room.diy'), { ok: false, reason: 'older-server' });
+  assert.match(old.verbUnavailableText('room.ownership'), /0\.1\.4/, 'the text quotes the server version it read');
+  assert.match(old.verbUnavailableText('room.diy'), /0\.2\.0/, '…and the version the feature needs');
+  assert.equal(old.verbAvailable('room.skins').ok, true, 'a verb nobody pinned stays live');
+  assert.equal(old.verbAvailable('room.loadout').ok, true, 'the loadout verb predates the table — untouched');
+
+  // A server new enough answers: the pin must not lock the tabs away there (and an unreadable version must not either).
+  const modern = new Net({ url: 'wss://new.test/ws', fetchFn: async () => ({ ok: true, json: async () => ({ app: '0.2.1' }) }) });
+  await modern._probeServerInfo();
+  assert.equal(modern.verbAvailable('room.ownership').ok, true);
+  assert.equal(modern.verbAvailable('room.diy').ok, true);
+  const blind = new Net({ url: 'wss://no-cors.test/ws', fetchFn: async () => { throw new Error('CORS'); } });
+  await blind._probeServerInfo();
+  assert.equal(blind.serverApp, null, 'a fork that does not send CORS on /healthz leaves us blind');
+  assert.equal(blind.verbAvailable('room.ownership').ok, true, 'blind is not treated as old — the reply stays the authority');
+});
