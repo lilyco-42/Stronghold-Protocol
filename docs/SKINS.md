@@ -55,7 +55,7 @@
 两个独立镜像（`kiraio-moe/Arknights-Base` 全库有 262 条 `BattleBack`，含别的皮肤；`Aceship/Arknight-Images`）
 上都搜不到 —— 而**这两个干员的原皮自己也只有 `front`**（`data/assets.json` 里 `chars.char_291_aglina.spine`
 只有 front）。也就是说游戏里根本没有她们的背面模型，朝上部署时原皮用的就是正面图，皮肤用正面图**与原皮完全对称**。
-统计口径：169 款"原皮有 back"的皮肤全部有 back；其余 5 款的主人本来就没有背面模型。
+统计口径（本轮实测）：174 款里 **171 款有 front + back，3 款只有 front** —— 就是上面这 3 款，而她们的主人本来就没有背面模型。
 （`assets.js spineEntry()` 在没有 back 时用的是这件皮肤自己的 front，不是回落原皮，所以也不存在"半件时装"。）
 
 判据写在 `tools/inject-skins-assets.mjs` 的 `skinSpineSide()` + `tools/skin-selection.mjs` 的
