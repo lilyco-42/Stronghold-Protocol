@@ -32,7 +32,7 @@
   ],
   "data/assets.json": [
    {
-    "line": "{\"version\":1,\"hash\":\"2249e4a0918a\",\"generator\":\"tools/fetch-assets.mjs\",\"stats\":{\"files\":5700,\"bytes\":331632595,\"chars\":…（整行 1193497 字符）",
+    "line": "{\"version\":1,\"hash\":\"b699458e3e10\",\"generator\":\"tools/fetch-assets.mjs\",\"stats\":{\"files\":7969,\"bytes\":485061859,\"chars\":…（整行 1529308 字符）",
     "anchor": "",
     "opaque": true
    }
@@ -445,6 +445,258 @@
     "anchor": ""
    }
   ],
+  "public/i18n/en.json": [
+   {
+    "line": "\"开发版 · 不稳定，请勿用于公开服务器\": \"Development build · unstable, not for public servers\",",
+    "anchor": ""
+   },
+   {
+    "line": "\"中文\": \"Chinese\",",
+    "anchor": ""
+   },
+   {
+    "line": "\"日语\": \"Japanese\",",
+    "anchor": ""
+   },
+   {
+    "line": "\"英语\": \"English\",",
+    "anchor": ""
+   },
+   {
+    "line": "\"韩语\": \"Korean\",",
+    "anchor": ""
+   },
+   {
+    "line": "\"配音语言\": \"Voice Language\",",
+    "anchor": ""
+   },
+   {
+    "line": "\"{0} · {1} 条\": \"{0} · {1} lines\",",
+    "anchor": ""
+   },
+   {
+    "line": "\"这台服务器还不支持该操作，请更新服务器版本后再试\": \"This server does not support that action yet; update the server and try again\",",
+    "anchor": ""
+   },
+   {
+    "line": "\"这台服务器是 {serverApp}，该功能需要 {1} 以上的服务器\": \"This server runs {serverApp}; this needs server {1} or newer\",",
+    "anchor": ""
+   },
+   {
+    "line": "\"这台服务器不支持该操作，请更新服务器版本\": \"This server does not support that action; please update the server\",",
+    "anchor": ""
+   },
+   {
+    "line": "\"调配项目\": \"Loadout Sections\",",
+    "anchor": ""
+   },
+   {
+    "line": "\"数值\": \"Stats\",",
+    "anchor": ""
+   },
+   {
+    "line": "\"换装\": \"Outfit\",",
+    "anchor": ""
+   },
+   {
+    "line": "\"导入失败：这份数据在当前版本没有可用的调配或皮肤，未做任何改动\": \"Import failed: this file has no loadout or outfit entry usable in this version; nothing was changed\",",
+    "anchor": ""
+   },
+   {
+    "line": "\"{n} 名干员配置\": \"{n} operator loadouts\",",
+    "anchor": ""
+   },
+   {
+    "line": "\"{n} 款皮肤\": \"{n} outfits\",",
+    "anchor": ""
+   },
+   {
+    "line": "\"已导入：{parts}\": \"Imported: {parts}\",",
+    "anchor": ""
+   },
+   {
+    "line": "\"（另有 {n} 项未导入）\": \"({n} items were not imported)\",",
+    "anchor": ""
+   },
+   {
+    "line": "\"里面没有有效的调配或皮肤条目\": \"It contains no valid loadout or outfit entries\",",
+    "anchor": ""
+   },
+   {
+    "line": "\"皮肤\": \"Outfits\",",
+    "anchor": ""
+   },
+   {
+    "line": "\"正在载入配置…\": \"Loading the outfit catalogue…\",",
+    "anchor": ""
+   },
+   {
+    "line": "\"{0} 款可换\": \"{0} changeable\",",
+    "anchor": ""
+   },
+   {
+    "line": "\" · {0} 款未内置\": \" · {0} not bundled\",",
+    "anchor": ""
+   },
+   {
+    "line": "\"这台服务器没有 room.skins：你的选择存在本机、你自己的战场照常换皮，只是队友看不到\": \"This server has no room.skins: your choice stays on this device, and your own battle still wears it; teammates just do not see it\",",
+    "anchor": ""
+   },
+   {
+    "line": "\"仅自己可见\": \"Visible to you only\",",
+    "anchor": ""
+   },
+   {
+    "line": "\"选择皮肤\": \"Choose an outfit\",",
+    "anchor": ""
+   },
+   {
+    "line": "\"已装配\": \"Worn\",",
+    "anchor": ""
+   },
+   {
+    "line": "\"这套时装的模型不在这个安装包里\": \"This outfit's model is not in this install\",",
+    "anchor": ""
+   },
+   {
+    "line": "\"未内置\": \"Not bundled\",",
+    "anchor": ""
+   },
+   {
+    "line": "\"连接已断开：这段时间服务器在替你打阵地，重连回来就能接上\": \"Disconnected: the server keeps fighting your board meanwhile — reconnect to take over\",",
+    "anchor": ""
+   },
+   {
+    "line": "\"连接已断开：这段时间服务器在替 {name} 打阵地，TA 重连回来就能接上\": \"Disconnected: the server keeps fighting {name}'s board until they reconnect\"",
+    "anchor": ""
+   }
+  ],
+  "public/i18n/zh-TW.json": [
+   {
+    "line": "\"生命值减少 −{n}\": \"生命值減少 −{n}\",",
+    "anchor": ""
+   },
+   {
+    "line": "\"中文\": \"中文\",",
+    "anchor": ""
+   },
+   {
+    "line": "\"日语\": \"日語\",",
+    "anchor": ""
+   },
+   {
+    "line": "\"英语\": \"英語\",",
+    "anchor": ""
+   },
+   {
+    "line": "\"韩语\": \"韓語\",",
+    "anchor": ""
+   },
+   {
+    "line": "\"配音语言\": \"配音語言\",",
+    "anchor": ""
+   },
+   {
+    "line": "\"{0} · {1} 条\": \"{0} · {1} 條\",",
+    "anchor": ""
+   },
+   {
+    "line": "\"这台服务器还不支持该操作，请更新服务器版本后再试\": \"這台伺服器尚不支援此操作，請更新伺服器版本後再試\",",
+    "anchor": ""
+   },
+   {
+    "line": "\"这台服务器是 {serverApp}，该功能需要 {1} 以上的服务器\": \"這台伺服器是 {serverApp}，該功能需要 {1} 以上的伺服器\",",
+    "anchor": ""
+   },
+   {
+    "line": "\"这台服务器不支持该操作，请更新服务器版本\": \"這台伺服器不支援此操作，請更新伺服器版本\",",
+    "anchor": ""
+   },
+   {
+    "line": "\"调配项目\": \"調配項目\",",
+    "anchor": ""
+   },
+   {
+    "line": "\"数值\": \"數值\",",
+    "anchor": ""
+   },
+   {
+    "line": "\"换装\": \"換裝\",",
+    "anchor": ""
+   },
+   {
+    "line": "\"导入失败：这份数据在当前版本没有可用的调配或皮肤，未做任何改动\": \"匯入失敗：這份資料在目前版本沒有可用的調配或造型，未做任何改動\",",
+    "anchor": ""
+   },
+   {
+    "line": "\"{n} 名干员配置\": \"{n} 名幹員配置\",",
+    "anchor": ""
+   },
+   {
+    "line": "\"{n} 款皮肤\": \"{n} 款造型\",",
+    "anchor": ""
+   },
+   {
+    "line": "\"已导入：{parts}\": \"已匯入：{parts}\",",
+    "anchor": ""
+   },
+   {
+    "line": "\"（另有 {n} 项未导入）\": \"（另有 {n} 項未匯入）\",",
+    "anchor": ""
+   },
+   {
+    "line": "\"里面没有有效的调配或皮肤条目\": \"裡面沒有有效的調配或造型條目\",",
+    "anchor": ""
+   },
+   {
+    "line": "\"皮肤\": \"造型\",",
+    "anchor": ""
+   },
+   {
+    "line": "\"正在载入配置…\": \"正在載入造型資料…\",",
+    "anchor": ""
+   },
+   {
+    "line": "\"{0} 款可换\": \"{0} 款可換\",",
+    "anchor": ""
+   },
+   {
+    "line": "\" · {0} 款未内置\": \" · {0} 款未內建\",",
+    "anchor": ""
+   },
+   {
+    "line": "\"这台服务器没有 room.skins：你的选择存在本机、你自己的战场照常换皮，只是队友看不到\": \"這台伺服器沒有 room.skins：你的選擇留在本機，你自己的戰場照常換裝，只是隊友看不到\",",
+    "anchor": ""
+   },
+   {
+    "line": "\"仅自己可见\": \"僅自己可見\",",
+    "anchor": ""
+   },
+   {
+    "line": "\"选择皮肤\": \"選擇造型\",",
+    "anchor": ""
+   },
+   {
+    "line": "\"已装配\": \"已裝備\",",
+    "anchor": ""
+   },
+   {
+    "line": "\"这套时装的模型不在这个安装包里\": \"這套造型的模型不在這個安裝包裡\",",
+    "anchor": ""
+   },
+   {
+    "line": "\"未内置\": \"未內建\",",
+    "anchor": ""
+   },
+   {
+    "line": "\"连接已断开：这段时间服务器在替你打阵地，重连回来就能接上\": \"連線已斷開：這段時間伺服器在替你打陣地，重新連線回來就能接上\",",
+    "anchor": ""
+   },
+   {
+    "line": "\"连接已断开：这段时间服务器在替 {name} 打阵地，TA 重连回来就能接上\": \"連線已斷開：這段時間伺服器在替 {name} 打陣地，TA 重新連線回來就能接上\"",
+    "anchor": ""
+   }
+  ],
   "public/index.html": [
    {
     "line": "<!-- CJK + display fonts, mirrored from Google Fonts into public/webfonts/ (tools/fetch-webfonts.mjs): same woff2",
@@ -596,7 +848,7 @@
    },
    {
     "line": "import { installSkinsSync } from './ui/skins.js';",
-    "anchor": "import { installLoadoutSync } from './ui/loadoutSync.js';"
+    "anchor": "import { installLoadoutSync, installOwnershipSync, installDiySync } from './ui/l"
    },
    {
     "line": "installSkinsSync({ net });",
@@ -631,7 +883,11 @@
     "anchor": ""
    },
    {
-    "line": "UNSUPPORTED: '这台服务器还不支持该操作，请更新服务器版本后再试',",
+    "line": "import { N_, t } from '../../shared/i18n.js';",
+    "anchor": "import { validateC2S } from '../../shared/protocol.js';"
+   },
+   {
+    "line": "UNSUPPORTED: N_('这台服务器还不支持该操作，请更新服务器版本后再试'),",
     "anchor": "export const CLIENT_ERR_TEXT = Object.freeze({"
    },
    {
@@ -943,11 +1199,11 @@
     "anchor": "export class Net {"
    },
    {
-    "line": "? `这台服务器是 ${this.serverApp}，该功能需要 ${VERB_MIN_APP[verb]} 以上的服务器`",
+    "line": "? t('这台服务器是 {serverApp}，该功能需要 {1} 以上的服务器', { serverApp: this.serverApp, 1: VERB_MIN_APP[verb] })",
     "anchor": "export class Net {"
    },
    {
-    "line": ": '这台服务器不支持该操作，请更新服务器版本';",
+    "line": ": t('这台服务器不支持该操作，请更新服务器版本');",
     "anchor": "export class Net {"
    },
    {
@@ -969,12 +1225,8 @@
   ],
   "public/js/render/app.js": [
    {
-    "line": "import { skinFor, skinForUnit } from '../ui/skins.js';",
-    "anchor": "import { promotionsOf } from './promote.js';"
-   },
-   {
-    "line": "skin: u.skin ?? skinForUnit(u) ?? null,",
-    "anchor": "export function renderInfo(u) {"
+    "line": "import { skinFor } from '../ui/skins.js';",
+    "anchor": "import { t } from '../../../shared/i18n.js';"
    },
    {
     "line": "const baseId = rec?.baseId || piece.id;",
@@ -985,8 +1237,18 @@
     "anchor": "export async function createFieldView(host, options = {}) {"
    },
    {
-    "line": "const sig = `${info.kind}|${info.defId}|${info.golden ? 1 : 0}|${info.skin || ''}`;",
+    "line": "const sig = `${info.kind}|${info.defId}|${info.golden ? 1 : 0}|${info.spine || ''}|${info.skin || ''}`;",
     "anchor": "export async function createFieldView(host, options = {}) {"
+   }
+  ],
+  "public/js/render/app/info.js": [
+   {
+    "line": "import { skinForUnit } from '../../ui/skins.js';",
+    "anchor": ""
+   },
+   {
+    "line": "skin: u.skin ?? skinForUnit(u) ?? null,",
+    "anchor": "export function renderInfo(u) {"
    }
   ],
   "public/js/render/units.js": [
@@ -1017,267 +1279,255 @@
   ],
   "public/js/screens/loadout.js": [
    {
-    "line": "changedCount, skillLabel, moduleBadge, attrRows, skillTags, serializeExport, parseImport, LOADOUT_IMPORT_MAX_BYTES, mergeSkins,",
+    "line": "changedCount, skillLabel, moduleBadge, attrRows, skillTags, traitLines, serializeExport, parseImport, LOADOUT_IMPORT_MAX_BYTES, mergeSkins,",
     "anchor": "import {"
    },
    {
     "line": "import { skinsStore, setSkins } from '../ui/skins.js';",
-    "anchor": "import { loadoutStore, openLoadout, closeLoadout, setEntries, applyLoadoutEntrie"
+    "anchor": "import {"
    },
    {
     "line": "import { SkinSection } from '../ui/skinPicker.js';",
-    "anchor": "import { loadoutStore, openLoadout, closeLoadout, setEntries, applyLoadoutEntrie"
+    "anchor": "import {"
    },
    {
-    "line": "const [tab, setTab] = useState('skill'); // 'skill' | 'mod' | 'stats' | 'skin'",
-    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked }) {"
+    "line": "const [tab, setTab] = useState('skill'); // 'skill' | 'mod' | 'stats' | 'skin'（换装那一页是 docs/SKINS.md 加的）",
+    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked, notOwned"
    },
    {
     "line": "const modOpt = opt?.moduleOptions?.find((x) => x.id === choice.module) || null;",
-    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked }) {"
+    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked, notOwned"
    },
    {
     "line": "const hasMod = !!golden && (opt?.moduleOptions?.length || 0) > 0;",
-    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked }) {"
+    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked, notOwned"
    },
    {
     "line": "const activeTab = tab === 'mod' && !hasMod ? 'skill' : tab;",
-    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked }) {"
+    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked, notOwned"
    },
    {
     "line": "useEffect(() => { if (bodyRef.current) bodyRef.current.scrollTop = 0; }, [chess?.chessId, activeTab]);",
-    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked }) {"
+    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked, notOwned"
    },
    {
-    "line": "if (!chess) return html`<aside class=\"lo-detail lo-detail--empty\"><p class=\"t-dim\">没有符合条件的干员</p></aside>`;",
-    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked }) {"
+    "line": "if (!chess) return html`<aside class=\"lo-detail lo-detail--empty\"><p class=\"t-dim\">${t('没有符合条件的干员')}</p></aside>`;",
+    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked, notOwned"
    },
    {
-    "line": "<div class=\"lo-dtabs\" role=\"tablist\" aria-label=\"调配项目\">",
-    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked }) {"
+    "line": "<div class=\"lo-dtabs\" role=\"tablist\" aria-label=${t('调配项目')}>",
+    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked, notOwned"
    },
    {
-    "line": "<button type=\"button\" role=\"tab\" aria-selected=${activeTab === 'skill'} class=${cx('lo-dtab', activeTab === 'skill' && 'is-on')} onClick=${() => setTab('skill')}>",
-    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked }) {"
+    "line": "<button type=\"button\" role=\"tab\" aria-selected=${activeTab === 'skill' ? 'true' : 'false'} class=${cx('lo-dtab', activeTab === 'skill' && 'is-on')} onClick=${() => setTab('skill')}>",
+    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked, notOwned"
    },
    {
-    "line": "技能 <span class=\"lo-dtab__en num\">SKILL</span>",
-    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked }) {"
+    "line": "${t('技能')} <span class=\"lo-dtab__en num\">SKILL</span>",
+    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked, notOwned"
    },
    {
     "line": "</button>",
-    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked }) {"
+    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked, notOwned"
    },
    {
-    "line": "${hasMod ? html`<button type=\"button\" role=\"tab\" aria-selected=${activeTab === 'mod'} class=${cx('lo-dtab', activeTab === 'mod' && 'is-on')} onClick=${() => setTab('mod')}>",
-    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked }) {"
+    "line": "${hasMod ? html`<button type=\"button\" role=\"tab\" aria-selected=${activeTab === 'mod' ? 'true' : 'false'} class=${cx('lo-dtab', activeTab === 'mod' && 'is-on')} onClick=${() => setTab('mod')}>",
+    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked, notOwned"
    },
    {
-    "line": "模组 <span class=\"lo-dtab__en num\">MODULE</span>",
-    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked }) {"
+    "line": "${t('模组')} <span class=\"lo-dtab__en num\">MODULE</span>",
+    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked, notOwned"
    },
    {
     "line": "</button>` : null}",
-    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked }) {"
+    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked, notOwned"
    },
    {
-    "line": "<button type=\"button\" role=\"tab\" aria-selected=${activeTab === 'stats'} class=${cx('lo-dtab', activeTab === 'stats' && 'is-on')} onClick=${() => setTab('stats')}>",
-    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked }) {"
+    "line": "<button type=\"button\" role=\"tab\" aria-selected=${activeTab === 'stats' ? 'true' : 'false'} class=${cx('lo-dtab', activeTab === 'stats' && 'is-on')} onClick=${() => setTab('stats')}>",
+    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked, notOwned"
    },
    {
-    "line": "数值 <span class=\"lo-dtab__en num\">STATS</span>",
-    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked }) {"
-   },
-   {
-    "line": "</button>",
-    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked }) {"
-   },
-   {
-    "line": "<button type=\"button\" role=\"tab\" aria-selected=${activeTab === 'skin'} class=${cx('lo-dtab', activeTab === 'skin' && 'is-on')} onClick=${() => setTab('skin')}>",
-    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked }) {"
-   },
-   {
-    "line": "换装 <span class=\"lo-dtab__en num\">SKIN</span>",
-    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked }) {"
+    "line": "${t('数值')} <span class=\"lo-dtab__en num\">STATS</span>",
+    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked, notOwned"
    },
    {
     "line": "</button>",
-    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked }) {"
+    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked, notOwned"
+   },
+   {
+    "line": "<button type=\"button\" role=\"tab\" data-testid=\"loadout-tab-skin\" aria-selected=${activeTab === 'skin' ? 'true' : 'false'} class=${cx('lo-dtab', activeTab === 'skin' && 'is-on')} onClick=${() => setTab('skin')}>",
+    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked, notOwned"
+   },
+   {
+    "line": "${t('换装')} <span class=\"lo-dtab__en num\">SKIN</span>",
+    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked, notOwned"
+   },
+   {
+    "line": "</button>",
+    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked, notOwned"
    },
    {
     "line": "</div>",
-    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked }) {"
+    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked, notOwned"
    },
    {
     "line": "${activeTab === 'skill' ? html`",
-    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked }) {"
+    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked, notOwned"
    },
    {
     "line": "<section class=\"lo-sec\">",
-    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked }) {"
+    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked, notOwned"
    },
    {
     "line": "<header class=\"lo-sec__head\">",
-    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked }) {"
+    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked, notOwned"
    },
    {
-    "line": "<h3>技能<${MicroLabel}>SKILL<//></h3>",
-    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked }) {"
+    "line": "<h3>${t('技能')}<${MicroLabel}>SKILL<//></h3>",
+    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked, notOwned"
    },
    {
-    "line": "<div class=\"lo-seg\" role=\"tablist\" aria-label=\"技能等级\">",
-    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked }) {"
+    "line": "<div class=\"lo-seg\" role=\"tablist\" aria-label=${t('技能等级')}>",
+    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked, notOwned"
    },
    {
-    "line": "<button type=\"button\" role=\"tab\" aria-selected=${level === 'normal'} class=${cx(level === 'normal' && 'is-on')} onClick=${() => setLevel('normal')}>普通 <span class=\"num\">Lv.${lv(chess)}</span></button>",
-    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked }) {"
+    "line": "<button type=\"button\" role=\"tab\" aria-selected=${level === 'normal' ? 'true' : 'false'} class=${cx(level === 'normal' && 'is-on')} onClick=${() => setLevel('normal')}>${t('普通')} <span class=\"num\">Lv.${lv(chess)}</span></button>",
+    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked, notOwned"
    },
    {
-    "line": "<button type=\"button\" role=\"tab\" aria-selected=${level === 'elite'} class=${cx(level === 'elite' && 'is-on')} disabled=${!golden} onClick=${() => setLevel('elite')}>精锐 <span class=\"num\">Lv.${lv(golden)}</span></button>",
-    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked }) {"
+    "line": "<button type=\"button\" role=\"tab\" aria-selected=${level === 'elite' ? 'true' : 'false'} class=${cx(level === 'elite' && 'is-on')} disabled=${!golden} onClick=${() => setLevel('elite')}>${t('精锐')} <span class=\"num\">Lv.${lv(golden)}</span></button>",
+    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked, notOwned"
    },
    {
     "line": "</div>",
-    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked }) {"
+    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked, notOwned"
    },
    {
     "line": "</header>",
-    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked }) {"
+    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked, notOwned"
    },
    {
-    "line": "<div class=\"lo-skills\" role=\"radiogroup\" aria-label=\"选择技能\">",
-    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked }) {"
+    "line": "<div class=\"lo-skills\" role=\"radiogroup\" aria-label=${t('选择技能')}>",
+    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked, notOwned"
    },
    {
     "line": "${opt.skillOptions.map((s) => html`<${SkillOption} key=${s.index} m=${m} opt=${s} level=${level} on=${s.index === choice.skill}",
-    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked }) {"
+    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked, notOwned"
    },
    {
     "line": "onPick=${(i) => onChange({ skill: i })} />`)}",
-    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked }) {"
+    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked, notOwned"
    },
    {
     "line": "</div>",
-    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked }) {"
+    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked, notOwned"
    },
    {
     "line": "</section>",
-    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked }) {"
+    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked, notOwned"
    },
    {
     "line": "` : null}",
-    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked }) {"
+    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked, notOwned"
    },
    {
     "line": "${activeTab === 'stats' ? html`",
-    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked }) {"
+    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked, notOwned"
    },
    {
     "line": "<${LoadoutStats} base=${chess} golden=${golden} entries=${entries} level=${statLevel} onLevel=${setStatLevel} />",
-    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked }) {"
+    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked, notOwned"
    },
    {
     "line": "` : null}",
-    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked }) {"
+    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked, notOwned"
    },
    {
     "line": "${activeTab === 'mod' && golden ? html`",
-    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked }) {"
+    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked, notOwned"
    },
    {
     "line": "<section class=\"lo-sec lo-sec--mod\">",
-    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked }) {"
+    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked, notOwned"
    },
    {
     "line": "<header class=\"lo-sec__head\">",
-    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked }) {"
+    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked, notOwned"
    },
    {
-    "line": "<h3>模组<${MicroLabel}>MODULE<//></h3>",
-    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked }) {"
+    "line": "<h3>${t('模组')}<${MicroLabel}>MODULE<//></h3>",
+    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked, notOwned"
    },
    {
-    "line": "<span class=\"lo-sec__note\">仅精锐干员装备 · 模组等级 <b class=\"num\">${golden.status?.equipLevel ?? 1}</b></span>",
-    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked }) {"
+    "line": "<span class=\"lo-sec__note\">${t('仅精锐干员装备 · 模组等级')} <b class=\"num\">${golden.status?.equipLevel ?? 1}</b></span>",
+    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked, notOwned"
    },
    {
     "line": "</header>",
-    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked }) {"
+    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked, notOwned"
    },
    {
-    "line": "<div class=\"lo-mods\" role=\"radiogroup\" aria-label=\"选择模组\">",
-    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked }) {"
+    "line": "<div class=\"lo-mods\" role=\"radiogroup\" aria-label=${t('选择模组')}>",
+    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked, notOwned"
    },
    {
-    "line": "${opt.moduleOptions.map((mo) => html`<button key=${mo.id} type=\"button\" role=\"radio\" aria-checked=${mo.id === choice.module}",
-    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked }) {"
+    "line": "${opt.moduleOptions.map((mo) => html`<button key=${mo.id} type=\"button\" role=\"radio\" aria-checked=${mo.id === choice.module ? 'true' : 'false'}",
+    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked, notOwned"
    },
    {
     "line": "data-module=${mo.id} class=${cx('lo-mod', mo.id === choice.module && 'is-on', mo.id === MODULE_NONE && 'lo-mod--none')}",
-    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked }) {"
+    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked, notOwned"
    },
    {
     "line": "onClick=${() => onChange({ module: mo.id })}>",
-    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked }) {"
+    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked, notOwned"
    },
    {
     "line": "<${ModuleGlyph} m=${m} rec=${mo.rec} id=${mo.id} />",
-    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked }) {"
+    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked, notOwned"
    },
    {
     "line": "<span class=\"lo-mod__text\">",
-    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked }) {"
+    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked, notOwned"
    },
    {
     "line": "<span class=\"lo-mod__type num\">${mo.id === MODULE_NONE ? 'NONE' : mo.rec?.typeName || ''}</span>",
-    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked }) {"
+    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked, notOwned"
    },
    {
-    "line": "<b class=\"lo-mod__name\">${mo.id === MODULE_NONE ? '不装备' : mo.rec?.name || mo.id}</b>",
-    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked }) {"
+    "line": "<b class=\"lo-mod__name\">${mo.id === MODULE_NONE ? t('不装备') : mo.rec?.name || mo.id}</b>",
+    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked, notOwned"
    },
    {
     "line": "</span>",
-    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked }) {"
+    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked, notOwned"
    },
    {
-    "line": "${mo.isDefault ? html`<span class=\"lo-badge lo-badge--def lo-mod__def\">默认</span>` : null}",
-    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked }) {"
+    "line": "${mo.isDefault ? html`<span class=\"lo-badge lo-badge--def lo-mod__def\">${t('默认')}</span>` : null}",
+    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked, notOwned"
    },
    {
     "line": "</button>`)}",
-    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked }) {"
+    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked, notOwned"
    },
    {
     "line": "${modOpt ? html`<${ModuleInfo} m=${m} golden=${golden} opt=${modOpt} />` : null}",
-    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked }) {"
+    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked, notOwned"
    },
    {
     "line": "</section>",
-    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked }) {"
+    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked, notOwned"
    },
    {
     "line": "` : null}",
-    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked }) {"
+    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked, notOwned"
    },
    {
     "line": "${activeTab === 'skin' ? html`<${SkinSection} chess=${chess} />` : null}",
-    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked }) {"
+    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked, notOwned"
    },
    {
-    "line": "const openExport = () => setIo({",
-    "anchor": "function LoadoutScreen({ st }) {"
-   },
-   {
-    "line": "mode: 'export',",
-    "anchor": "function LoadoutScreen({ st }) {"
-   },
-   {
-    "line": "text: serializeExport(loadoutStore.get().entries, { skins: skinsStore.get().entries }),",
-    "anchor": "function LoadoutScreen({ st }) {"
-   },
-   {
-    "line": "});",
+    "line": ": { mode: 'export', kind: 'loadout', text: serializeExport(loadoutStore.get().entries, { skins: skinsStore.get().entries }) });",
     "anchor": "function LoadoutScreen({ st }) {"
    },
    {
@@ -1289,11 +1539,7 @@
     "anchor": "function LoadoutScreen({ st }) {"
    },
    {
-    "line": "const merged = mergeSkins(skinsStore.get().entries, res.skins);",
-    "anchor": "function LoadoutScreen({ st }) {"
-   },
-   {
-    "line": "setSkins(merged);",
+    "line": "setSkins(mergeSkins(skinsStore.get().entries, res.skins));",
     "anchor": "function LoadoutScreen({ st }) {"
    },
    {
@@ -1305,19 +1551,7 @@
     "anchor": "function LoadoutScreen({ st }) {"
    },
    {
-    "line": "if (!applied && !skinsApplied) {",
-    "anchor": "function LoadoutScreen({ st }) {"
-   },
-   {
-    "line": "toast('导入失败：这份数据在当前版本没有可用的调配或皮肤，未做任何改动', 'error');",
-    "anchor": "function LoadoutScreen({ st }) {"
-   },
-   {
-    "line": "return;",
-    "anchor": "function LoadoutScreen({ st }) {"
-   },
-   {
-    "line": "}",
+    "line": "if (!applied && !skinsApplied) { toast(t('导入失败：这份数据在当前版本没有可用的调配或皮肤，未做任何改动'), 'error'); return; }",
     "anchor": "function LoadoutScreen({ st }) {"
    },
    {
@@ -1325,15 +1559,19 @@
     "anchor": "function LoadoutScreen({ st }) {"
    },
    {
-    "line": "if (applied) parts.push(`${applied} 名干员配置`);",
+    "line": "if (applied) parts.push(t('{n} 名干员配置', { n: applied }));",
     "anchor": "function LoadoutScreen({ st }) {"
    },
    {
-    "line": "if (skinsApplied) parts.push(`${skinsApplied} 款皮肤`);",
+    "line": "if (skinsApplied) parts.push(t('{n} 款皮肤', { n: skinsApplied }));",
     "anchor": "function LoadoutScreen({ st }) {"
    },
    {
-    "line": "toast(`已增量导入：${parts.join('，')}${dropped ? `（另有 ${dropped} 项未导入）` : ''}`, dropped ? 'warn' : 'success');",
+    "line": "toast(t('已导入：{parts}', { parts: parts.join('，') })",
+    "anchor": "function LoadoutScreen({ st }) {"
+   },
+   {
+    "line": "+ (dropped ? t('（另有 {n} 项未导入）', { n: dropped }) : ''), dropped ? 'warn' : 'success');",
     "anchor": "function LoadoutScreen({ st }) {"
    }
   ],
@@ -1347,21 +1585,21 @@
     "anchor": "export function LobbyScreen() {"
    },
    {
-    "line": "<${Tooltip} text=${spectateBlocked ? net.verbUnavailableText('room.spectate') : `以观战者身份进入：不占博士席位，只能观看（每个同盟最多 ${MAX_SPECTATORS} 名，模拟进行中也可进入）`}>",
+    "line": "<${Tooltip} text=${spectateBlocked ? net.verbUnavailableText('room.spectate') : t('以观战者身份进入：不占博士席位，只能观看（每个同盟最多 {MAX_SPECTATORS} 名，模拟进行中也可进入）', { MAX_SPECTATORS })}>",
     "anchor": "export function LobbyScreen() {"
    },
    {
-    "line": "<${Button} variant=\"secondary\" size=\"lg\" icon=\"eye\" class=\"join-spectate\" loading=${busy === 'spectate'} disabled=${!codeOk || !online || spectateBlocked} onClick=${spectate}>观战<//>",
+    "line": "<${Button} variant=\"secondary\" size=\"lg\" icon=\"eye\" class=\"join-spectate\" loading=${busy === 'spectate'} disabled=${!codeOk || !online || spectateBlocked} onClick=${spectate}>${t('观战')}<//>",
     "anchor": "export function LobbyScreen() {"
    }
   ],
   "public/js/screens/room.js": [
    {
-    "line": "${!seat.isBot && !isMe && facts.isHost ? html`<${Tooltip} text=${net.verbAvailable('room.kick').ok ? '将该博士移出同盟' : net.verbUnavailableText('room.kick')}>",
+    "line": "${!seat.isBot && !isMe && facts.isHost ? html`<${Tooltip} text=${net.verbAvailable('room.kick').ok ? t('将该博士移出同盟') : net.verbUnavailableText('room.kick')}>",
     "anchor": "function SeatCard({ seat, index, room, facts, myId, busy, onAddBot, onRemoveBot,"
    },
    {
-    "line": "<${Button} variant=\"ghost\" size=\"sm\" square=${true} icon=\"close\" loading=${busy === `kick${index}`} disabled=${!net.verbAvailable('room.kick').ok} onClick=${() => onKick(index, seat.name, seat.playerId)} aria-label=\"移出该博士\" />",
+    "line": "<${Button} variant=\"ghost\" size=\"sm\" square=${true} icon=\"close\" loading=${busy === `kick${index}`} disabled=${!net.verbAvailable('room.kick').ok} onClick=${() => onKick(index, seat.name, seat.playerId)} aria-label=${t('移出该博士')} />",
     "anchor": "function SeatCard({ seat, index, room, facts, myId, busy, onAddBot, onRemoveBot,"
    },
    {
@@ -1369,11 +1607,11 @@
     "anchor": "function SpectatorBar({ facts, myId, busy, onRemove, onSit }) {"
    },
    {
-    "line": "disabled=${!removeSpectatorOk} onClick=${() => onRemove(s.playerId)} aria-label=${`移出观战者 ${s.name || ''}`}",
+    "line": "disabled=${!removeSpectatorOk} onClick=${() => onRemove(s.playerId)} aria-label=${t('移出观战者 {name}', { name: s.name || '' })}",
     "anchor": "function SpectatorBar({ facts, myId, busy, onRemove, onSit }) {"
    },
    {
-    "line": "title=${removeSpectatorOk ? '移出该观战者' : net.verbUnavailableText('room.removeSpectator')} />` : null}",
+    "line": "title=${removeSpectatorOk ? t('移出该观战者') : net.verbUnavailableText('room.removeSpectator')} />` : null}",
     "anchor": "function SpectatorBar({ facts, myId, busy, onRemove, onSit }) {"
    }
   ],
@@ -1389,7 +1627,7 @@
   ],
   "public/js/ui/gameComponents.js": [
    {
-    "line": "'choices', 'effects', 'garrisons', 'factions', 'local', 'skins'];",
+    "line": "'choices', 'effects', 'garrisons', 'factions', 'local', 'skins', 'backups'];",
     "anchor": "export const GAME_FILES = ['config', 'assets', 'chess', 'bonds', 'items', 'bands"
    }
   ],
@@ -1535,7 +1773,7 @@
     "anchor": "export function parseImport(input) {"
    },
    {
-    "line": "return { ok: false, error: '里面没有有效的调配或皮肤条目' };",
+    "line": "return { ok: false, error: t('里面没有有效的调配或皮肤条目') };",
     "anchor": "export function parseImport(input) {"
    },
    {
@@ -1550,7 +1788,7 @@
   "public/js/ui/settings.js": [
    {
     "line": "import { VoiceLangRow } from '../ext/voiceLangUi.js';",
-    "anchor": "import { detectFeatures } from './device.js';"
+    "anchor": "import { t, tc, N_ } from '../../../shared/i18n.js';"
    },
    {
     "line": "<${VoiceLangRow} />",
@@ -1563,19 +1801,19 @@
     "anchor": "export function TeamPanel({ pub, myId, watching, bubbles, onWatch, compact = fal"
    },
    {
-    "line": "? (self ? '连接已断开：这段时间服务器在替你打阵地，重连回来就能接上'",
+    "line": "? (self ? t('连接已断开：这段时间服务器在替你打阵地，重连回来就能接上')",
     "anchor": "export function TeamPanel({ pub, myId, watching, bubbles, onWatch, compact = fal"
    },
    {
-    "line": ": `连接已断开：这段时间服务器在替 ${p.name || '队友'} 打阵地，TA 重连回来就能接上`)",
+    "line": ": t('连接已断开：这段时间服务器在替 {name} 打阵地，TA 重连回来就能接上', { name: p.name || t('队友') }))",
     "anchor": "export function TeamPanel({ pub, myId, watching, bubbles, onWatch, compact = fal"
    },
    {
-    "line": ": meta.text} placement=\"right\">",
+    "line": ": t(meta.text)} placement=\"right\">",
     "anchor": "export function TeamPanel({ pub, myId, watching, bubbles, onWatch, compact = fal"
    }
   ],
-  "server/index.js": [
+  "server/http/files.js": [
    {
     "line": "const LONG_CACHE_DIRS = ['assets', 'fonts', 'vendor', 'webfonts']; // first path segment under public/",
     "anchor": "const IMMUTABLE_CACHE = 'public, max-age=31536000, immutable';"
@@ -1719,60 +1957,6 @@
     "anchor": "export class Lobby {"
    }
   ],
-  "server/match/Match.js": [
-   {
-    "line": "setSkins(playerId, skins) {",
-    "anchor": "export class Match {"
-   },
-   {
-    "line": "const ps = this.players.get(playerId);",
-    "anchor": "export class Match {"
-   },
-   {
-    "line": "if (!ps || ps.isBot || ps.left) return fail(ERR.NOT_IN_ROOM);",
-    "anchor": "export class Match {"
-   },
-   {
-    "line": "let res = OK;",
-    "anchor": "export class Match {"
-   },
-   {
-    "line": "this.guard(() => {",
-    "anchor": "export class Match {"
-   },
-   {
-    "line": "ps.setSkins(skins);",
-    "anchor": "export class Match {"
-   },
-   {
-    "line": "this.markPublic();",
-    "anchor": "export class Match {"
-   },
-   {
-    "line": "});",
-    "anchor": "export class Match {"
-   },
-   {
-    "line": "return res;",
-    "anchor": "export class Match {"
-   },
-   {
-    "line": "}",
-    "anchor": "export class Match {"
-   },
-   {
-    "line": "...(Object.keys(ps.skins).length ? { skins: ps.skins } : {}),",
-    "anchor": "export class Match {"
-   },
-   {
-    "line": "skin: piece.kind === 'chess' ? (ps.skins?.[rec?.baseId || piece.id] || ps.skins?.[piece.id]) : undefined,",
-    "anchor": "export class Match {"
-   },
-   {
-    "line": "skin: piece.kind === 'chess' ? (ps.skins?.[rec?.baseId || piece.id] || ps.skins?.[piece.id]) : undefined,",
-    "anchor": "export class Match {"
-   }
-  ],
   "server/match/PlayerState.js": [
    {
     "line": "this.skins = Object.freeze({});",
@@ -1781,96 +1965,166 @@
    {
     "line": "if (!this.isBot && seat.skins) this.setSkins(seat.skins);",
     "anchor": "export class PlayerState {"
+   }
+  ],
+  "server/match/match/platform.js": [
+   {
+    "line": "setSkins(playerId, skins) {",
+    "anchor": "export class MatchPlatform {"
    },
    {
+    "line": "const ps = this.players.get(playerId);",
+    "anchor": "export class MatchPlatform {"
+   },
+   {
+    "line": "if (!ps || ps.isBot || ps.left) return fail(ERR.NOT_IN_ROOM);",
+    "anchor": "export class MatchPlatform {"
+   },
+   {
+    "line": "let res = OK;",
+    "anchor": "export class MatchPlatform {"
+   },
+   {
+    "line": "this.guard(() => {",
+    "anchor": "export class MatchPlatform {"
+   },
+   {
+    "line": "ps.setSkins(skins);",
+    "anchor": "export class MatchPlatform {"
+   },
+   {
+    "line": "this.markPublic();",
+    "anchor": "export class MatchPlatform {"
+   },
+   {
+    "line": "});",
+    "anchor": "export class MatchPlatform {"
+   },
+   {
+    "line": "return res;",
+    "anchor": "export class MatchPlatform {"
+   },
+   {
+    "line": "}",
+    "anchor": "export class MatchPlatform {"
+   }
+  ],
+  "server/match/match/views.js": [
+   {
+    "line": "...(Object.keys(ps.skins).length ? { skins: ps.skins } : {}),",
+    "anchor": "export class MatchViews {"
+   },
+   {
+    "line": "skin: piece.kind === 'chess' ? (ps.skins?.[rec?.baseId || piece.id] || ps.skins?.[piece.id]) : undefined,",
+    "anchor": "export class MatchViews {"
+   },
+   {
+    "line": "skin: piece.kind === 'chess' ? (ps.skins?.[rec?.baseId || piece.id] || ps.skins?.[piece.id]) : undefined,",
+    "anchor": "export class MatchViews {"
+   }
+  ],
+  "server/match/player/basics.js": [
+   {
     "line": "setSkins(skins) {",
-    "anchor": "export class PlayerState {"
+    "anchor": "export class PlayerBasics {"
    },
    {
     "line": "if (this.isBot) return false;",
-    "anchor": "export class PlayerState {"
+    "anchor": "export class PlayerBasics {"
    },
    {
     "line": "const out = {};",
-    "anchor": "export class PlayerState {"
+    "anchor": "export class PlayerBasics {"
    },
    {
     "line": "if (skins && typeof skins === 'object' && !Array.isArray(skins)) {",
-    "anchor": "export class PlayerState {"
+    "anchor": "export class PlayerBasics {"
    },
    {
     "line": "for (const [id, skinId] of Object.entries(skins)) {",
-    "anchor": "export class PlayerState {"
+    "anchor": "export class PlayerBasics {"
    },
    {
     "line": "if (typeof skinId !== 'string' || !skinId) continue;",
-    "anchor": "export class PlayerState {"
+    "anchor": "export class PlayerBasics {"
    },
    {
     "line": "const rec = this.gd.chess(id);",
-    "anchor": "export class PlayerState {"
+    "anchor": "export class PlayerBasics {"
    },
    {
     "line": "if (!rec || rec.isGolden || rec.visible === false || rec.isHidden || rec.isDiy || (rec.baseId && rec.baseId !== id)) continue;",
-    "anchor": "export class PlayerState {"
+    "anchor": "export class PlayerBasics {"
    },
    {
     "line": "out[id] = skinId;",
-    "anchor": "export class PlayerState {"
+    "anchor": "export class PlayerBasics {"
    },
    {
     "line": "}",
-    "anchor": "export class PlayerState {"
+    "anchor": "export class PlayerBasics {"
    },
    {
     "line": "}",
-    "anchor": "export class PlayerState {"
+    "anchor": "export class PlayerBasics {"
    },
    {
     "line": "this.skins = Object.freeze(out);",
-    "anchor": "export class PlayerState {"
+    "anchor": "export class PlayerBasics {"
    },
    {
     "line": "if (this.m?._privDirty) this.dirty();",
-    "anchor": "export class PlayerState {"
+    "anchor": "export class PlayerBasics {"
    },
    {
     "line": "return Object.keys(out).length > 0;",
-    "anchor": "export class PlayerState {"
+    "anchor": "export class PlayerBasics {"
    },
    {
     "line": "}",
-    "anchor": "export class PlayerState {"
+    "anchor": "export class PlayerBasics {"
+   }
+  ],
+  "server/match/player/round.js": [
+   {
+    "line": "const skinRec = this.gd.chess(piece.id);",
+    "anchor": "export class PlayerRound {"
    },
    {
-    "line": "const baseId = (this.gd.chess(piece.id) || {}).baseId || piece.id;",
-    "anchor": "export class PlayerState {"
-   },
-   {
-    "line": "const skin = this.skins[baseId] || this.skins[piece.id];",
-    "anchor": "export class PlayerState {"
+    "line": "const skin = this.skins[(skinRec && skinRec.baseId) || piece.id] || this.skins[piece.id];",
+    "anchor": "export class PlayerRound {"
    },
    {
     "line": "if (skin) u.skin = skin;",
-    "anchor": "export class PlayerState {"
+    "anchor": "export class PlayerRound {"
+   }
+  ],
+  "server/match/player/views.js": [
+   {
+    "line": "...(() => {",
+    "anchor": "export class PlayerViews {"
    },
    {
     "line": "const baseId = (rec && rec.baseId) || p.id;",
-    "anchor": "export class PlayerState {"
+    "anchor": "export class PlayerViews {"
    },
    {
     "line": "const skin = p.kind === 'chess' ? (this.skins[baseId] || this.skins[p.id] || null) : null;",
-    "anchor": "export class PlayerState {"
+    "anchor": "export class PlayerViews {"
    },
    {
-    "line": "...(skin ? { skin } : {}),",
-    "anchor": "export class PlayerState {"
+    "line": "return skin ? { skin } : {};",
+    "anchor": "export class PlayerViews {"
+   },
+   {
+    "line": "})(),",
+    "anchor": "export class PlayerViews {"
    }
   ],
-  "server/sim/Battle.js": [
+  "server/sim/battle/players.js": [
    {
     "line": "if (typeof inp.skin === 'string' && inp.skin) u.skin = inp.skin;",
-    "anchor": "export class Battle {"
+    "anchor": "export class BattlePlayers {"
    }
   ],
   "server/sim/snapshot.js": [
