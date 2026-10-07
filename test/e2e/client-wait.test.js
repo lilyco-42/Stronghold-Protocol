@@ -10,28 +10,38 @@ import { ROOT, PROTOCOL_TIMEOUT_MS, waitForFunctionLong } from './client.mjs';
 
 const timeoutError = (ms) => Object.assign(new Error(`Waiting failed: ${ms}ms exceeded`), { name: 'TimeoutError' });
 
-/** A page whose predicate turns true after `trueAfter` ms; each waitForFunction slice behaves like puppeteer's. */
+/**
+ * A page whose predicate turns true after `trueAfter` ms; each waitForFunction slice behaves like puppeteer's.
+ *
+ * ⚠️ The clock is VIRTUAL — `spent` advances by the length of each slice, not by the wall clock. Reading the wall clock
+ * (`left = t0 + trueAfter - Date.now()`) makes the slice COUNT depend on how punctual `setTimeout` is: a slice asked for
+ * 30 ms lands at 30–37 ms on Windows (its timer tick is ~15.6 ms; Linux and macOS resolve sub-millisecond), so two
+ * slices can eat 67 ms instead of 60, the 95 ms wait below then fits in 3 slices instead of 4, and the `>= 4` assertion
+ * fails on every run there. The real timer still holds each slice, so the overall-timeout test's wall-clock assertions
+ * keep meaning what they say.
+ */
 function fakePage(trueAfter) {
-  const t0 = Date.now();
+  let spent = 0;
   const calls = [];
   return {
     calls,
     waitForFunction(fn, opts, ...args) {
       calls.push({ fn, opts, args });
-      const left = t0 + trueAfter - Date.now();
-      return new Promise((resolve, reject) => {
-        if (left <= opts.timeout) setTimeout(() => resolve({ handle: 'ok', args }), Math.max(0, left));
-        else setTimeout(() => reject(timeoutError(opts.timeout)), opts.timeout);
-      });
+      const left = trueAfter - spent;
+      const hold = Math.max(0, Math.min(opts.timeout, left));
+      spent += hold;
+      return new Promise((resolve, reject) => setTimeout(
+        () => (left <= opts.timeout ? resolve({ handle: 'ok', args }) : reject(timeoutError(opts.timeout))),
+        hold,
+      ));
     },
   };
 }
 
 test('a wait longer than one slice keeps polling the same predicate until it holds', async () => {
-  // 原来这里是 95 ms：单独跑 5/5 绿，完整套件里红过一次，报的是 `sliced (3 calls)` —— 三个 30 ms 片子的
-  // 实际耗时之和越过 95 ms 就够了，也就是每个定时器只要漂 2 ms。整机满载时这个余量太紧。
-  // 200 ms 要把平均漂移吃到 2.2× 才会误报，而整体 timeout 1000 ms 仍然宽松。
-  const page = fakePage(200);
+  // 95 ms 配 30 ms 的片子 = 至少 4 片，这个"至少"现在由上面 fakePage 的虚拟时钟保证，
+  // 不再取决于 setTimeout 准不准（Windows 上就是因为它读挂钟才每跑必红）。
+  const page = fakePage(95);
   const fn = () => true;
   const got = await waitForFunctionLong(page, fn, { timeout: 1000, polling: 200, slice: 30 }, 'a', 2);
   assert.deepEqual(got, { handle: 'ok', args: ['a', 2] });
