@@ -1839,7 +1839,7 @@
     "anchor": "function installPrefSync({ net, timers, target, notify, key, stateKey, msgType,"
    },
    {
-    "line": "lastSent = json; pendingJson = null; edited = false;",
+    "line": "pendingJson = null; edited = false;",
     "anchor": "function installPrefSync({ net, timers, target, notify, key, stateKey, msgType,"
    },
    {
