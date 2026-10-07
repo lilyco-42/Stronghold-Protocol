@@ -32,7 +32,7 @@
   ],
   "data/assets.json": [
    {
-    "line": "{\"version\":1,\"hash\":\"b699458e3e10\",\"generator\":\"tools/fetch-assets.mjs\",\"stats\":{\"files\":7969,\"bytes\":485061859,\"chars\":…（整行 1529308 字符）",
+    "line": "{\"version\":1,\"hash\":\"65268be18c6d\",\"generator\":\"tools/fetch-assets.mjs\",\"stats\":{\"files\":7969,\"bytes\":485061859,\"chars\":…（整行 1532757 字符）",
     "anchor": "",
     "opaque": true
    }
@@ -1031,7 +1031,7 @@
     "anchor": "export function defaultWsUrl(loc = globalThis.location) {"
    },
    {
-    "line": "export const VERB_MIN_APP = Object.freeze({ 'room.spectate': '0.1.3', 'room.kick': '0.1.3', 'room.removeSpectator': '0.1.3' });",
+    "line": "export const VERB_MIN_APP = Object.freeze({ 'room.spectate': '0.1.3', 'room.kick': '0.1.3', 'room.removeSpectator': '0.1.3', 'room.ownership': '0.2.0', 'room.diy': '0.2.0' });",
     "anchor": "export function defaultWsUrl(loc = globalThis.location) {"
    },
    {
@@ -1279,6 +1279,10 @@
   ],
   "public/js/screens/loadout.js": [
    {
+    "line": "import { net } from '../net.js';",
+    "anchor": "import { useStore } from '../store.js';"
+   },
+   {
     "line": "changedCount, skillLabel, moduleBadge, attrRows, skillTags, traitLines, serializeExport, parseImport, LOADOUT_IMPORT_MAX_BYTES, mergeSkins,",
     "anchor": "import {"
    },
@@ -1419,10 +1423,6 @@
     "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked, notOwned"
    },
    {
-    "line": "</div>",
-    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked, notOwned"
-   },
-   {
     "line": "</section>",
     "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked, notOwned"
    },
@@ -1511,6 +1511,10 @@
     "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked, notOwned"
    },
    {
+    "line": "</div>",
+    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked, notOwned"
+   },
+   {
     "line": "${modOpt ? html`<${ModuleInfo} m=${m} golden=${golden} opt=${modOpt} />` : null}",
     "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked, notOwned"
    },
@@ -1572,6 +1576,34 @@
    },
    {
     "line": "+ (dropped ? t('（另有 {n} 项未导入）', { n: dropped }) : ''), dropped ? 'warn' : 'success');",
+    "anchor": "function LoadoutScreen({ st }) {"
+   },
+   {
+    "line": "const syncVerb = tab === 'ownership' ? 'room.ownership' : tab === 'diy' ? 'room.diy' : null;",
+    "anchor": "function LoadoutScreen({ st }) {"
+   },
+   {
+    "line": "const syncWhy = syncVerb && syncCls === 'is-bad' ? net.verbUnavailableText(syncVerb) : '';",
+    "anchor": "function LoadoutScreen({ st }) {"
+   },
+   {
+    "line": "const syncLabel = syncWhy || (syncText ? t(syncText) : '');",
+    "anchor": "function LoadoutScreen({ st }) {"
+   },
+   {
+    "line": "const syncCls2 = syncWhy ? 'is-warn' : syncCls;",
+    "anchor": "function LoadoutScreen({ st }) {"
+   },
+   {
+    "line": "${syncText ? html`<span class=${cx('lo-sync', syncCls2)} role=\"status\" data-testid=\"diy-sync\">${syncLabel}</span>` : null}",
+    "anchor": "function LoadoutScreen({ st }) {"
+   },
+   {
+    "line": "${syncText ? html`<span class=${cx('lo-sync', syncCls2)} role=\"status\" data-testid=\"ownership-sync\">${syncLabel}</span>` : null}",
+    "anchor": "function LoadoutScreen({ st }) {"
+   },
+   {
+    "line": "${syncText ? html`<span class=${cx('lo-sync', syncCls2)} role=\"status\">${syncLabel}</span>` : null}",
     "anchor": "function LoadoutScreen({ st }) {"
    }
   ],
