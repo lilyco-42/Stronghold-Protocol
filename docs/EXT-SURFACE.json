@@ -447,6 +447,10 @@
   ],
   "public/i18n/en.json": [
    {
+    "line": "\"这台服务器不认这个操作 · 只存在本机\": \"This server does not know that operation - saved on this device only\",",
+    "anchor": ""
+   },
+   {
     "line": "\"开发版 · 不稳定，请勿用于公开服务器\": \"Development build · unstable, not for public servers\",",
     "anchor": ""
    },
@@ -1075,11 +1079,19 @@
     "anchor": "export class Net {"
    },
    {
-    "line": "this.serverApp = null;     // server `app` version, read best-effort from its /healthz (null = unknown)",
+    "line": "this.serverApp = null;     // server `app` version: from `welcome.app` when the server sends it, else from /healthz (null = unknown)",
+    "anchor": "export class Net {"
+   },
+   {
+    "line": "this.welcomeApp = null;      // what `welcome` told us; kept so a CORS-blocked /healthz cannot erase the version we already know",
     "anchor": "export class Net {"
    },
    {
     "line": "this.serverInfoFailed = false; // the /healthz read was tried and did not answer: stay optimistic",
+    "anchor": "export class Net {"
+   },
+   {
+    "line": "if (typeof msg.app === 'string' && msg.app) { this.welcomeApp = msg.app; if (!this.serverApp) this.serverApp = msg.app; }",
     "anchor": "export class Net {"
    },
    {
@@ -1127,7 +1139,7 @@
     "anchor": "export class Net {"
    },
    {
-    "line": "this.serverApp = typeof body?.app === 'string' && body.app ? body.app : null;",
+    "line": "this.serverApp = typeof body?.app === 'string' && body.app ? body.app : (this.welcomeApp || null);",
     "anchor": "export class Net {"
    },
    {
@@ -1139,7 +1151,7 @@
     "anchor": "export class Net {"
    },
    {
-    "line": "this.serverApp = null;",
+    "line": "this.serverApp = this.welcomeApp || null;",
     "anchor": "export class Net {"
    },
    {
@@ -1531,6 +1543,10 @@
     "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked, notOwned"
    },
    {
+    "line": "local: [N_('这台服务器不认这个操作 · 只存在本机'), 'is-warn'],",
+    "anchor": "const SYNC_TEXT = {"
+   },
+   {
     "line": ": { mode: 'export', kind: 'loadout', text: serializeExport(loadoutStore.get().entries, { skins: skinsStore.get().entries }) });",
     "anchor": "function LoadoutScreen({ st }) {"
    },
@@ -1815,6 +1831,28 @@
    {
     "line": "return { ok: true, entries, skins };",
     "anchor": "export function parseImport(input) {"
+   }
+  ],
+  "public/js/ui/loadoutSync.js": [
+   {
+    "line": "if (typeof net.verbAvailable === 'function' && !net.verbAvailable(msgType).ok) {",
+    "anchor": "function installPrefSync({ net, timers, target, notify, key, stateKey, msgType,"
+   },
+   {
+    "line": "lastSent = json; pendingJson = null; edited = false;",
+    "anchor": "function installPrefSync({ net, timers, target, notify, key, stateKey, msgType,"
+   },
+   {
+    "line": "setState('local');",
+    "anchor": "function installPrefSync({ net, timers, target, notify, key, stateKey, msgType,"
+   },
+   {
+    "line": "return;",
+    "anchor": "function installPrefSync({ net, timers, target, notify, key, stateKey, msgType,"
+   },
+   {
+    "line": "}",
+    "anchor": "function installPrefSync({ net, timers, target, notify, key, stateKey, msgType,"
    }
   ],
   "public/js/ui/settings.js": [
@@ -2151,6 +2189,16 @@
    {
     "line": "})(),",
     "anchor": "export class PlayerViews {"
+   }
+  ],
+  "server/net.js": [
+   {
+    "line": "import { APP_VERSION, ERR, ERR_TEXT, NAME_MAX_LEN, PROTOCOL_VERSION } from '../shared/constants.js';",
+    "anchor": "import { C2S, validateC2S } from '../shared/protocol.js';"
+   },
+   {
+    "line": "const welcome = { ...(extra && typeof extra === 'object' ? extra : null), t: 'welcome', playerId: session.playerId, token: session.token, name: session.name, serverNow: now, version: PROTOCOL_VERSION, app: APP_VERSION, resumed };",
+    "anchor": "export class Network {"
    }
   ],
   "server/sim/battle/players.js": [
