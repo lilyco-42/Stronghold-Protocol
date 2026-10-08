@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>立绘加载自检 · Spine probe</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' fill='%230c0f0e'/%3E%3Cpath fill='%234ed8af' d='M5 3h3v2h2V3h4v2h2V3h3v5l-2 2v7l2 2v2H5v-2l2-2v-7L5 8z'/%3E%3C/svg%3E" />
+  <link rel="stylesheet" href="/fonts/fonts.css" />
+  <link rel="stylesheet" href="/css/theme.css" />
+  <script type="importmap">
+    { "imports": { "preact": "/vendor/preact.module.js", "preact/hooks": "/vendor/hooks.module.js", "htm": "/vendor/htm.module.js" } }
+  </script>
+  <!-- 与游戏页同一套启动方式：PixiJS 7 + pixi-spine 作为 classic script（global PIXI / PIXI.spine）。
+       顺序很重要 —— 探针要是没按这个顺序起，报出来的"PIXI.spine 缺失"就是探针自己的错。 -->
+  <script src="/vendor/pixi.min.js"></script>
+  <script src="/vendor/pixi-spine.js"></script>
+  <style>
+    body { margin: 0; padding: 16px 16px 40px; background: #0c0f0e; color: #e7f0ec; font-size: 15px; }
+    h1 { font-size: 19px; margin: 0 0 4px; }
+    p.hint { color: #9db1a8; margin: 0 0 14px; line-height: 1.5; }
+    #verdict { border: 1px solid #4ed8af; border-radius: 8px; padding: 10px 12px; margin: 0 0 14px; line-height: 1.5; }
+    #verdict.bad { border-color: #ff7a6b; }
+    #verdict.warn { border-color: #f0c274; }
+    table { border-collapse: collapse; width: 100%; }
+    th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid #23302b; vertical-align: top; word-break: break-all; }
+    th { color: #9db1a8; font-weight: 600; white-space: nowrap; }
+    .ok { color: #4ed8af; }
+    .bad { color: #ff7a6b; }
+    .skip { color: #f0c274; }
+    textarea { width: 100%; box-sizing: border-box; height: 132px; margin-top: 14px; background: #12170f; color: #cfe3d8; border: 1px solid #23302b; border-radius: 8px; font: 12px/1.45 ui-monospace, monospace; }
+    button { margin-top: 8px; padding: 8px 14px; border-radius: 8px; border: 1px solid #2c3a34; background: #16201b; color: #e7f0ec; }
+  </style>
+</head>
+<body>
+  <h1>立绘加载自检</h1>
+  <p class="hint">
+    这一页只做一件事：把「静态图片 / 网络取文件 / Spine 解析 / 连续加载」四件事分开测，
+    这样「立绘不显示、只剩头像」究竟卡在哪一层就不用猜。截图或把下面文本框里的内容发给开发者即可。
+    不会联网到本站之外，也不改动任何存档。
+  </p>
+  <div id="verdict" class="warn">正在测…</div>
+  <table>
+    <tbody id="rows"></tbody>
+  </table>
+  <textarea id="report" readonly placeholder="结果会出现在这里"></textarea>
+  <button id="copy" type="button">复制结果</button>
+  <script type="module" src="/dev/spine-probe.js"></script>
+</body>
+</html>
