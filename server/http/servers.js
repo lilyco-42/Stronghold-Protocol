@@ -97,7 +97,7 @@ export async function serveServers({ req, res, rawPath, dataDir, sendJson, sendE
   const st = await fsp.stat(abs).catch(() => null);
   if (!st || !st.isFile()) {
     // P1: no list configured is the normal case for almost every server on the network.
-    sendError(req, res, 404, '页面不存在 · Not found', `/${SERVERS_FILE}`);
+    sendError(req, res, 404, 'Not found', `/${SERVERS_FILE}`);
     return true;
   }
   const text = await fsp.readFile(abs, 'utf8').catch((e) => {
@@ -107,7 +107,7 @@ export async function serveServers({ req, res, rawPath, dataDir, sendJson, sendE
   const body = text == null ? null : parseServers(text);
   if (!body) {
     log?.warn?.(`[servers] ${SERVERS_FILE} is not a usable v${SERVERS_FORMAT_VERSION} list; answering 404`);
-    sendError(req, res, 404, '页面不存在 · Not found', `/${SERVERS_FILE}`);
+    sendError(req, res, 404, 'Not found', `/${SERVERS_FILE}`);
     return true;
   }
   // sendJson sets the body and Cache-Control: no-store; the CORS header has to be added before it writes.
