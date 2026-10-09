@@ -247,16 +247,18 @@ describe('static import graph resolves', () => {
   //      空的读起来像"没出问题"，这是最坏的一种假绿。
   test('dev/spine-probe.js cannot report 全通过 when the manifest never loaded', () => {
     const src = readFileSync(path.join(PUBLIC, 'dev', 'spine-probe.js'), 'utf8');
-    assert.ok(!src.includes('.catch(() => null)'), '两处载入不许串成一个 catch：失败会被伪装成"没有这一项"');
-    assert.match(src, /await data\.loadAll\('chess'\)/, '棋盘清单的载入要单独跑、单独报');
-    assert.match(src, /release = await assets\.ready\(\)/, '美术索引的载入要单独跑、单独报');
-    assert.match(src, /anyBad\(\/清单\|探针异常\/\)/, '结论梯子必须有"清单没起来 / 探针炸了"这一格');
-    assert.match(src, /没找到任何带 spine 的干员（/, '清单那一行要带可查的原因（条数 · ready · 报错）');
-    // 键用 charId 而不是 chessId：美术索引的 chars 按 charId 键，用 chessId 问每一个都问不到，
-    // 于是这一页对所有设备都报"没找到带 spine 的干员"（第一版就是这样，CI 上两个引擎各报一次）。
-    assert.match(src, /function charKeyOf\(rec\) \{\s*return rec && \(rec\.charId \|\| rec\.id\);/, '取模型要按 charId');
-    assert.match(src, /assets\.spineEntry\(key, \{ back: false \}\)/, 'candidates 要用 charKeyOf 的结果去问索引');
-    assert.doesNotMatch(src, /assets\.spineEntry\(rec\.id/, '不许再拿 chessId 去问美术索引');
+    // 断言只对着**代码**，不对着注释：这一页的注释里原样抄了那条坏写法（说明它为什么坏），
+    // 而 `!src.includes('.catch(() => null)')` 会先在注释上红 —— 实测在 CI 上就是这么红的（2026-10-09）。
+    const code = src.replace(/\/\*[\s\S]*?\*\//g, '').split(/\r?\n/).filter((l) => !l.trim().startsWith('//')).join(String.fromCharCode(10));
+    assert.ok(!code.includes('.catch(() => null)'), '两处载入不许串成一个 catch：失败会被伪装成"没有这一项"');
+    assert.doesNotMatch(code, /loadAll\([^)]*\)\s*\.then\(/, '棋盘与美术索引不许写成一条 then 链');
+    assert.match(code, /await data\.loadAll\('chess'\)/, '棋盘清单的载入要单独跑、单独报');
+    assert.match(code, /release = await assets\.ready\(\)/, '美术索引的载入要单独跑、单独报');
+    assert.match(code, /anyBad\(\/清单\|探针异常\/\)/, '结论梯子必须有"清单没起来 / 探针炸了"这一格');
+    assert.match(code, /没找到任何带 spine 的干员（/, '清单那一行要带可查的原因（条数 · ready · 报错）');
+    assert.match(code, /function charKeyOf\(rec\) \{\s*return rec && \(rec\.charId \|\| rec\.id\);/, '取模型要按 charId');
+    assert.match(code, /assets\.spineEntry\(key, \{ back: false \}\)/, 'candidates 要用 charKeyOf 的结果去问索引');
+    assert.doesNotMatch(code, /assets\.spineEntry\(rec\.id/, '不许再拿 chessId 去问美术索引');
   });
   test('client modules never import Node built-ins', () => {
     for (const file of JS_FILES) {
