@@ -39,15 +39,19 @@ jobs:
           git config user.email "stronghold-upstream-bot@users.noreply.github.com"
           git remote add upstream https://github.com/sganggs/Stronghold-Protocol.git
           git fetch --no-tags upstream master
-          if git merge-base --is-ancestor upstream/master HEAD; then
-            echo "changed=false" >> "$GITHUB_OUTPUT"
-            echo "Already contains upstream/master"
-            exit 0
+          if ! git merge-base --is-ancestor upstream/master HEAD; then
+            # Merge conflicts fail closed, rather than dropping fork features.
+            git merge --no-edit --no-ff upstream/master
           fi
-          # Merge conflicts stop the workflow; do not override fork features.
-          git merge --no-edit --no-ff upstream/master
-          echo "changed=true" >> "$GITHUB_OUTPUT"
-          git log -1 --oneline
+          candidate="$(git rev-parse HEAD)"
+          verified="$(git ls-remote origin refs/heads/deploy/verified | cut -f1)"
+          if [[ "$candidate" == "$verified" ]]; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "Already verified: $candidate"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            echo "Validating candidate $candidate (previous verified: $verified)"
+          fi
 
       - name: Setup Node
         if: steps.sync.outputs.changed == 'true'
@@ -92,7 +96,7 @@ jobs:
           set -euo pipefail
           test -z "$(git status --porcelain)" || { git status --short; exit 1; }
 
-      - name: Publish integrated branch only after checks
+      - name: Publish verified candidate only after checks
         if: steps.sync.outputs.changed == 'true'
         shell: bash
         env:
@@ -101,4 +105,7 @@ jobs:
           set -euo pipefail
           # Use the token only in this push step, not during dependency installation or testing.
           auth="$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)"
+          # deploy/verified is the only ref the production promoter accepts.
+          # Publish it last: failed integration, tests or push cannot mark a build ready.
           git -c "http.https://github.com/.extraheader=AUTHORIZATION: basic $auth" push origin HEAD:refs/heads/deploy/prod
+          git -c "http.https://github.com/.extraheader=AUTHORIZATION: basic $auth" push origin HEAD:refs/heads/deploy/verified
