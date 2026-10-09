@@ -1,7 +1,7 @@
 # 服务器目录接口 `/servers.json`（扩展点）
 
 > 这一份是**给实现双方的约定**：服务器作者照它提供，客户端照它消费。上游没有这个接口，也不会有 ——
-> 它是我们这条 fork 的扩展点，所以单独成文（与 [SKINS.md](SKINS.md) / [VOICE.md](VOICE.md) 同一类），
+> 它是我们这条 fork 的扩展点，所以单独成文（与 [SKINS.md](SKINS.md) 同一类），
 > 不动 `docs/design/network.md` 的章节号。
 
 ## 1. 为什么要有它

@@ -1,38 +1,366 @@
 {
- "generated": "2026-10-07",
+ "generated": "2026-10-09",
  "upstream": "upstream/master",
  "files": {
-  ".gitignore": [
+  "AGENTS.md": [
    {
-    "line": "# tools/voice-langs.mjs --write → 这个包到底内置了哪几种配音（数的是 public/assets/audio/voice/<lang>/ 的盘上文件）。",
-    "anchor": "data/local-assets.json"
+    "line": "---",
+    "anchor": "docs/SIM.md (the test harness section) and the patterns in `test/content/op_sieg"
    },
    {
-    "line": "# 不入库正是为了不制造静音：这份登记若与 gitignore 掉的语音文件分开部署（只搬 data/ 没搬 public/assets/），",
-    "anchor": "data/local-assets.json"
+    "line": "# 本 fork（lilyco-42）的附加说明",
+    "anchor": "docs/SIM.md (the test harness section) and the patterns in `test/content/op_sieg"
    },
    {
-    "line": "# 客户端就会把台词改写到 /voice/jp/… 然后 404 —— 比「没有这个开关」糟得多。",
-    "anchor": "data/local-assets.json"
+    "line": "上游是 `sganggs/Stronghold-Protocol`（GPL-3.0）。本仓库的 `origin` 是**我的 fork**",
+    "anchor": "docs/SIM.md (the test harness section) and the patterns in `test/content/op_sieg"
    },
    {
-    "line": "data/voice-langs.json",
-    "anchor": "data/local-assets.json"
+    "line": "`lilyco-42/Stronghold-Protocol`，`upstream` 指向上游；本分支",
+    "anchor": "docs/SIM.md (the test harness section) and the patterns in `test/content/op_sieg"
+   },
+   {
+    "line": "`feat/net-cross-version-capability` 在最新上游之上多 17 个提交（2026-10-05 合并到 `bd892a4` 之后又走了几个提交；",
+    "anchor": "docs/SIM.md (the test harness section) and the patterns in `test/content/op_sieg"
+   },
+   {
+    "line": "这个数每提交一次就会变，所以别引用它 —— 现测：`git rev-list --left-right --count upstream/master...HEAD` = `0 17`，",
+    "anchor": "docs/SIM.md (the test harness section) and the patterns in `test/content/op_sieg"
+   },
+   {
+    "line": "左边为 0 才是要紧的判据：**不落后于上游**）。",
+    "anchor": "docs/SIM.md (the test harness section) and the patterns in `test/content/op_sieg"
+   },
+   {
+    "line": "## 1. 这个分支加了什么（`git log --oneline upstream/master..HEAD`）",
+    "anchor": "docs/SIM.md (the test harness section) and the patterns in `test/content/op_sieg"
+   },
+   {
+    "line": "| 提交 | 干什么 | 落地在哪 |",
+    "anchor": "docs/SIM.md (the test harness section) and the patterns in `test/content/op_sieg"
+   },
+   {
+    "line": "|---|---|---|",
+    "anchor": "docs/SIM.md (the test harness section) and the patterns in `test/content/op_sieg"
+   },
+   {
+    "line": "| `64ac69e` + `f853c1a` | 客户端从服务器的**回答**里学\"这台服务器不支持哪个动词\"，并把它用到界面上 | `public/js/net.js`（`serverLacks`/`verbAvailable`/`NetError`）、`screens/lobby.js`、`screens/room.js` |",
+    "anchor": "docs/SIM.md (the test harness section) and the patterns in `test/content/op_sieg"
+   },
+   {
+    "line": "| `80e912b` | 认出旧服务器的真回答是 `unknown type <verb>`（不只是 `unhandled type`） | `net.js` 的 `UNHANDLED_RE`；实测依据见运维仓库 `docs/09` |",
+    "anchor": "docs/SIM.md (the test harness section) and the patterns in `test/content/op_sieg"
+   },
+   {
+    "line": "| `22deb2d` | 能力记账按**将要拨号的地址**，不是 `net.url`（导出的单例上 `url` 是空的） | `net.js` 的 `serverKey()`；`test/net-unsupported.test.js` 里有专门一条防回归 |",
+    "anchor": "docs/SIM.md (the test harness section) and the patterns in `test/content/op_sieg"
+   },
+   {
+    "line": "| `a2ccc3a` | `mediaUrl` 按宿主能力决定要不要改写成 `/media/…` 无扩展名别名（Capacitor 解不了它，安卓会静音） | `public/js/media.js` + `globalThis.__SP_MEDIA_ALIAS__` |",
+    "anchor": "docs/SIM.md (the test harness section) and the patterns in `test/content/op_sieg"
+   },
+   {
+    "line": "| `5aa4405` | 把 Google Fonts **逐字节镜像**进仓库，网页版与打包客户端不再依赖外部字体主机 | `public/webfonts/google/`（112 woff2 + `google.css`）、`public/index.html`、`tools/fetch-webfonts.mjs` |",
+    "anchor": "docs/SIM.md (the test harness section) and the patterns in `test/content/op_sieg"
+   },
+   {
+    "line": "| `75fb8eb` | `--check --verify-bytes`：把镜像与 Google 当前提供的字节逐个比 sha256 | `tools/fetch-webfonts.mjs` |",
+    "anchor": "docs/SIM.md (the test harness section) and the patterns in `test/content/op_sieg"
+   },
+   {
+    "line": "| `86719d1` | `dev/uikit.html` 也改用它；再加一条**全树**检查 | 同上 + `test/webfonts-local.test.js` |",
+    "anchor": "docs/SIM.md (the test harness section) and the patterns in `test/content/op_sieg"
+   },
+   {
+    "line": "| `11f9c5c` | 钉住\"版本号说 0.1.3、线级却拒收\"时客户端仍会自纠 | `test/net-unsupported.test.js` |",
+    "anchor": "docs/SIM.md (the test harness section) and the patterns in `test/content/op_sieg"
+   },
+   {
+    "line": "| `6ea4a0e` | 网页侧也钉\"零站外请求\"（判据与客户端闸门一致：按引用形式扫，注释里的 URL 不算） | `test/webfonts-local.test.js` |",
+    "anchor": "docs/SIM.md (the test harness section) and the patterns in `test/content/op_sieg"
+   },
+   {
+    "line": "| `4cef77b` | 网页版这一侧钉住 **node 服务怎么发镜像字体**（mime / 长缓存 / `font-display: swap` / 点路径一律 403），带正控制与变异复验 | `test/webfonts-serve.test.js` |",
+    "anchor": "docs/SIM.md (the test harness section) and the patterns in `test/content/op_sieg"
+   },
+   {
+    "line": "## 2. 跑测试与已知的非回归红（三条 CPU 阈值闸 + 一条 Windows 定时器脆弱）",
+    "anchor": "docs/SIM.md (the test harness section) and the patterns in `test/content/op_sieg"
+   },
+   {
+    "line": "```",
+    "anchor": "docs/SIM.md (the test harness section) and the patterns in `test/content/op_sieg"
+   },
+   {
+    "line": "npm install --ignore-scripts ws        # 服务端只依赖 ws；postinstall 会去拷 vendor，跳过",
+    "anchor": "docs/SIM.md (the test harness section) and the patterns in `test/content/op_sieg"
+   },
+   {
+    "line": "npm test                                 # 全量：node --test",
+    "anchor": "docs/SIM.md (the test harness section) and the patterns in `test/content/op_sieg"
+   },
+   {
+    "line": "```",
+    "anchor": "docs/SIM.md (the test harness section) and the patterns in `test/content/op_sieg"
+   },
+   {
+    "line": "2026-10-06 在 `224eb92`（合并上游 `a9dfd17` 之后）整跑实测：**3707 项 / 3690 过 / 1 失败 / 16 跳过，退出码 1**；",
+    "anchor": "docs/SIM.md (the test harness section) and the patterns in `test/content/op_sieg"
+   },
+   {
+    "line": "红的正是下面第三条闸（`best 0.688 ms/tick`，三次 0.800/0.688/0.871），**单独复跑 `node --test test/sim/perf.test.js test/sim/robustness.test.js` → 37/37 全过、退出码 0**。",
+    "anchor": "docs/SIM.md (the test harness section) and the patterns in `test/content/op_sieg"
+   },
+   {
+    "line": "上一次记录：2026-10-05 16:41 在 `3dd1a2c` 整跑 **3643 项 / 3624 过 / 3 失败 / 16 跳过**（条数随负载变，见下）。",
+    "anchor": "docs/SIM.md (the test harness section) and the patterns in `test/content/op_sieg"
+   },
+   {
+    "line": "那 3 条都是 0.5 ms/tick 的阈值闸，不是回归：`test/sim/perf.test.js:22`、`test/sim/perf.test.js:43`（两条 70 敌 + 10 干员的 benchmark）与",
+    "anchor": "docs/SIM.md (the test harness section) and the patterns in `test/content/op_sieg"
+   },
+   {
+    "line": "`test/sim/robustness.test.js:739`（双人 BOSS 场）。**同一批文件单独复跑 37/37 全过**（`node --test test/sim/perf.test.js test/sim/robustness.test.js`）。",
+    "anchor": "docs/SIM.md (the test harness section) and the patterns in `test/content/op_sieg"
+   },
+   {
+    "line": "📌 栈里报的行号是**断言所在行**，不是 `test(...)` 的声明行：合并后 BOSS 场那条的断言落在 `robustness.test.js:765`，",
+    "anchor": "docs/SIM.md (the test harness section) and the patterns in `test/content/op_sieg"
+   },
+   {
+    "line": "而声明仍在 `:739`。按栈去改文档里的引用会把一个正确值改错 —— 认引用时先 `grep -n \"best of 3\"` 看声明行。",
+    "anchor": "docs/SIM.md (the test harness section) and the patterns in `test/content/op_sieg"
+   },
+   {
+    "line": "判负载的依据：这三条闸测的是 `server/sim/**`，而本分支 `git diff upstream/master..HEAD -- server/sim test/sim` **为空**。",
+    "anchor": "docs/SIM.md (the test harness section) and the patterns in `test/content/op_sieg"
+   },
+   {
+    "line": "⚠️ 整跑红的条数会随本机负载变（同一天里 1→2→3 条都出现过），所以\"几条失败\"不能当判据 —— 判据是**失败的是不是这几条阈值闸**，",
+    "anchor": "docs/SIM.md (the test harness section) and the patterns in `test/content/op_sieg"
+   },
+   {
+    "line": "是就单独复跑，不是就是真回归。",
+    "anchor": "docs/SIM.md (the test harness section) and the patterns in `test/content/op_sieg"
+   },
+   {
+    "line": "第四条与上面三条不同：`test/e2e/client-wait.test.js` 的「a wait longer than one slice keeps polling the same",
+    "anchor": "docs/SIM.md (the test harness section) and the patterns in `test/content/op_sieg"
+   },
+   {
+    "line": "predicate until it holds」在 **Windows 上稳定红**（2026-10-06 合并上游 `9f93096` 后整跑 3781 项 / 3769 过 / 2 失败，",
+    "anchor": "docs/SIM.md (the test harness section) and the patterns in `test/content/op_sieg"
+   },
+   {
+    "line": "单跑也是 4 过 1 失败，两次一致）。**这是测试脆弱，不是产品缺陷，别去改实现**：它断言\"至少 4 片\"，而每片是",
+    "anchor": "docs/SIM.md (the test harness section) and the patterns in `test/content/op_sieg"
+   },
+   {
+    "line": "`setTimeout(30)`；Windows 的定时器粒度让 30 ms 实际 41–47 ms 才触发，于是第 3 片起始时剩余已 ≤ 一片长，",
+    "anchor": "docs/SIM.md (the test harness section) and the patterns in `test/content/op_sieg"
+   },
+   {
+    "line": "`fakePage` 当场 resolve，永远轮不到第 4 片。实测证据：把同样的比例放大 10×/100× 再跑，切片起始变成",
+    "anchor": "docs/SIM.md (the test harness section) and the patterns in `test/content/op_sieg"
+   },
+   {
+    "line": "`0,309,618,928` 与 `0,3009,6016,9029`（过冲占比回到 3%），行为就符合断言 —— 也就是差在定时器精度，不在",
+    "anchor": "docs/SIM.md (the test harness section) and the patterns in `test/content/op_sieg"
+   },
+   {
+    "line": "`waitForFunctionLong` 的循环（它确实一直轮询到 deadline）。上游 CI 跑 Linux 所以看不见。",
+    "anchor": "docs/SIM.md (the test harness section) and the patterns in `test/content/op_sieg"
+   },
+   {
+    "line": "判据：这条红 + 上面三条阈值闸红 = 整跑最多 4 条红，都不算回归；**但必须先按\"是不是这几条\"核对**，",
+    "anchor": "docs/SIM.md (the test harness section) and the patterns in `test/content/op_sieg"
+   },
+   {
+    "line": "新的红名一律当真回归处理。",
+    "anchor": "docs/SIM.md (the test harness section) and the patterns in `test/content/op_sieg"
+   },
+   {
+    "line": "## 3. 这个仓库的硬约定（改错了会静默出事）",
+    "anchor": "docs/SIM.md (the test harness section) and the patterns in `test/content/op_sieg"
+   },
+   {
+    "line": "1. **`public/assets|fonts|vendor` 与 `data/local-assets.json` 不在 git 里**（`npm run assets` 现抓）。",
+    "anchor": "docs/SIM.md (the test harness section) and the patterns in `test/content/op_sieg"
+   },
+   {
+    "line": "干净 clone 一张美术都没有 → 打包 payload 必须找有机器的素材那份树。",
+    "anchor": "docs/SIM.md (the test harness section) and the patterns in `test/content/op_sieg"
+   },
+   {
+    "line": "2. `tools/fetch-assets.mjs` 会把 `data/assets.json` 的 `stats.bytes` 改掉（`hash`/`files` 不变）。",
+    "anchor": "docs/SIM.md (the test harness section) and the patterns in `test/content/op_sieg"
+   },
+   {
+    "line": "那是**无内容差异**：提交它或带着它打包，会让下游 payload 的 `build.json` 标 `dirty:true`。",
+    "anchor": "docs/SIM.md (the test harness section) and the patterns in `test/content/op_sieg"
+   },
+   {
+    "line": "跑完素材就 `git checkout -- data/assets.json`，除非你真的改了素材集合。",
+    "anchor": "docs/SIM.md (the test harness section) and the patterns in `test/content/op_sieg"
+   },
+   {
+    "line": "3. 字体镜像的再生成与验证：",
+    "anchor": "docs/SIM.md (the test harness section) and the patterns in `test/content/op_sieg"
+   },
+   {
+    "line": "```",
+    "anchor": "docs/SIM.md (the test harness section) and the patterns in `test/content/op_sieg"
+   },
+   {
+    "line": "node tools/fetch-webfonts.mjs                 # 重抓（务必带 Chrome UA，见下）",
+    "anchor": "docs/SIM.md (the test harness section) and the patterns in `test/content/op_sieg"
+   },
+   {
+    "line": "node tools/fetch-webfonts.mjs --check                          # 不写盘，只查完整性",
+    "anchor": "docs/SIM.md (the test harness section) and the patterns in `test/content/op_sieg"
+   },
+   {
+    "line": "node tools/fetch-webfonts.mjs --check --verify-bytes           # 再逐个比 sha256（112/112 才算\"同一套字形\"）",
+    "anchor": "docs/SIM.md (the test harness section) and the patterns in `test/content/op_sieg"
+   },
+   {
+    "line": "```",
+    "anchor": "docs/SIM.md (the test harness section) and the patterns in `test/content/op_sieg"
+   },
+   {
+    "line": "⚠️ 必须用**现代 UA** 取 `css2`：不带 UA 拿到的是未切片老格式（11 个 / 43.3 MB），",
+    "anchor": "docs/SIM.md (the test harness section) and the patterns in `test/content/op_sieg"
+   },
+   {
+    "line": "带 Chrome UA 才是浏览器真正用的 421 个 `@font-face` / 112 个 woff2 / 4.84 MB。用错量级会做出错误的方案决策。",
+    "anchor": "docs/SIM.md (the test harness section) and the patterns in `test/content/op_sieg"
+   },
+   {
+    "line": "上游若升字体版本，`--verify-bytes` 会红 —— 那是提示重跑生成器并重新提交，不是坏了。",
+    "anchor": "docs/SIM.md (the test harness section) and the patterns in `test/content/op_sieg"
+   },
+   {
+    "line": "4. `public/index.html` 与 `public/dev/uikit.html` 都不得再出现 `fonts.googleapis.com` / `fonts.gstatic.com`；",
+    "anchor": "docs/SIM.md (the test harness section) and the patterns in `test/content/op_sieg"
+   },
+   {
+    "line": "这条由 `test/webfonts-local.test.js`（扫全树 html/css/js/mjs/json）+ `test/client-static.test.js` 钉住，",
+    "anchor": "docs/SIM.md (the test harness section) and the patterns in `test/content/op_sieg"
+   },
+   {
+    "line": "`text/css` / `font/woff2` / `public, max-age=86400` / 含 `font-display: swap` / 三种点路径写法一律 403）。",
+    "anchor": "docs/SIM.md (the test harness section) and the patterns in `test/content/op_sieg"
+   },
+   {
+    "line": "改这一块要跑的三条与实测值（2026-10-05 16:28–16:30 本机）：",
+    "anchor": "docs/SIM.md (the test harness section) and the patterns in `test/content/op_sieg"
+   },
+   {
+    "line": "`node tools/fetch-webfonts.mjs --check --verify-bytes` → 112/112 rc=0；",
+    "anchor": "docs/SIM.md (the test harness section) and the patterns in `test/content/op_sieg"
+   },
+   {
+    "line": "`node --test test/webfonts-local.test.js test/webfonts-serve.test.js` → 10/10；",
+    "anchor": "docs/SIM.md (the test harness section) and the patterns in `test/content/op_sieg"
+   },
+   {
+    "line": "`node ../StrongholdProtocolClient/tools/check-payload-offline.mjs public` → 0 问题。",
+    "anchor": "docs/SIM.md (the test harness section) and the patterns in `test/content/op_sieg"
+   },
+   {
+    "line": "同一文件里还有一条更宽的：`public/` 下**任何引用形式**（href/src/url()/fetch/@import/`new WebSocket('http…')`）",
+    "anchor": "docs/SIM.md (the test harness section) and the patterns in `test/content/op_sieg"
+   },
+   {
+    "line": "都不许指向站外 —— 只认引用形式，不认裸 URL：vendor 里上百条注释链接和 SVG 的 `xmlns` 标识符不发请求，",
+    "anchor": "docs/SIM.md (the test harness section) and the patterns in `test/content/op_sieg"
+   },
+   {
+    "line": "一起禁等于把闸门静音。测试自带一条自校准（裸 URL 计数必须 >20，否则说明扫描没跑到 vendor/）。",
+    "anchor": "docs/SIM.md (the test harness section) and the patterns in `test/content/op_sieg"
+   },
+   {
+    "line": "与客户端仓库 `tools/check-payload-offline.mjs` 是同一套判据，两边都要过。加回外链时测试会点名文件。",
+    "anchor": "docs/SIM.md (the test harness section) and the patterns in `test/content/op_sieg"
+   },
+   {
+    "line": "5. `/media/<track>`（无扩展名，躲下载管理器）只有 **node 服务器**与 Electron 壳的 `serve.mjs` 解得了；",
+    "anchor": "docs/SIM.md (the test harness section) and the patterns in `test/content/op_sieg"
+   },
+   {
+    "line": "Capacitor 是纯静态宿主 → APK 必须设 `__SP_MEDIA_ALIAS__ = false`，否则全场静音。别在 `media.js` 里去掉这个开关。",
+    "anchor": "docs/SIM.md (the test harness section) and the patterns in `test/content/op_sieg"
+   },
+   {
+    "line": "## 4. 版本与能力是两件事（今天的实测教训）",
+    "anchor": "docs/SIM.md (the test harness section) and the patterns in `test/content/op_sieg"
+   },
+   {
+    "line": "- 线路格式号 `PROTOCOL_VERSION` 上游一直不升（0.1.1/0.1.2/0.1.3 都是 `1`），**不能**用来协商版本。",
+    "anchor": "docs/SIM.md (the test harness section) and the patterns in `test/content/op_sieg"
+   },
+   {
+    "line": "- 唯一的版本信号是 `GET /healthz` 的 `app`；跨源能读靠生产侧 pingap 的 `sp_healthz_cors` 插件。",
+    "anchor": "docs/SIM.md (the test harness section) and the patterns in `test/content/op_sieg"
+   },
+   {
+    "line": "- 但 `app` 不等于能力：2026-10-05 线上 `app:\"0.1.3\"`，而 `room.spectate` 实际回 `BAD_MSG unknown type`",
+    "anchor": "docs/SIM.md (the test harness section) and the patterns in `test/content/op_sieg"
+   },
+   {
+    "line": "（那次部署换了 `server/` 没换 `shared/protocol.js`，`server/net.js:587` 判类型只看后者的 `C2S` 表）。",
+    "anchor": "docs/SIM.md (the test harness section) and the patterns in `test/content/op_sieg"
+   },
+   {
+    "line": "所以客户端的策略是**回复优先**：版本号可以点亮入口，但服务器一旦回 `unknown type <verb>`，",
+    "anchor": "docs/SIM.md (the test harness section) and the patterns in `test/content/op_sieg"
+   },
+   {
+    "line": "该动词就按\"这台服务器没有\"处理（按 `serverKey()` 分机记账）。别把它改成只信版本号。",
+    "anchor": "docs/SIM.md (the test harness section) and the patterns in `test/content/op_sieg"
+   },
+   {
+    "line": "- 复现/核对命令在运维仓库：`lain42-stronghold-ops/scripts/probe-server-capability.mjs`（自带正控制；",
+    "anchor": "docs/SIM.md (the test harness section) and the patterns in `test/content/op_sieg"
+   },
+   {
+    "line": "`hello` 的 `name` 要用短名字，长名字服务器不回 welcome）。",
+    "anchor": "docs/SIM.md (the test harness section) and the patterns in `test/content/op_sieg"
+   },
+   {
+    "line": "## 5. 相邻仓库（谁负责什么）",
+    "anchor": "docs/SIM.md (the test harness section) and the patterns in `test/content/op_sieg"
+   },
+   {
+    "line": "| 仓库 | 职责 | 备注 |",
+    "anchor": "docs/SIM.md (the test harness section) and the patterns in `test/content/op_sieg"
+   },
+   {
+    "line": "|---|---|---|",
+    "anchor": "docs/SIM.md (the test harness section) and the patterns in `test/content/op_sieg"
+   },
+   {
+    "line": "| `lilyco-42/StrongholdProtocolClient` | 桌面(Electron) + 安卓(Capacitor) 打包与 CI | 只从 payload 构建，不本机编译；五道闸门（完整性 / 版本 / **出处** / 暂存离线 / 产物离线）；细节见该仓库 `AGENTS.md` |",
+    "anchor": "docs/SIM.md (the test harness section) and the patterns in `test/content/op_sieg"
+   },
+   {
+    "line": "| `lilyco-42/lain42-stronghold-ops` | 生产机的事实：带宽、OSS、混合部署事故、核对单 | `docs/13-upgrade-drift-checklist.md` 是换基线后的整套核对 |",
+    "anchor": "docs/SIM.md (the test harness section) and the patterns in `test/content/op_sieg"
+   },
+   {
+    "line": "| 本仓库 | 游戏代码 + §1 表里那批提交 | **别以为有 CI**：fork 的 Actions 开关是开的（`/actions/permissions` 回 `enabled:true`），但 workflow 从未被注册（`/actions/workflows` 空、runs `total_count:0`），推分支也不会跑，`gh workflow run ci.yml` 报 \"not found on the default branch\"。所以 §1 那批提交的测试证据只有本机 `npm test`；要 CI 级的绿只能走上游 PR（本任务约定不开） |",
+    "anchor": "docs/SIM.md (the test harness section) and the patterns in `test/content/op_sieg"
    }
   ],
   "README.md": [
    {
     "line": "| [docs/SKINS.md](docs/SKINS.md) | 干员皮肤：素材从哪来、怎么装进包、`room.skins` 与「仅自己可见」的降级 |",
     "anchor": "npm start          # 启动服务器：http://localhost:3000"
-   },
-   {
-    "line": "| [docs/VOICE.md](docs/VOICE.md) | 配音语言切换：同名不同目录的推导、`data/voice-langs.json` 登记、为什么故意不入库 |",
-    "anchor": "npm start          # 启动服务器：http://localhost:3000"
    }
   ],
   "data/assets.json": [
    {
-    "line": "{\"version\":1,\"hash\":\"65268be18c6d\",\"generator\":\"tools/fetch-assets.mjs\",\"stats\":{\"files\":7969,\"bytes\":485061859,\"chars\":…（整行 1532757 字符）",
+    "line": "{\"version\":1,\"hash\":\"bfdfd5e7efd9\",\"generator\":\"tools/fetch-assets.mjs\",\"stats\":{\"files\":10643,\"bytes\":574449900,\"chars\"…（整行 1700296 字符）",
     "anchor": "",
     "opaque": true
    }
@@ -451,10 +779,6 @@
     "anchor": ""
    },
    {
-    "line": "\"开发版 · 不稳定，请勿用于公开服务器\": \"Development build · unstable, not for public servers\",",
-    "anchor": ""
-   },
-   {
     "line": "\"中文\": \"Chinese\",",
     "anchor": ""
    },
@@ -571,15 +895,11 @@
     "anchor": ""
    },
    {
-    "line": "\"连接已断开：这段时间服务器在替 {name} 打阵地，TA 重连回来就能接上\": \"Disconnected: the server keeps fighting {name}'s board until they reconnect\"",
+    "line": "\"连接已断开：这段时间服务器在替 {name} 打阵地，TA 重连回来就能接上\": \"Disconnected: the server keeps fighting {name}'s board until they reconnect\",",
     "anchor": ""
    }
   ],
   "public/i18n/zh-TW.json": [
-   {
-    "line": "\"生命值减少 −{n}\": \"生命值減少 −{n}\",",
-    "anchor": ""
-   },
    {
     "line": "\"中文\": \"中文\",",
     "anchor": ""
@@ -697,7 +1017,7 @@
     "anchor": ""
    },
    {
-    "line": "\"连接已断开：这段时间服务器在替 {name} 打阵地，TA 重连回来就能接上\": \"連線已斷開：這段時間伺服器在替 {name} 打陣地，TA 重新連線回來就能接上\"",
+    "line": "\"连接已断开：这段时间服务器在替 {name} 打阵地，TA 重连回来就能接上\": \"連線已斷開：這段時間伺服器在替 {name} 打陣地，TA 重新連線回來就能接上\",",
     "anchor": ""
    }
   ],
@@ -827,16 +1147,6 @@
    {
     "line": "hasBack: (id, skinId) => hasBackSpine(m(), id, skinId),",
     "anchor": "export function createAssets(options) {"
-   }
-  ],
-  "public/js/audio.js": [
-   {
-    "line": "import { voiceLangUrl } from './ext/voiceLang.js';",
-    "anchor": "import { mediaUrl } from './media.js';"
-   },
-   {
-    "line": "const url = voiceLangUrl(Array.isArray(line) ? line[Math.floor(Math.random() * line.length)] : line);",
-    "anchor": "export class AudioManager {"
    }
   ],
   "public/js/data.js": [
@@ -1295,7 +1605,7 @@
     "anchor": "import { useStore } from '../store.js';"
    },
    {
-    "line": "changedCount, skillLabel, moduleBadge, attrRows, skillTags, traitLines, serializeExport, parseImport, LOADOUT_IMPORT_MAX_BYTES, mergeSkins,",
+    "line": "changedCount, skillLabel, moduleBadge, attrRows, skillTags, quickSkillTags, traitLines, serializeExport, parseImport, LOADOUT_IMPORT_MAX_BYTES, mergeSkins,",
     "anchor": "import {"
    },
    {
@@ -1307,247 +1617,15 @@
     "anchor": "import {"
    },
    {
-    "line": "const [tab, setTab] = useState('skill'); // 'skill' | 'mod' | 'stats' | 'skin'（换装那一页是 docs/SKINS.md 加的）",
-    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked, notOwned"
-   },
-   {
-    "line": "const modOpt = opt?.moduleOptions?.find((x) => x.id === choice.module) || null;",
-    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked, notOwned"
-   },
-   {
-    "line": "const hasMod = !!golden && (opt?.moduleOptions?.length || 0) > 0;",
-    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked, notOwned"
-   },
-   {
-    "line": "const activeTab = tab === 'mod' && !hasMod ? 'skill' : tab;",
-    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked, notOwned"
-   },
-   {
-    "line": "useEffect(() => { if (bodyRef.current) bodyRef.current.scrollTop = 0; }, [chess?.chessId, activeTab]);",
-    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked, notOwned"
-   },
-   {
-    "line": "if (!chess) return html`<aside class=\"lo-detail lo-detail--empty\"><p class=\"t-dim\">${t('没有符合条件的干员')}</p></aside>`;",
-    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked, notOwned"
-   },
-   {
-    "line": "<div class=\"lo-dtabs\" role=\"tablist\" aria-label=${t('调配项目')}>",
-    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked, notOwned"
-   },
-   {
-    "line": "<button type=\"button\" role=\"tab\" aria-selected=${activeTab === 'skill' ? 'true' : 'false'} class=${cx('lo-dtab', activeTab === 'skill' && 'is-on')} onClick=${() => setTab('skill')}>",
-    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked, notOwned"
-   },
-   {
-    "line": "${t('技能')} <span class=\"lo-dtab__en num\">SKILL</span>",
-    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked, notOwned"
-   },
-   {
-    "line": "</button>",
-    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked, notOwned"
-   },
-   {
-    "line": "${hasMod ? html`<button type=\"button\" role=\"tab\" aria-selected=${activeTab === 'mod' ? 'true' : 'false'} class=${cx('lo-dtab', activeTab === 'mod' && 'is-on')} onClick=${() => setTab('mod')}>",
-    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked, notOwned"
-   },
-   {
-    "line": "${t('模组')} <span class=\"lo-dtab__en num\">MODULE</span>",
-    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked, notOwned"
-   },
-   {
-    "line": "</button>` : null}",
-    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked, notOwned"
-   },
-   {
-    "line": "<button type=\"button\" role=\"tab\" aria-selected=${activeTab === 'stats' ? 'true' : 'false'} class=${cx('lo-dtab', activeTab === 'stats' && 'is-on')} onClick=${() => setTab('stats')}>",
-    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked, notOwned"
-   },
-   {
-    "line": "${t('数值')} <span class=\"lo-dtab__en num\">STATS</span>",
-    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked, notOwned"
-   },
-   {
-    "line": "</button>",
-    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked, notOwned"
-   },
-   {
-    "line": "<button type=\"button\" role=\"tab\" data-testid=\"loadout-tab-skin\" aria-selected=${activeTab === 'skin' ? 'true' : 'false'} class=${cx('lo-dtab', activeTab === 'skin' && 'is-on')} onClick=${() => setTab('skin')}>",
-    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked, notOwned"
-   },
-   {
-    "line": "${t('换装')} <span class=\"lo-dtab__en num\">SKIN</span>",
-    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked, notOwned"
-   },
-   {
-    "line": "</button>",
-    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked, notOwned"
-   },
-   {
-    "line": "</div>",
-    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked, notOwned"
-   },
-   {
-    "line": "${activeTab === 'skill' ? html`",
-    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked, notOwned"
-   },
-   {
-    "line": "<section class=\"lo-sec\">",
-    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked, notOwned"
-   },
-   {
-    "line": "<header class=\"lo-sec__head\">",
-    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked, notOwned"
-   },
-   {
-    "line": "<h3>${t('技能')}<${MicroLabel}>SKILL<//></h3>",
-    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked, notOwned"
-   },
-   {
-    "line": "<div class=\"lo-seg\" role=\"tablist\" aria-label=${t('技能等级')}>",
-    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked, notOwned"
-   },
-   {
-    "line": "<button type=\"button\" role=\"tab\" aria-selected=${level === 'normal' ? 'true' : 'false'} class=${cx(level === 'normal' && 'is-on')} onClick=${() => setLevel('normal')}>${t('普通')} <span class=\"num\">Lv.${lv(chess)}</span></button>",
-    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked, notOwned"
-   },
-   {
-    "line": "<button type=\"button\" role=\"tab\" aria-selected=${level === 'elite' ? 'true' : 'false'} class=${cx(level === 'elite' && 'is-on')} disabled=${!golden} onClick=${() => setLevel('elite')}>${t('精锐')} <span class=\"num\">Lv.${lv(golden)}</span></button>",
-    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked, notOwned"
-   },
-   {
-    "line": "</div>",
-    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked, notOwned"
-   },
-   {
-    "line": "</header>",
-    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked, notOwned"
-   },
-   {
-    "line": "<div class=\"lo-skills\" role=\"radiogroup\" aria-label=${t('选择技能')}>",
-    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked, notOwned"
-   },
-   {
-    "line": "${opt.skillOptions.map((s) => html`<${SkillOption} key=${s.index} m=${m} opt=${s} level=${level} on=${s.index === choice.skill}",
-    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked, notOwned"
-   },
-   {
-    "line": "onPick=${(i) => onChange({ skill: i })} />`)}",
-    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked, notOwned"
-   },
-   {
-    "line": "</section>",
-    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked, notOwned"
-   },
-   {
-    "line": "` : null}",
-    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked, notOwned"
-   },
-   {
-    "line": "${activeTab === 'stats' ? html`",
-    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked, notOwned"
-   },
-   {
-    "line": "<${LoadoutStats} base=${chess} golden=${golden} entries=${entries} level=${statLevel} onLevel=${setStatLevel} />",
-    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked, notOwned"
-   },
-   {
-    "line": "` : null}",
-    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked, notOwned"
-   },
-   {
-    "line": "${activeTab === 'mod' && golden ? html`",
-    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked, notOwned"
-   },
-   {
-    "line": "<section class=\"lo-sec lo-sec--mod\">",
-    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked, notOwned"
-   },
-   {
-    "line": "<header class=\"lo-sec__head\">",
-    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked, notOwned"
-   },
-   {
-    "line": "<h3>${t('模组')}<${MicroLabel}>MODULE<//></h3>",
-    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked, notOwned"
-   },
-   {
-    "line": "<span class=\"lo-sec__note\">${t('仅精锐干员装备 · 模组等级')} <b class=\"num\">${golden.status?.equipLevel ?? 1}</b></span>",
-    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked, notOwned"
-   },
-   {
-    "line": "</header>",
-    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked, notOwned"
-   },
-   {
-    "line": "<div class=\"lo-mods\" role=\"radiogroup\" aria-label=${t('选择模组')}>",
-    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked, notOwned"
-   },
-   {
-    "line": "${opt.moduleOptions.map((mo) => html`<button key=${mo.id} type=\"button\" role=\"radio\" aria-checked=${mo.id === choice.module ? 'true' : 'false'}",
-    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked, notOwned"
-   },
-   {
-    "line": "data-module=${mo.id} class=${cx('lo-mod', mo.id === choice.module && 'is-on', mo.id === MODULE_NONE && 'lo-mod--none')}",
-    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked, notOwned"
-   },
-   {
-    "line": "onClick=${() => onChange({ module: mo.id })}>",
-    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked, notOwned"
-   },
-   {
-    "line": "<${ModuleGlyph} m=${m} rec=${mo.rec} id=${mo.id} />",
-    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked, notOwned"
-   },
-   {
-    "line": "<span class=\"lo-mod__text\">",
-    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked, notOwned"
-   },
-   {
-    "line": "<span class=\"lo-mod__type num\">${mo.id === MODULE_NONE ? 'NONE' : mo.rec?.typeName || ''}</span>",
-    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked, notOwned"
-   },
-   {
-    "line": "<b class=\"lo-mod__name\">${mo.id === MODULE_NONE ? t('不装备') : mo.rec?.name || mo.id}</b>",
-    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked, notOwned"
-   },
-   {
-    "line": "</span>",
-    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked, notOwned"
-   },
-   {
-    "line": "${mo.isDefault ? html`<span class=\"lo-badge lo-badge--def lo-mod__def\">${t('默认')}</span>` : null}",
-    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked, notOwned"
-   },
-   {
-    "line": "</button>`)}",
-    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked, notOwned"
-   },
-   {
-    "line": "</div>",
-    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked, notOwned"
-   },
-   {
-    "line": "${modOpt ? html`<${ModuleInfo} m=${m} golden=${golden} opt=${modOpt} />` : null}",
-    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked, notOwned"
-   },
-   {
-    "line": "</section>",
-    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked, notOwned"
-   },
-   {
-    "line": "` : null}",
-    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked, notOwned"
-   },
-   {
-    "line": "${activeTab === 'skin' ? html`<${SkinSection} chess=${chess} />` : null}",
-    "anchor": "function Detail({ m, chess, golden, entries, onChange, onReset, locked, notOwned"
+    "line": "${chess ? html`<${SkinSection} chess=${chess} />` : null}",
+    "anchor": "function Detail({ m, chess, golden, entries, ops = {}, onChange, onOps, onReset,"
    },
    {
     "line": "local: [N_('这台服务器不认这个操作 · 只存在本机'), 'is-warn'],",
     "anchor": "const SYNC_TEXT = {"
    },
    {
-    "line": ": { mode: 'export', kind: 'loadout', text: serializeExport(loadoutStore.get().entries, { skins: skinsStore.get().entries }) });",
+    "line": ": { mode: 'export', kind: 'loadout', text: serializeExport(loadoutStore.get().entries, { ops: loadoutStore.get().ops, skins: skinsStore.get().entries }) });",
     "anchor": "function LoadoutScreen({ st }) {"
    },
    {
@@ -1571,7 +1649,7 @@
     "anchor": "function LoadoutScreen({ st }) {"
    },
    {
-    "line": "if (!applied && !skinsApplied) { toast(t('导入失败：这份数据在当前版本没有可用的调配或皮肤，未做任何改动'), 'error'); return; }",
+    "line": "if (!applied && !nOps && !skinsApplied) { toast(t('导入失败：这份数据在当前版本没有可用的调配，未做任何改动'), 'error'); return; }",
     "anchor": "function LoadoutScreen({ st }) {"
    },
    {
@@ -1587,11 +1665,15 @@
     "anchor": "function LoadoutScreen({ st }) {"
    },
    {
-    "line": "toast(t('已导入：{parts}', { parts: parts.join('，') })",
+    "line": "toast(parts.length",
     "anchor": "function LoadoutScreen({ st }) {"
    },
    {
-    "line": "+ (dropped ? t('（另有 {n} 项未导入）', { n: dropped }) : ''), dropped ? 'warn' : 'success');",
+    "line": "? t('已导入：{parts}', { parts: parts.join('，') }) + (dropped ? t('（另有 {n} 项未导入）', { n: dropped }) : '')",
+    "anchor": "function LoadoutScreen({ st }) {"
+   },
+   {
+    "line": ": t('已导入 {n} 名干员的潜能与练度', { n: nOps }), dropped ? 'warn' : 'success');",
     "anchor": "function LoadoutScreen({ st }) {"
    },
    {
@@ -1675,13 +1757,89 @@
   ],
   "public/js/ui/gameComponents.js": [
    {
+    "line": "import { useState, useMemo, useEffect, useRef } from '../../vendor/hooks.module.js';",
+    "anchor": ""
+   },
+   {
     "line": "'choices', 'effects', 'garrisons', 'factions', 'local', 'skins', 'backups'];",
     "anchor": "export const GAME_FILES = ['config', 'assets', 'chess', 'bonds', 'items', 'bands"
+   },
+   {
+    "line": "export const IMG_RETRY_MS = Object.freeze([400, 1500, 4000]);",
+    "anchor": "export function makeLookups(ready = true) {"
+   },
+   {
+    "line": "export function retrySrc(src, tries) {",
+    "anchor": "export function makeLookups(ready = true) {"
+   },
+   {
+    "line": "if (!src || !(tries > 0)) return src;",
+    "anchor": "export function makeLookups(ready = true) {"
+   },
+   {
+    "line": "return `${src}${src.includes('?') ? '&' : '?'}retry=${tries}`;",
+    "anchor": "export function makeLookups(ready = true) {"
+   },
+   {
+    "line": "}",
+    "anchor": "export function makeLookups(ready = true) {"
+   },
+   {
+    "line": "const [tries, setTries] = useState(0);",
+    "anchor": "export function Img({ src, class: cls, alt = '', fallback = null, style }) {"
+   },
+   {
+    "line": "const [givenUpFor, setGivenUpFor] = useState(null);",
+    "anchor": "export function Img({ src, class: cls, alt = '', fallback = null, style }) {"
+   },
+   {
+    "line": "const timer = useRef(0);",
+    "anchor": "export function Img({ src, class: cls, alt = '', fallback = null, style }) {"
+   },
+   {
+    "line": "useEffect(() => () => clearTimeout(timer.current), []);",
+    "anchor": "export function Img({ src, class: cls, alt = '', fallback = null, style }) {"
+   },
+   {
+    "line": "useEffect(() => { setTries(0); setGivenUpFor(null); }, [src]);",
+    "anchor": "export function Img({ src, class: cls, alt = '', fallback = null, style }) {"
+   },
+   {
+    "line": "if (!src || givenUpFor === src) return fallback;",
+    "anchor": "export function Img({ src, class: cls, alt = '', fallback = null, style }) {"
+   },
+   {
+    "line": "const url = retrySrc(src, tries);",
+    "anchor": "export function Img({ src, class: cls, alt = '', fallback = null, style }) {"
+   },
+   {
+    "line": "return html`<img class=${cls} key=${tries} src=${url} alt=${alt} draggable=${false} loading=\"lazy\" style=${style}",
+    "anchor": "export function Img({ src, class: cls, alt = '', fallback = null, style }) {"
+   },
+   {
+    "line": "onError=${() => {",
+    "anchor": "export function Img({ src, class: cls, alt = '', fallback = null, style }) {"
+   },
+   {
+    "line": "if (tries >= IMG_RETRY_MS.length) { setGivenUpFor(src); return; }",
+    "anchor": "export function Img({ src, class: cls, alt = '', fallback = null, style }) {"
+   },
+   {
+    "line": "clearTimeout(timer.current);",
+    "anchor": "export function Img({ src, class: cls, alt = '', fallback = null, style }) {"
+   },
+   {
+    "line": "timer.current = setTimeout(() => setTries((n) => n + 1), IMG_RETRY_MS[tries]);",
+    "anchor": "export function Img({ src, class: cls, alt = '', fallback = null, style }) {"
+   },
+   {
+    "line": "}} />`;",
+    "anchor": "export function Img({ src, class: cls, alt = '', fallback = null, style }) {"
    }
   ],
   "public/js/ui/loadoutModel.js": [
    {
-    "line": "import { loadoutOptions, checkLoadout, resolveLoadout, MODULE_NONE, LOADOUT_LIMITS, isSkinId, SKIN_LIMITS } from '../../../shared/protocol.js';",
+    "line": "import { loadoutOptions, checkLoadout, checkLoadoutOps, resolveLoadout, MODULE_NONE, LOADOUT_LIMITS, isSkinId, SKIN_LIMITS } from '../../../shared/protocol.js';",
     "anchor": ""
    },
    {
@@ -1777,47 +1935,39 @@
     "anchor": "export const LOADOUT_IMPORT_MAX_BYTES = 256 * 1024;"
    },
    {
-    "line": "export function exportPayload(entries, { now = Date.now(), skins = null } = {}) {",
+    "line": "export function exportPayload(entries, { now = Date.now(), ops = {}, skins = null } = {}) {",
     "anchor": "export const LOADOUT_IMPORT_MAX_BYTES = 256 * 1024;"
    },
    {
     "line": "const out = {",
-    "anchor": "export function exportPayload(entries, { now = Date.now() } = {}) {"
+    "anchor": "export function exportPayload(entries, { now = Date.now(), ops = {} } = {}) {"
    },
    {
     "line": "if (skins && isObj(skins)) {",
-    "anchor": "export function exportPayload(entries, { now = Date.now() } = {}) {"
+    "anchor": "export function exportPayload(entries, { now = Date.now(), ops = {} } = {}) {"
    },
    {
     "line": "const cleanSkins = sanitizeSkins(skins);",
-    "anchor": "export function exportPayload(entries, { now = Date.now() } = {}) {"
+    "anchor": "export function exportPayload(entries, { now = Date.now(), ops = {} } = {}) {"
    },
    {
-    "line": "if (Object.keys(cleanSkins).length > 0) {",
-    "anchor": "export function exportPayload(entries, { now = Date.now() } = {}) {"
-   },
-   {
-    "line": "out.skins = cleanSkins;",
-    "anchor": "export function exportPayload(entries, { now = Date.now() } = {}) {"
+    "line": "if (Object.keys(cleanSkins).length > 0) out.skins = cleanSkins;",
+    "anchor": "export function exportPayload(entries, { now = Date.now(), ops = {} } = {}) {"
    },
    {
     "line": "}",
-    "anchor": "export function exportPayload(entries, { now = Date.now() } = {}) {"
-   },
-   {
-    "line": "}",
-    "anchor": "export function exportPayload(entries, { now = Date.now() } = {}) {"
+    "anchor": "export function exportPayload(entries, { now = Date.now(), ops = {} } = {}) {"
    },
    {
     "line": "return out;",
-    "anchor": "export function exportPayload(entries, { now = Date.now() } = {}) {"
+    "anchor": "export function exportPayload(entries, { now = Date.now(), ops = {} } = {}) {"
    },
    {
     "line": "const skins = isObj(raw.skins) ? sanitizeSkins(raw.skins) : null;",
     "anchor": "export function parseImport(input) {"
    },
    {
-    "line": "if (!Object.keys(entries).length && (!skins || !Object.keys(skins).length)) {",
+    "line": "if (!Object.keys(entries).length && !(ops && Object.keys(ops).length) && !(skins && Object.keys(skins).length)) {",
     "anchor": "export function parseImport(input) {"
    },
    {
@@ -1829,7 +1979,19 @@
     "anchor": "export function parseImport(input) {"
    },
    {
-    "line": "return { ok: true, entries, skins };",
+    "line": "const out = { ok: true, entries };",
+    "anchor": "export function parseImport(input) {"
+   },
+   {
+    "line": "if (ops) out.ops = ops;",
+    "anchor": "export function parseImport(input) {"
+   },
+   {
+    "line": "if (skins) out.skins = skins;",
+    "anchor": "export function parseImport(input) {"
+   },
+   {
+    "line": "return out;",
     "anchor": "export function parseImport(input) {"
    }
   ],
@@ -1853,16 +2015,6 @@
    {
     "line": "}",
     "anchor": "function installPrefSync({ net, timers, target, notify, key, stateKey, msgType,"
-   }
-  ],
-  "public/js/ui/settings.js": [
-   {
-    "line": "import { VoiceLangRow } from '../ext/voiceLangUi.js';",
-    "anchor": "import { t, tc, N_ } from '../../../shared/i18n.js';"
-   },
-   {
-    "line": "<${VoiceLangRow} />",
-    "anchor": "export function SettingsModal({ open, onClose }) {"
    }
   ],
   "public/js/ui/teamPanel.js": [

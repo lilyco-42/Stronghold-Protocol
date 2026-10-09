@@ -65,6 +65,7 @@ export class PlayerRound {
     this._tempDue.clear();
     this.offers = [];
     this.bounties = [];
+    this.personalChoice = null;
     this.shop.slots = [];
     this.funds = 0;
     this.pendingFunds = 0;
@@ -118,6 +119,10 @@ export class PlayerRound {
           u.skillIndex = lo.skillIndex;
           u.moduleId = lo.moduleId;
         }
+        // 0.2.2: the potential / 练度 of an operator the player owns (the chess as itself, an owned 自选 pick — the player's
+        // 干员调配 settings, 潜能 6 / 精英2 Lv.60 by default and for bots; never a stand-in's nor a prototype pick's)
+        const cv = u.standIn ? null : this.cultivationFor(this.gd.chess(piece.id));
+        if (cv) { u.potential = cv.potential; u.cultivate = cv.cultivate; }
         // 时装是视图字段：PlayerState.skins 查到才给，Battle 原样落到 u.skin（docs/SKINS.md）
         const skinRec = this.gd.chess(piece.id);
         const skin = this.skins[(skinRec && skinRec.baseId) || piece.id] || this.skins[piece.id];
