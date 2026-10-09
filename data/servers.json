@@ -1,0 +1,31 @@
+{
+  "v": 1,
+  "name": "lilyco-42",
+  "servers": [
+    {
+      "name": "网友服 · 一网也",
+      "address": "https://weishuxieyiwangye.cn:8443/",
+      "note": "社区服 · 实测 106 ms"
+    },
+    {
+      "name": "网友服 · 简幻欢",
+      "address": "http://play.simpfun.cn:14517/",
+      "note": "社区服 · 实测 30 ms"
+    },
+    {
+      "name": "网友服 · nekocraft",
+      "address": "https://play.nekocraft.net:9888/",
+      "note": "社区服 · 实测 207 ms"
+    },
+    {
+      "name": "网友服 · 43.161.201.122",
+      "address": "http://43.161.201.122:14517/",
+      "note": "社区服 · 实测 183 ms"
+    },
+    {
+      "name": "网友服 · lunar.ag",
+      "address": "https://stronghold.lunar.ag/",
+      "note": "社区服 · 实测 696 ms"
+    }
+  ]
+}

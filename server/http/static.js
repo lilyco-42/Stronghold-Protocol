@@ -15,6 +15,9 @@
 //     /packs/index.json → the content packs of this server (server/packs.js: the language packs of
 //                public/i18n/ and the pack folders of packs/, re-read when they change; never cached)
 //     /packs/<id>/<file> → a file of a pack folder — only one its manifest names (server/packs.js servable)
+//     /servers.json → the servers this server recommends to a client's picker, out of data/servers.json
+//                (fork addition, doc/SERVER-LIST.md: 404 when that file is absent, which is the normal state;
+//                carries `Access-Control-Allow-Origin: *` because packaged clients read it cross-origin)
 //
 // Traversal & dotfile protection, a directory without its trailing slash → 301, 404 page; an absent
 // data/local-assets.json is answered with an empty manifest. Files go out through files.js serveFile.
@@ -26,6 +29,7 @@ import { ROOT, noopLog } from './config.js';
 import { sendError, sendJson } from './common.js';
 import { MIME, GzipCache, isNotModified, serveFile } from './files.js';
 import { serveMedia } from './media.js';
+import { serveServers } from './servers.js';   // fork addition: GET /servers.json (docs/SERVER-LIST.md)
 import { createPackRegistry } from '../packs.js';
 import { PACKS_URL, PACK_INDEX_FILE } from '../../shared/packs.js';
 
@@ -82,6 +86,10 @@ export function createStaticHandler({ publicDir, dataDir, sharedDir, simDir = pa
       res.end(req.method === 'HEAD' ? undefined : shimBody);
       return;
     }
+    // The servers this server recommends (fork addition; docs/SERVER-LIST.md). Answered here so it lands in the same
+    // place /packs/index.json does — and answered with 404 when data/servers.json is absent, which is the normal
+    // state: no server on this network has to implement it.
+    if (await serveServers({ req, res, rawPath: decoded, dataDir, sendJson, sendError, log })) return;
     // Content packs (server/packs.js): the live index, and only the files a pack's manifest names
     if (decoded.startsWith(PACKS_URL)) {
       const parts = decoded.slice(PACKS_URL.length).split('/');
