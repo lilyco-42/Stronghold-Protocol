@@ -1,7 +1,7 @@
 // Shared in-match building blocks (Preact + htm): data hook, images with fallbacks, rich text,
 // unit thumbnails, LP tower, coin badge, official UI sprites. Styles: css/screens/game*.css.
 
-import { useState, useMemo } from '../../vendor/hooks.module.js';
+import { useState, useMemo, useEffect, useRef } from '../../vendor/hooks.module.js';
 import { html, Icon, TierChip, Tooltip } from './components.js';
 import { data, useData, localAsset } from '../data.js';
 import { parseRichText, rtClassName } from './richText.js';
@@ -58,14 +58,49 @@ export function makeLookups(ready = true) {
   };
 }
 
+/** 失败后重试的间隔（毫秒），跑完这些次数才永久退回 fallback —— 与战斗单位的 SPINE_RETRY_MS 同一个思路，只是有上限。 */
+export const IMG_RETRY_MS = Object.freeze([400, 1500, 4000]);
+
 /**
  * <img> that swaps to a fallback node when the URL is missing or fails.
+ *
+ * A single `error` used to latch the fallback forever for that `src`. On a phone that is the difference between
+ * "立绘闪了一下" and "整个会话只剩头像": `onError` fires for *transient* reasons too (iOS decodes failing under
+ * memory pressure, the `capacitor://` scheme handler dropping a request under concurrency), and the portrait's
+ * fallback in `detailPanel` is exactly `UnitThumb` — the operator's avatar. So retry a few times with a backoff
+ * before giving up, and defeat a possibly-cached bad response by bumping the query (`?retry=n`). All four hosts we
+ * serve from separate path from query (`server/http/static.js` takes a `query` argument, `desktop/serve.mjs` and
+ * `tauri`'s `split_query` likewise, Capacitor ignores it), so the extra parameter cannot turn into a 404.
  * @param {{ src?: string|null, class?: string, alt?: string, fallback?: any, style?: string }} props
  */
+/**
+ * The src this <img> should ask for on attempt `tries`: the first pass is the plain URL, later ones carry
+ * `?retry=n` so a possibly-cached bad response cannot be what we read back. Pure, because a browser is the only
+ * place an image load can actually fail.
+ * @param {string} src
+ * @param {number} tries
+ * @returns {string}
+ */
+export function retrySrc(src, tries) {
+  if (!src || !(tries > 0)) return src;
+  return `${src}${src.includes('?') ? '&' : '?'}retry=${tries}`;
+}
+
 export function Img({ src, class: cls, alt = '', fallback = null, style }) {
-  const [bad, setBad] = useState(null);
-  if (!src || bad === src) return fallback;
-  return html`<img class=${cls} src=${src} alt=${alt} draggable=${false} loading="lazy" style=${style} onError=${() => setBad(src)} />`;
+  const [tries, setTries] = useState(0);
+  const [givenUpFor, setGivenUpFor] = useState(null);
+  const timer = useRef(0);
+  // 卸载时必须收回那个定时器：列表页一次挂几十上百个 <img>，漏下来的每一个都会在某一刻把已卸载的组件 setState。
+  useEffect(() => () => clearTimeout(timer.current), []);
+  useEffect(() => { setTries(0); setGivenUpFor(null); }, [src]);
+  if (!src || givenUpFor === src) return fallback;
+  const url = retrySrc(src, tries);
+  return html`<img class=${cls} key=${tries} src=${url} alt=${alt} draggable=${false} loading="lazy" style=${style}
+    onError=${() => {
+      if (tries >= IMG_RETRY_MS.length) { setGivenUpFor(src); return; }
+      clearTimeout(timer.current);
+      timer.current = setTimeout(() => setTries((n) => n + 1), IMG_RETRY_MS[tries]);
+    }} />`;
 }
 
 /** Official UI sprite by 'group/key' with a fallback. */
