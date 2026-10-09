@@ -13,7 +13,7 @@
 // 结果同时挂到 window.__SPINE_PROBE__，所以 `probe-art-engines.yml` 那条流水线可以在 CI 里跑同一页 —— 同一份
 // 数字有两个来源（玩家的真机、CI 的引擎），谁的都不对时能互相照出来。
 //
-// Query: ?ids=<chessId,…> 指定要测的干员（默认取清单里前几个有 spine 的）；?many=<n> 改内存压力那一步的数量。
+// Query: ?ids=<charId,…> 指定要测的干员（默认取清单里前三个有 spine 的，按 charId 排序，所以不同人报的号能对上同一批）；?many=<n> 改内存压力那一步的数量。
 
 import { data } from '../js/data.js';
 import { assets } from '../js/assets.js';
@@ -79,14 +79,26 @@ async function head(url) {
   }
 }
 
-/** 有 spine 前视模型的干员，按 id 排序取前 n 个（排序是为了让不同人报的号能对上同一批）。 */
+/**
+ * 有 spine 前视模型的干员，按 charId 排序取前 n 个（排序是为了让不同人报的号能对上同一批）。
+ *
+ * 键必须是 **charId**：美术索引 `data/assets.json` 的 `chars` 是按 `char_498_inside` 这种 charId 键的，
+ * 而 chess 记录的 `id` 是 `chess_char_1_01_a` —— 拿它去问 `spineEntry` 每一个都问不到，于是这一页会报
+ * "没找到任何带 spine 的干员"，在 CI 与真机上是同一种坏法（第一版就是这么坏的）。
+ * 干员在棋盘上取模型走的是同一条路：`render/units.js` 用 `info.spine || info.defId`，不是 chessId。
+ */
+function charKeyOf(rec) {
+  return rec && (rec.charId || rec.id);
+}
+
 function candidates(n) {
   const wanted = (q.get('ids') || '').split(',').map((s) => s.trim()).filter(Boolean);
   if (wanted.length) return wanted;
   const list = data.list('chess') || [];
   const out = [];
-  for (const rec of list.slice().sort((a, b) => String(a.id).localeCompare(String(b.id)))) {
-    if (assets.spineEntry(rec.id, { back: false })) out.push(rec.id);
+  for (const rec of list.slice().sort((a, b) => String(charKeyOf(a)).localeCompare(String(charKeyOf(b))))) {
+    const key = charKeyOf(rec);
+    if (key && assets.spineEntry(key, { back: false })) out.push(key);
     if (out.length >= n) break;
   }
   return out;

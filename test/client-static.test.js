@@ -252,6 +252,11 @@ describe('static import graph resolves', () => {
     assert.match(src, /release = await assets\.ready\(\)/, '美术索引的载入要单独跑、单独报');
     assert.match(src, /anyBad\(\/清单\|探针异常\/\)/, '结论梯子必须有"清单没起来 / 探针炸了"这一格');
     assert.match(src, /没找到任何带 spine 的干员（/, '清单那一行要带可查的原因（条数 · ready · 报错）');
+    // 键用 charId 而不是 chessId：美术索引的 chars 按 charId 键，用 chessId 问每一个都问不到，
+    // 于是这一页对所有设备都报"没找到带 spine 的干员"（第一版就是这样，CI 上两个引擎各报一次）。
+    assert.match(src, /function charKeyOf\(rec\) \{\s*return rec && \(rec\.charId \|\| rec\.id\);/, '取模型要按 charId');
+    assert.match(src, /assets\.spineEntry\(key, \{ back: false \}\)/, 'candidates 要用 charKeyOf 的结果去问索引');
+    assert.doesNotMatch(src, /assets\.spineEntry\(rec\.id/, '不许再拿 chessId 去问美术索引');
   });
   test('client modules never import Node built-ins', () => {
     for (const file of JS_FILES) {
