@@ -1,0 +1,104 @@
+name: Sync upstream into deploy/prod
+
+on:
+  schedule:
+    - cron: '17,47 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: stronghold-upstream-production-branch
+  cancel-in-progress: false
+
+jobs:
+  integrate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      SP_E2E: '0'
+      SP_REAL_E2E: '0'
+      RENDER_E2E: '0'
+      SIM_E2E: '0'
+      NO_COLOR: '1'
+    steps:
+      - name: Checkout integrated deployment branch
+        uses: actions/checkout@v4
+        with:
+          ref: deploy/prod
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Detect upstream changes and merge
+        id: sync
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "stronghold-upstream-bot"
+          git config user.email "stronghold-upstream-bot@users.noreply.github.com"
+          git remote add upstream https://github.com/sganggs/Stronghold-Protocol.git
+          git fetch --no-tags upstream master
+          if git merge-base --is-ancestor upstream/master HEAD; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "Already contains upstream/master"
+            exit 0
+          fi
+          # Merge conflicts stop the workflow; do not override fork features.
+          git merge --no-edit --no-ff upstream/master
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+          git log -1 --oneline
+
+      - name: Setup Node
+        if: steps.sync.outputs.changed == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        if: steps.sync.outputs.changed == 'true'
+        run: npm ci --no-audit --no-fund
+
+      - name: Verify fork-specific features
+        if: steps.sync.outputs.changed == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          for path in public/js/ui/skinPicker.js public/js/ui/skins.js server/http/servers.js data/servers.json public/webfonts/google/google.css data/skins-installed.json; do
+            test -s "$path" || { echo "Missing fork feature: $path" >&2; exit 1; }
+          done
+          node -e "JSON.parse(require('fs').readFileSync('data/assets.json','utf8'))"
+          node -e "JSON.parse(require('fs').readFileSync('data/servers.json','utf8'))"
+
+      - name: Unit and integration tests
+        if: steps.sync.outputs.changed == 'true'
+        run: node --test
+
+      - name: Static and golden checks
+        if: steps.sync.outputs.changed == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run lint
+          npm run check:imports
+          npm run typecheck
+          npm run golden
+
+      - name: Ensure tests did not modify tracked data
+        if: steps.sync.outputs.changed == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -z "$(git status --porcelain)" || { git status --short; exit 1; }
+
+      - name: Publish integrated branch only after checks
+        if: steps.sync.outputs.changed == 'true'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          # Use the token only in this push step, not during dependency installation or testing.
+          auth="$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)"
+          git -c "http.https://github.com/.extraheader=AUTHORIZATION: basic $auth" push origin HEAD:refs/heads/deploy/prod
