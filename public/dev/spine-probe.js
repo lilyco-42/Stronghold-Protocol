@@ -97,14 +97,6 @@ async function main() {
   row('环境 · UA', navigator.userAgent);
   row('环境 · 屏幕', `${screen.width}×${screen.height} dpr=${devicePixelRatio || 1} touch=${navigator.maxTouchPoints || 0}`);
 
-  const release = await data.loadAll('chess').then(() => assets.ready()).catch(() => null);
-  const ids = candidates(3);
-  if (!ids.length) {
-    row('清单', '没找到任何带 spine 的干员 —— 清单没加载（这一步失败时下面的结论都不作数）', 'bad');
-    return finish();
-  }
-  row('清单', `ready=${!!release} 测试对象：${ids.join(', ')}`);
-
   row('① 运行时', globalThis.PIXI
     ? `PIXI 有（v${globalThis.PIXI.VERSION || '?'}）· PIXI.spine ${globalThis.PIXI.spine ? '有' : '缺失'}`
     : 'PIXI 缺失 —— 探针的脚本没加载，这一页的结论都不作数',
@@ -125,6 +117,23 @@ async function main() {
     }
   })();
   row('② WebGL', glProbe.text, glProbe.ok ? 'ok' : 'bad');
+
+  // ① 与 ② 先跑完再去读清单：它们不依赖清单，而"① 说 PIXI 缺失"往往就是"清单为什么是空的"的答案。
+  //
+  // 两次载入分开 catch。原来那条 `data.loadAll('chess').then(() => assets.ready()).catch(() => null)`
+  // 会把"清单根本没加载起来"伪装成"清单里没有带 spine 的干员" —— 而后者读起来像是数据问题，玩家和开发者
+  // 都会去查错的地方（这一页存在的意义就是把层分开，它自己不能把两层混在一个 catch 里）。
+  const boot = [];
+  try { await data.loadAll('chess'); } catch (e) { boot.push(`chess:${(e && e.message) || e}`); }
+  let release = null;
+  try { release = await assets.ready(); } catch (e) { boot.push(`assets:${(e && e.message) || e}`); }
+  const ids = candidates(3);
+  const detail = `ready=${!!release}·棋盘 ${(data.list('chess') || []).length} 条${boot.length ? `·载入报错 ${boot.join(' / ')}` : ''}`;
+  if (!ids.length) {
+    row('清单', `没找到任何带 spine 的干员（${detail}）—— 这一步失败时下面的结论都不作数`, 'bad');
+    return finish();
+  }
+  row('清单', `${detail}·测试对象 ${ids.join(', ')}`);
 
   const held = [];
   for (const id of ids) {
@@ -206,7 +215,12 @@ function finish() {
   const anyBad = (re) => bad(re).length > 0;
   let verdict = '';
   let cls = 'ok';
-  if (anyBad(/① 运行时/)) {
+  if (anyBad(/清单|探针异常/)) {
+    // 这两行是"其它结论的前置"。它们红的时候后面全是空的，而空的读起来像"没出问题"——
+    // CI 第一次跑就是这样：清单没起来，页面却报「四层全通过」。
+    verdict = '清单没加载（或探针自己炸了）—— 这一页什么都没证明，别把它当"正常"。';
+    cls = 'bad';
+  } else if (anyBad(/① 运行时/)) {
     verdict = '探针自己没起来（PIXI 或 pixi-spine 没加载）。这一页的其它结论都不可读。';
     cls = 'bad';
   } else if (anyBad(/③ 图片/)) {

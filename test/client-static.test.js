@@ -240,6 +240,19 @@ describe('static import graph resolves', () => {
     const file = path.join(PUBLIC, 'dev', 'spine-probe.js');
     checkSource('public/dev/spine-probe.js', readFileSync(file, 'utf8'), new URL('http://host/dev/spine-probe.js'));
   });
+  // 这一页存在的意义是"把层分开"，所以它自己不能把两层混起来。两条都是 CI 上实测到的形状：
+  //   1) `loadAll(...).then(() => assets.ready()).catch(() => null)` 把"清单根本没加载起来"伪装成
+  //      "清单里没有带 spine 的干员" —— 后者读起来像数据问题，玩家和开发者都会去查错的地方；
+  //   2) 结论梯子没有"清单/探针异常"这一格，于是清单没起来、后面全是空的时候，页面报「四层全通过」。
+  //      空的读起来像"没出问题"，这是最坏的一种假绿。
+  test('dev/spine-probe.js cannot report 全通过 when the manifest never loaded', () => {
+    const src = readFileSync(path.join(PUBLIC, 'dev', 'spine-probe.js'), 'utf8');
+    assert.ok(!src.includes('.catch(() => null)'), '两处载入不许串成一个 catch：失败会被伪装成"没有这一项"');
+    assert.match(src, /await data\.loadAll\('chess'\)/, '棋盘清单的载入要单独跑、单独报');
+    assert.match(src, /release = await assets\.ready\(\)/, '美术索引的载入要单独跑、单独报');
+    assert.match(src, /anyBad\(\/清单\|探针异常\/\)/, '结论梯子必须有"清单没起来 / 探针炸了"这一格');
+    assert.match(src, /没找到任何带 spine 的干员（/, '清单那一行要带可查的原因（条数 · ready · 报错）');
+  });
   test('client modules never import Node built-ins', () => {
     for (const file of JS_FILES) {
       const src = readFileSync(file, 'utf8');
