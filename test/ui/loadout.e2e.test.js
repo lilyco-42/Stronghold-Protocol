@@ -311,6 +311,16 @@ describe('干员调配 overlay (real server, headless Chrome)', { skip: !ENABLED
       if (lang !== 'zh') await switchLang(lang);
       for (const [w, h] of sizes) {
         await page.setViewport({ width: w, height: h });
+        // 改视口后根字号（theme.css html { font-size: clamp(40px, min(100vw/19.2, 100svh/10.8), 240px) }）要重算，
+        // 而 headless Chrome 把这一帧推迟了：DOM 里的视口已是新的、getComputedStyle(html).fontSize 也已是新的，
+        // 但 .lo-top / .lo-tab 仍按上一个尺寸的 rem 计算盒子（1920×1080 → rem=100 ⇒ 顶栏 100px、标签 24px、
+        // tabsCut 47，看着像标签放不下）。.lo-top 的高度就是 max(1rem, 48px)，等它和当前 rem 自洽再量。
+        await page.waitForFunction(() => {
+          const top = document.querySelector('.lo-top');
+          if (!top) return false;
+          const rem = parseFloat(getComputedStyle(document.documentElement).fontSize);
+          return Math.abs(top.getBoundingClientRect().height - Math.max(rem, 48)) <= 1;
+        }, { timeout: 5000 });
         const bar = await page.evaluate(() => {
           const top = document.querySelector('.lo-top');
           const tabs = document.querySelector('.lo-tabs');
@@ -472,7 +482,8 @@ describe('干员调配 overlay (real server, headless Chrome)', { skip: !ENABLED
     await page.waitForSelector('.lo .lo-card', { visible: true, timeout: 15000 });
     await pickChess(page, '隐现');
     // between the skills and the modules, 精锐 shown first: the default module's numbers, the 3 × 4 range
-    assert.deepEqual(await page.$$eval('.lo-detail__body > .lo-sec > header h3', (els) => els.map((e) => e.firstChild.textContent)), ['潜能与练度', '技能', '局内数值', '模组']);
+    // (本 fork 的 皮肤 一节由 ui/skinPicker.js 追加在模组之后，见 docs/SKINS.md)
+    assert.deepEqual(await page.$$eval('.lo-detail__body > .lo-sec > header h3', (els) => els.map((e) => e.firstChild.textContent)), ['潜能与练度', '技能', '局内数值', '模组', '皮肤']);
     const stats = await shownStats(page);
     assert.deepEqual(Object.keys(stats), ['生命上限', '攻击', '防御', '法术抗性', '攻击间隔', '阻挡数', '部署费用', '再部署']);
     assert.equal(stats['生命上限'], fmt((golden.statsBase.maxHp + mod.attr.maxHp) * T4.max_hp));
