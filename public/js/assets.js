@@ -225,7 +225,11 @@ export function hasBackSpine(m, id, skinId) {
 }
 
 export function validSpine(sp) {
-  return isObj(sp) && typeof sp.skel === 'string' && /^\/[^\s]*\.skel$/.test(sp.skel) && typeof sp.atlas === 'string' && isObj(sp.anims);
+  // lain42: skel 可能是站点相对路径（/assets/…），也可能是指向 CDN 的绝对 http(s) URL
+  // （素材清单指向 OSS 时就是这样，见 media.js 的说明）；两种都接受，其他一律不是 spine。
+  // 末尾允许带查询串（?v=…，用来击穿 CDN 边缘缓存里改 CORS 之前抓的旧对象）。
+  // ⚠️ 上游到 0.2.2 都没修这个 —— 不改的话素材搬到 CDN 后 spine 会全部被拒 → 退化成菱形占位符。
+  return isObj(sp) && typeof sp.skel === 'string' && /^(?:https?:\/\/|\/)[^\s]*\.skel(?:\?[^\s]*)?$/.test(sp.skel) && typeof sp.atlas === 'string' && isObj(sp.anims);
 }
 
 /** Best 2D picture for a unit asset id (operator avatar, token avatar, enemy icon, item icon). */

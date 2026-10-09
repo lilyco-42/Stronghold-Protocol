@@ -2041,6 +2041,16 @@
     "anchor": "const IMMUTABLE_CACHE = 'public, max-age=31536000, immutable';"
    }
   ],
+  "server/http/static.js": [
+   {
+    "line": "import { serveServers } from './servers.js';   // fork addition: GET /servers.json (docs/SERVER-LIST.md)",
+    "anchor": "import { serveMedia } from './media.js';"
+   },
+   {
+    "line": "if (await serveServers({ req, res, rawPath: decoded, dataDir, sendJson, sendError, log })) return;",
+    "anchor": "export function createStaticHandler({ publicDir, dataDir, sharedDir, simDir = pa"
+   }
+  ],
   "server/lobby.js": [
    {
     "line": "function freezeSkins(skins, getChess) {",
