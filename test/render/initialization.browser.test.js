@@ -87,7 +87,7 @@ describe('field initialization in headless Chrome', { skip }, () => {
   });
   after(async () => { await browser?.close(); await srv?.close(); });
 
-  async function open(t, { holdPixi = false } = {}) {
+  async function open(t, { holdPixi = false, board = '2d' } = {}) {
     const page = await browser.newPage();
     t.after(() => page.close());
     const errors = [];
@@ -110,7 +110,7 @@ describe('field initialization in headless Chrome', { skip }, () => {
         return request.continue();
       });
     });
-    await page.goto(`http://127.0.0.1:${srv.port}/initialization-test?board=2d`);
+    await page.goto(`http://127.0.0.1:${srv.port}/initialization-test?board=${board}`);
     // Empty manifests prevent optional local art requests while preserving the real asset store.
     await page.evaluate(async () => {
       const { assets } = await import('/js/assets.js');
@@ -203,6 +203,42 @@ describe('field initialization in headless Chrome', { skip }, () => {
     assert.equal(destroyed.observers, 0);
     assert.equal(destroyed.canvases, 0);
     assert.equal(destroyed.fallbacks, 0);
+    assert.deepEqual(errors, []);
+  });
+
+  test('slow optional 3D atlas must not block mobile field mount (0.2.2 regression)', async (t) => {
+    const { page, errors } = await open(t, { board: '3d' });
+    const hasWebgl2 = await page.evaluate(() => {
+      const gl = document.createElement('canvas').getContext('webgl2');
+      if (!gl) return false;
+      gl.getExtension('WEBGL_lose_context')?.loseContext();
+      return true;
+    });
+    if (!hasWebgl2) { t.diagnostic('headless Chrome has no WebGL2; 3D prerequisite cannot be tested here'); return; }
+
+    await page.evaluate(async () => {
+      const { assets } = await import('/js/assets.js');
+      const { PACK_IMAGES } = await import('/js/render/board3d/load.js');
+      const [group, name] = PACK_IMAGES.D;
+      const originalUrl = assets.localUrl.bind(assets);
+      const originalImage = assets.image.bind(assets);
+      assets.localUrl = (g, n) => g === group && n === name ? '/slow-3d-atlas.webp' : originalUrl(g, n);
+      assets.image = (url, ...args) => String(url).includes('slow-3d-atlas.webp')
+        ? new Promise(() => {}) : originalImage(url, ...args);
+    });
+    const started = Date.now();
+    await start(page);
+    await page.waitForFunction(() => window.__initialization.view?.kind === 'engine', { timeout: 4000 });
+    assert.ok(Date.now() - started < 4000, 'a pending 3D atlas must not delay the game canvas');
+    const result = await page.evaluate(() => ({
+      stats: window.__initialization.view.raw.stats().board3d,
+      snapshot: window.__initialization.snapshot(),
+    }));
+    assert.equal(result.stats.pending, true, '3D is still loading when the usable 2D view mounts');
+    assert.equal(result.stats.on, false);
+    assert.equal(result.snapshot.canvases, 1);
+    await page.evaluate(() => window.__initialization.view.destroy());
+    assert.equal(await page.evaluate(() => window.__initialization.snapshot().canvases), 0);
     assert.deepEqual(errors, []);
   });
 
