@@ -435,14 +435,19 @@ export async function createFieldView(host, options = {}) {
       if (!enable3d(recover.THREE, recover.pack)) scheduleRecover();
     }, delay);
   }
-  // Attach the board only after synchronous setup completes; enable3d also guards late arrivals.
+  // On mobile the official 3D atlas and Three.js can take longer than the field-view
+  // mount watchdog. Keep their initialization independent of mounting the Pixi field:
+  // the normal 2D ground stays visible, and enable3d upgrades it when assets arrive.
+  // enable3d() checks destroyed so a late completion cannot resurrect an unmounted view.
+  let board3dPending = want3d;
   const boardReady = want3d
     ? Promise.all([artListed, threePromise, packPromise]).then(([listed, THREE, pack]) => {
+      board3dPending = false;
       if (!listed) { board3dError = '3D board atlas not listed'; return false; }
       if (!THREE) { board3dError = 'Three.js module unavailable'; return false; }
       if (!pack) { board3dError = '3D board pack unavailable'; return false; }
       return enable3d(THREE, pack);
-    }, (err) => { board3dError = String(err?.message || err); return false; })
+    }, (err) => { board3dPending = false; board3dError = String(err?.message || err); return false; })
     : Promise.resolve(false);
   // the official soft shadow sprite replaces the procedural one once loaded (may already be cached; asked again when the
   // manifest arrives late)
@@ -1923,7 +1928,7 @@ export async function createFieldView(host, options = {}) {
     stats() {
       return {
         fps: Math.round(fps * 10) / 10, frameMs: Math.round(frameMs * 100) / 100, cpuMs: Math.round(cpuMs * 100) / 100, renderMs: Math.round(renderMs * 100) / 100, mode, units: views.size, impostor: impInterval, impostorAtlas: { ...impostors.stats }, boardArt: !!tiles.atlas.art,
-        board3d: board3d ? { on: true, ...board3d.stats(), losses: recover.count } : { on: false, error: board3dError, recovering: !!recover.timer, losses: recover.count },
+        board3d: board3d ? { on: true, ...board3d.stats(), losses: recover.count } : { on: false, pending: board3dPending, error: board3dError, recovering: !!recover.timer, losses: recover.count },
         pen: penViews.size, prepField: prepXf.kind === 'bossPrep' ? prepXf.side : null, lod: loadLevel, culled: culledCount,
         ...fx.counts, spine: assets.spine?.stats ? assets.spine.stats() : null, renderT: interp.renderT, rate: interp.rate,
         buffered: interp.size, camera: cam.params(),
@@ -1945,7 +1950,10 @@ export async function createFieldView(host, options = {}) {
   signal?.addEventListener('abort', onAbort, { once: true });
   signal?.throwIfAborted();
   await withTimeout(artPromise, 2500, signal);
-  if (want3d) await withTimeout(boardReady, 6000, signal);
+  // Fire-and-forget is intentional. Waiting for optional 3D resources can consume
+  // the 12-second outer mount budget on slow Android WebViews, especially after
+  // the 0.2.2 mount-lifecycle refactor. A late upgrade must not block the field.
+  void boardReady;
   signal?.throwIfAborted();
   return view;
   } catch (err) {
