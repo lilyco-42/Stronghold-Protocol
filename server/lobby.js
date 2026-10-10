@@ -99,6 +99,7 @@
 //     a player seat (the seat is kept and given back on resume).
 
 import { randomBytes, randomInt } from 'node:crypto';
+import { winningEpisodesFromEnv } from './telemetry/winningEpisodes.js';
 import { ERR, MAX_SEATS, MAX_SPECTATORS, ROOM_CODE_LEN, modeIdFor } from '../shared/constants.js';
 import { checkLoadout, checkLoadoutOps, cultivationCharIds, checkNotOwned, checkDiyPicks } from '../shared/protocol.js';
 import { encode, isDroppable, isErrCode, sendRaw, sendSession } from './net.js';
@@ -248,16 +249,18 @@ export class Lobby {
    *   getData?: () => object,
    *   now?: () => number,
    *   seedFn?: () => number,
+   *   winEpisodeRecorder?: import("./telemetry/winningEpisodes.js").WinningEpisodeRecorder | null,
    *   options?: Partial<typeof LOBBY_DEFAULTS>,
    * }} opts
    */
-  constructor({ registry, log = noopLog, MatchClass = DefaultMatch, getData = defaultGetData, now = Date.now, seedFn, options = {} }) {
+  constructor({ registry, log = noopLog, MatchClass = DefaultMatch, getData = defaultGetData, now = Date.now, seedFn, options = {}, winEpisodeRecorder }) {
     this.registry = registry;
     this.log = log;
     this.MatchClass = MatchClass;
     this.getData = getData;
     this.now = now;
     this.seedFn = seedFn || (() => randomInt(2 ** 32));
+    this.winEpisodes = winEpisodeRecorder === undefined ? winningEpisodesFromEnv({ log }) : winEpisodeRecorder;
     this.opts = { ...LOBBY_DEFAULTS, ...options };
     /** @type {Map<string, Room>} */
     this.rooms = new Map();
@@ -717,6 +720,8 @@ export class Lobby {
     const ctx = { live: true, ended: false, disposed: false, match: null, lastPublic: null, sharedResult: null, results: new Map() };
     let seed = 0;
     try { seed = this.seedFn() >>> 0; } catch { seed = randomInt(2 ** 32); }
+    // The recorder stays in memory until a real victory. Disabled by default.
+    if (this.winEpisodes) ctx.episode = this.winEpisodes.start({ mode: room.mode, difficulty: room.difficulty, seed });
     try {
       const match = new this.MatchClass({
         roomCode: room.code,
@@ -762,6 +767,7 @@ export class Lobby {
     if (ctx.ended || !ctx.live || room.matchCtx !== ctx || room.disposed) return;
     ctx.ended = true;
     room.lastSummary = summary ?? null;
+    if (this.winEpisodes && ctx.episode) this.winEpisodes.finish(ctx.episode, summary);
     room.match = null;
     room.matchCtx = null;
     room.matchKey = null;
@@ -900,6 +906,9 @@ export class Lobby {
     }
     // a spectator only watches (header): nothing else of it ever reaches the match
     if (msg.t !== 'g.watch' && room.spectatorOf(session.playerId)) return fail(ERR.SPECTATOR);
+    const episode = room.matchCtx?.episode;
+    const sample = this.winEpisodes && episode
+      ? this.winEpisodes.prepare(episode, room.match, session.playerId, msg) : null;
     let res;
     try {
       res = room.match.handle(session.playerId, msg);
@@ -916,6 +925,7 @@ export class Lobby {
     if (res && typeof res === 'object' && res.error) {
       return fail(isErrCode(res.error) ? res.error : ERR.INTERNAL, typeof res.detail === 'string' ? res.detail : undefined);
     }
+    if (sample && this.winEpisodes) this.winEpisodes.accept(episode, sample);
     return OK;
   }
 

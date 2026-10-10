@@ -43,3 +43,6 @@ desktop.ini
 .idea/
 .vscode/
 .claude/
+
+# Optional private, server-side policy training spool
+/var/winning-episodes/

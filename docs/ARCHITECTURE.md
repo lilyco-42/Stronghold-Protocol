@@ -28,6 +28,7 @@ effects), [DATA.md](DATA.md) (generated data), [ASSETS.md](ASSETS.md) (art and a
   match in memory — rounds, shop, economy, bots, validation. Nothing is written to disk.
 - **The browser** loads native ES modules with no bundler and no build step; the libraries are vendored into
   `public/vendor/` by `tools/vendor.mjs` on `npm install`.
+- **Optional policy telemetry (fork only)**: server/lobby.js buffers accepted strategic intents with explicit SP_WIN_EPISODES=1, persisting only winning decisions to a private local gzip spool via server/telemetry/winningEpisodes.js. R2 transfer is a separate operator command in tools/upload-winning-episodes.mjs, not game process network I/O. See docs/WINNING-EPISODES.md. Default: off.
 - **The battle simulation** (`server/sim/`) is pure ESM without any Node API, served read-only at `/sim/`. Both sides
   run it from the same JSON battle description (`server/sim/spec.js`, the BattleSpec): each player's browser simulates
   its own battle (`public/js/battle/runner.js`) and reports progress and the result; the server checks the result

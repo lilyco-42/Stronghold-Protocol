@@ -117,3 +117,12 @@ Official rule (bwiki 盟约, 更新公告 5114): before a match the player canno
 **自选编队 (0.2.0):** the overlay's third tab fills the four DIY slots (5阶 ×2, 6阶 ×2) with an owned 6★ outside the chess pool (any of its three skills, any module of its elite form but a 集成战略 one) or a prototype (its locked skill / module); only operators with a kit are offered (`welcome.diyKitted`). Per-browser `sp.pref.diy` = `{ v, picks }`, synced as `room.diy { picks }` by the same sync engine; 导出 / 导入 as `{ kind: 'stronghold.diy', v, exportedAt, count, picks }` (`ui/diyModel.js`, `screens/diy.js`). In the match a slotted piece is the operator for its player (name, art, class, bonds from its factions, no 特质, the pick's skill and module; the slot's tier, price and merge), sold only in that player's shop from the slot's 调度中心 level with its own stock; the shop / reward / detail cards and the own pieces carry a 「自选」 badge (`ui/gameLogic/diy.js`); the 0.2.0 自选编队 design subsection has the rules and sources.
 
 ---
+
+
+## Optional fork-only decision telemetry (no gameplay rule changes)
+[ASSUMED] When consented and explicitly enabled, the server records only accepted
+strategic player actions and private pre-action state in bounded memory.
+Losses and unfinished matches are discarded; only team victories become local
+anonymous gzip episodes. This has no effect on match rules, the public protocol,
+simulation determinism, or golden scenarios. R2 transfer is an explicit offline
+operator action. See [WINNING-EPISODES.md](../WINNING-EPISODES.md).
