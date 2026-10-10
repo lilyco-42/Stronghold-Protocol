@@ -25,17 +25,28 @@ export function loadThree(url = THREE_URL) {
 }
 
 /**
- * Can this browser run the 3D board? (WebGL2 — three r163+ requires it.) Software / blocklisted GPUs ("major
- * performance caveat") count as unavailable unless `allowSlow` (an explicit `?board=3d`).
+ * WebGL2 capability check for the 3D board. Some Android System WebViews reject
+ * failIfMajorPerformanceCaveat even when an ordinary WebGL2 context works.
+ * Only Android may retry without that advisory performance hint in auto mode.
+ * A genuine unsupported WebGL2 context still returns false, and BoardScene
+ * creation failures retain the existing automatic 2D fallback.
  */
 export function webgl2Available(allowSlow = false) {
   try {
     if (typeof document === 'undefined') return false;
-    const c = document.createElement('canvas');
-    const gl = c.getContext('webgl2', allowSlow ? {} : { failIfMajorPerformanceCaveat: true });
+    const canvas = document.createElement('canvas');
+    const android = /Android/i.test(globalThis.navigator?.userAgent || '');
+    // Keep the original strict desktop gate and explicit ?board=3d override.
+    let gl = null;
+    try {
+      gl = canvas.getContext('webgl2', allowSlow ? {} : { failIfMajorPerformanceCaveat: true });
+    } catch { /* a strict context request may fail on older Android WebViews */ }
+    if (!gl && android && !allowSlow) {
+      try { gl = canvas.getContext('webgl2', {}); } catch { /* true WebGL2 failure → 2D */ }
+    }
     if (!gl) return false;
-    const lose = gl.getExtension('WEBGL_lose_context');
-    if (lose) lose.loseContext();
+    // Do not leave a probe context alive on a memory-constrained mobile GPU.
+    gl.getExtension?.('WEBGL_lose_context')?.loseContext?.();
     return true;
   } catch { return false; }
 }

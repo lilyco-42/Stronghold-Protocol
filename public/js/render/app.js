@@ -357,7 +357,9 @@ export async function createFieldView(host, options = {}) {
   // ---- 3D board layer (render/board3d, DESIGN §15) -----------------------------------------------------------
   let board3d = null;          // BoardScene while the 3D board is on
   let board3dCanvas = null;
-  let board3dError = null;
+  // Inspect with __SP_VIEW__.raw.stats().board3d on an affected Android WebView.
+  // Distinguish capability / offline art / module load / scene init failures.
+  let board3dError = boardPref === '2d' ? 'disabled by preference' : !want3d ? 'WebGL2 unavailable' : null;
   // lost-context recovery: the THREE module + art pack of the last 3D board, the pending retry, failures so far
   const recover = { THREE: null, pack: null, timer: 0, tries: 0, since: 0, off: false, count: 0 };
   setupCleanup.push(() => { clearTimeout(recover.timer); disable3d(); });
@@ -377,6 +379,7 @@ export async function createFieldView(host, options = {}) {
       const sz = size();
       b.resize(sz.width, sz.height, boardDpr());
       board3d = b;
+      board3dError = null;
       tiles.setExternal(true);
       backdrop.visible = false;
       b.setArea(boardArea(viewKind(camKind, camOpts)));
@@ -412,6 +415,7 @@ export async function createFieldView(host, options = {}) {
    */
   function onBoard3dLost() {
     console.warn('[render] WebGL context of the 3D board lost: 2D board until it can be rebuilt');
+    board3dError = 'WebGL context lost';
     const quick = performance.now() - recover.since < BOARD3D_STABLE_MS;
     disable3d();
     recover.count++;
@@ -431,7 +435,14 @@ export async function createFieldView(host, options = {}) {
     }, delay);
   }
   // Attach the board only after synchronous setup completes; enable3d also guards late arrivals.
-  const boardReady = Promise.all([threePromise, packPromise]).then(([THREE, pack]) => (THREE && pack ? enable3d(THREE, pack) : false), () => false);
+  const boardReady = want3d
+    ? Promise.all([artListed, threePromise, packPromise]).then(([listed, THREE, pack]) => {
+      if (!listed) { board3dError = '3D board atlas not listed'; return false; }
+      if (!THREE) { board3dError = 'Three.js module unavailable'; return false; }
+      if (!pack) { board3dError = '3D board pack unavailable'; return false; }
+      return enable3d(THREE, pack);
+    }, (err) => { board3dError = String(err?.message || err); return false; })
+    : Promise.resolve(false);
   // the official soft shadow sprite replaces the procedural one once loaded (may already be cached; asked again when the
   // manifest arrives late)
   let shadowAsked = false;
