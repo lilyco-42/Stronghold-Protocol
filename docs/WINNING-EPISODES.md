@@ -5,11 +5,16 @@ frequency baseline; it does not deploy a playable bot, claim optimality, or chan
 
 ## Safety and consent
 
-- Disabled by default. Operators must inform players and obtain appropriate consent
-  **before** enabling this experiment. Never enable silently on a public server.
-- Set SP_WIN_EPISODES=1 on the Node game server to capture. Removing it disables
-  capture. No client modification, token or R2 credentials are required to play.
-- The server stores decisions in memory until match end. **Only actual victories**
+- Disabled by default. Operators must inform players and offer the voluntary room-screen
+  consent switch before enabling the server-side experiment. Even if the server enables
+  it, only players who explicitly toggle consent before this match can contribute.
+  Consent resets automatically after every finished game; other players are excluded.
+- Set SP_WIN_EPISODES=1 on the Node game server to expose the voluntary opt-in
+  switch and permit collection. Removing the variable disables collection entirely.
+  Modern web clients show the room-screen consent switch only when available;
+  older clients cannot opt in and are not collected. No R2 credentials or tokens
+  are required in a player client.
+- The server stores consented decisions in memory until match end. **Only actual victories**
   become gzip JSON episodes. Losses, failed commands, spectators, chat, room codes,
   names, player IDs, reconnect tokens and IP addresses are not included.
 - A co-op victory is a **team-level label**, not proof that each individual action
@@ -58,6 +63,11 @@ Configure scheduled runs if needed; do not schedule by default. Keep R2 private.
 
 An episode has {schema, gameVersion, episodeId, mode, difficulty, seed,
 outcome:{victory:true,roundsPassed}, samples:[{seat,state,action}]}.
+
+Consent: shared/protocol.js room.trainingOptIn {on} is accepted before game start,
+for seated humans only. Room state exposes trainingAvailable and the per-seat opt-in
+status. Consent starts false, is never inferred from ready/start, and resets at
+match end. The collector filters accepted samples again by consented seat.
 
 Capture point: server/lobby.js routeGame() after match.handle() accepts the
 intent, snapshotting the **pre-action** state first; onMatchEnd() decides whether

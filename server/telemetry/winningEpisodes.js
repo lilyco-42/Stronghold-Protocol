@@ -88,14 +88,14 @@ export class WinningEpisodeRecorder {
     this.pending = new Set();
   }
 
-  start({ mode, difficulty, seed }) {
-    return { id: randomUUID(), mode, difficulty, seed, actions: [], truncated: false, finished: false };
+  start({ mode, difficulty, seed, consentedSeats = [] }) {
+    return { id: randomUUID(), mode, difficulty, seed, allowedSeats: new Set(consentedSeats), actions: [], truncated: false, finished: false };
   }
 
   prepare(episode, match, playerId, msg) {
     if (!episode || episode.finished || !Object.hasOwn(ACTION_FIELDS, msg?.t)) return null;
     const ps = match?.players?.get(playerId);
-    if (!ps || ps.isBot || ps.left || ps.spectator || ps.autoplay) return null;
+    if (!ps || ps.isBot || ps.left || ps.spectator || ps.autoplay || !episode.allowedSeats?.has(ps.seat)) return null;
     try {
       const action = { type: msg.t };
       for (const key of ACTION_FIELDS[msg.t]) {

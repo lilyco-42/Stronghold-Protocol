@@ -260,6 +260,7 @@ export function RoomScreen() {
   };
   const setDifficulty = (difficulty) => run('diff', () => net.request('room.setDifficulty', { difficulty }));
   const setAiLast = (on) => run('ailast', () => net.request('room.setAiPicksLast', { on }));
+  const setTrainingOptIn = (on) => run('training', () => net.request('room.trainingOptIn', { on }));
   // spectator seats: the host frees one; a spectator takes a free player seat with room.join of this room
   const removeSpectator = (playerId) => run(`rs${playerId}`, () => net.request('room.removeSpectator', { playerId }));
   const sit = () => run('sit', () => net.request('room.join', { code: room.code }));
@@ -343,6 +344,15 @@ export function RoomScreen() {
         <div class="room-bar__opts">
           <${DifficultyPicker} room=${room} isHost=${facts.isHost} busy=${busy} onPick=${setDifficulty} />
           <${AiLastToggle} option=${aiLastOption(room, me.playerId)} busy=${busy} onToggle=${setAiLast} />
+          ${room.trainingAvailable && facts.mine && !facts.spectating
+            ? html`<${Tooltip} text=${t("用于训练决策 Bot；仅在本局获胜时匿名保存你的决策和局面，可上传到私有云存储。每局都须重新同意。")}>
+                <button type="button" role="switch" aria-checked=${facts.mine.trainingOptIn ? "true" : "false"}
+                  class=${`dpick__opt ailast__opt${facts.mine.trainingOptIn ? " is-active" : ""}`}
+                  disabled=${!!busy || !online} onClick=${() => setTrainingOptIn(!facts.mine.trainingOptIn)}>
+                  <${Icon} name="check" class=${facts.mine.trainingOptIn ? "is-on" : ""} />${t("自愿贡献匿名胜局数据（本局）")}
+                </button>
+              <//>`
+            : null}
         </div>
       </div>
       <div class="room-bar__center">

@@ -5,7 +5,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { gunzipSync } from 'node:zlib';
 import { WinningEpisodeRecorder, winningEpisodesFromEnv } from '../server/telemetry/winningEpisodes.js';
-import { Lobby } from '../server/lobby.js';
+import { Lobby, Room } from '../server/lobby.js';
+import { validateC2S } from '../shared/protocol.js';
 
 const sampleMatch = () => {
   const ps = {
@@ -36,7 +37,7 @@ test('only server-accepted strategic decisions become anonymous winning episodes
   await withRecorder(async (recorder, dir) => {
     const { players, ...m } = sampleMatch();
     const match = { ...m, players };
-    const ep = recorder.start({ mode: 'coop', difficulty: 'HARD', seed: 987 });
+    const ep = recorder.start({ mode: 'coop', difficulty: 'HARD', seed: 987, consentedSeats: [2] });
     const msg = { t: 'g.buy', slot: 0, rid: 'private-rid', playerId: 'secret-id', name: 'Private Nickname' };
     const s = recorder.prepare(ep, match, 'secret-id', msg);
     assert.equal(s.state.funds, 10);
@@ -65,7 +66,7 @@ test('defeat or aborted match exports nothing', async () => {
   await withRecorder(async (recorder, dir) => {
     const match = sampleMatch();
     for (const verdict of [{ victory: false }, { victory: true, reason: 'error' }, null]) {
-      const ep = recorder.start({ mode: 'solo', difficulty: 'NORMAL', seed: 4 });
+      const ep = recorder.start({ mode: 'solo', difficulty: 'NORMAL', seed: 4, consentedSeats: [2] });
       recorder.accept(ep, recorder.prepare(ep, match, 'secret-id', { t: 'g.refresh' }));
       recorder.finish(ep, verdict);
     }
@@ -78,7 +79,7 @@ test('defeat or aborted match exports nothing', async () => {
 test('oversized episodes are discarded instead of exporting incomplete strategies', async () => {
   await withRecorder(async (recorder, dir) => {
     const match = sampleMatch();
-    const ep = recorder.start({ mode: 'solo', difficulty: 'NORMAL', seed: 4 });
+    const ep = recorder.start({ mode: 'solo', difficulty: 'NORMAL', seed: 4, consentedSeats: [2] });
     for (let i = 0; i < 3; i++) recorder.accept(ep, recorder.prepare(ep, match, 'secret-id', { t: 'g.refresh' }));
     assert.equal(ep.truncated, true);
     recorder.finish(ep, { victory: true });
@@ -91,7 +92,7 @@ test('oversized episodes are discarded instead of exporting incomplete strategie
 test('winning final action is accepted even when finish fires synchronously during match.handle', async () => {
   await withRecorder(async (recorder, dir) => {
     const match = sampleMatch();
-    const ep = recorder.start({ mode: 'solo', difficulty: 'NORMAL', seed: 5 });
+    const ep = recorder.start({ mode: 'solo', difficulty: 'NORMAL', seed: 5, consentedSeats: [2] });
     const lobby = Object.create(Lobby.prototype);
     const ctx = { episode: ep };
     const room = { matchCtx: ctx, spectatorOf: () => false, match: Object.assign(match, {
@@ -114,7 +115,7 @@ test('winning final action is accepted even when finish fires synchronously duri
 test('rejected server intent is not included in dataset', async () => {
   await withRecorder(async (recorder) => {
     const match = sampleMatch();
-    const ep = recorder.start({ mode: 'solo', difficulty: 'NORMAL', seed: 5 });
+    const ep = recorder.start({ mode: 'solo', difficulty: 'NORMAL', seed: 5, consentedSeats: [2] });
     const lobby = Object.create(Lobby.prototype);
     const room = { matchCtx: { episode: ep }, spectatorOf: () => false, match: Object.assign(match, {
       handle() { return { error: 'BAD_MSG' }; },
@@ -125,4 +126,55 @@ test('rejected server intent is not included in dataset', async () => {
     assert.equal(lobby.routeGame({ playerId: 'secret-id' }, { t: 'g.buy', slot: 0 }).error, 'BAD_MSG');
     assert.equal(ep.actions.length, 0);
   });
+});
+
+
+test("non-consenting players cannot be included even when the server recorder is on", async () => {
+  await withRecorder(async (recorder, dir) => {
+    const match = sampleMatch();
+    const ep = recorder.start({ mode: "coop", difficulty: "HARD", seed: 1, consentedSeats: [0] });
+    assert.equal(recorder.prepare(ep, match, "secret-id", { t: "g.buy", slot: 0 }), null);
+    recorder.finish(ep, { victory: true });
+    await Promise.resolve(); await recorder.idle();
+    assert.deepEqual(await list(dir), []);
+  });
+});
+
+test("room consent is voluntary, disabled when collection is off, and cannot be changed mid-game", () => {
+  const room = { match: null, spectatorOf: () => null, seatOf: () => seat };
+  const seat = { playerId: "secret-id", isBot: false, trainingOptIn: false };
+  const session = { playerId: "secret-id" };
+  const lobby = Object.create(Lobby.prototype);
+  lobby.roomOf = () => room;
+  let broadcasts = 0;
+  lobby.broadcastState = () => { broadcasts++; };
+  lobby.winEpisodes = null;
+  assert.equal(lobby.trainingOptIn(session, { on: true }).error, "BAD_MSG");
+  assert.equal(seat.trainingOptIn, false);
+  lobby.winEpisodes = {};
+  assert.deepEqual(lobby.trainingOptIn(session, { on: true }), { ok: true });
+  assert.equal(seat.trainingOptIn, true);
+  assert.equal(broadcasts, 1);
+  lobby.trainingOptIn(session, { on: true });
+  assert.equal(broadcasts, 1);
+  room.match = {};
+  assert.equal(lobby.trainingOptIn(session, { on: false }).error, "ROOM_STARTED");
+});
+
+
+test("consent wire is boolean-only and room state defaults opt-out", () => {
+  assert.equal(validateC2S({ t: "room.trainingOptIn", on: true }), null);
+  assert.equal(validateC2S({ t: "room.trainingOptIn", on: false }), null);
+  assert.equal(validateC2S({ t: "room.trainingOptIn", on: "true" }), "bad field on");
+  const room = new Room("ABCD", "solo", "NORMAL", 0);
+  room.seats[0] = { seat: 0, playerId: "human", name: "test", isBot: false,
+    ready: true, connected: true, left: false };
+  let view = room.toState();
+  assert.equal(view.trainingAvailable, false);
+  assert.equal(view.seats[0].trainingOptIn, false);
+  room.trainingAvailable = true;
+  room.seats[0].trainingOptIn = true;
+  view = room.toState();
+  assert.equal(view.trainingAvailable, true);
+  assert.equal(view.seats[0].trainingOptIn, true);
 });

@@ -117,3 +117,16 @@ Piece = { uid, kind: 'chess'|'item'|'token', id, golden: bool, tier, items: [ { 
 - Emotes: 6 themes × 6 battle emotes (research 09 §4.2), image-only bubbles beside the sender avatar, 1 s cooldown, 3 s bubble; `g.emote {id}` with the official emoji id.
 
 ---
+
+
+### Fork-only optional winning-policy contribution
+
+[ASSUMED] When the server operator enables SP_WIN_EPISODES, room.state carries
+trainingAvailable=true; every seat carries trainingOptIn (false by default).
+room.trainingOptIn {on:boolean} may be sent by the seated human before match
+start; it is rejected while in a match, for spectators or when collection is
+switched off. A fresh opt-in is required for every game; merely starting or
+readying a match does not grant consent. A consenting player contributes only
+pre-decision snapshots of server-accepted game actions to a team-winning,
+private, anonymous episode. All server traffic remains unchanged when disabled.
+See [WINNING-EPISODES.md](../WINNING-EPISODES.md).

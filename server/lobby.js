@@ -180,6 +180,7 @@ export class Room {
      * put every human seat before every AI seat (Match opts.aiPicksLast). Kept across the room's matches.
      */
     this.aiPicksLast = false;
+    this.trainingAvailable = false; // only exposed when the server owner enables consented collection
     /** @type {string | null} */
     this.hostId = null;
     /** @type {(Seat | null)[]} */
@@ -230,9 +231,10 @@ export class Room {
       mode: this.mode,
       difficulty: this.difficulty,
       aiPicksLast: this.aiPicksLast,
+      trainingAvailable: this.trainingAvailable,
       inMatch: !!this.match,
       seats: this.seats.map((s) => (s
-        ? { seat: s.seat, playerId: s.playerId, name: s.name, isBot: s.isBot, ready: s.ready, connected: s.connected && !s.left }
+        ? { seat: s.seat, playerId: s.playerId, name: s.name, isBot: s.isBot, ready: s.ready, trainingOptIn: !!s.trainingOptIn, connected: s.connected && !s.left }
         : null)),
       spectators: this.spectators.map((s) => ({ playerId: s.playerId, name: s.name, connected: s.connected })),
     };
@@ -340,6 +342,7 @@ export class Lobby {
       case 'room.join': return this.join(session, msg);
       case 'room.leave': return this.leave(session);
       case 'room.ready': return this.ready(session, msg);
+      case 'room.trainingOptIn': return this.trainingOptIn(session, msg);
       case 'room.setDifficulty': return this.setDifficulty(session, msg);
       case 'room.setAiPicksLast': return this.setAiPicksLast(session, msg);
       case 'room.addBot': return this.addBot(session);
@@ -416,6 +419,7 @@ export class Lobby {
     if (!code) return fail(ERR.INTERNAL, 'no room code available');
     if (cur) this.removeMember(cur, session.playerId);
     const room = new Room(code, mode, difficulty, this.now());
+    room.trainingAvailable = !!this.winEpisodes;
     room.ownerKey = key;
     room.seats[0] = this.humanSeat(0, session);
     room.hostId = session.playerId;
@@ -498,6 +502,22 @@ export class Lobby {
       // like room.kick: now, or on the next resume (with the result replay, as after the grace timeout)
       if (target.connected) sendSession(target, { t: 'room.closed', reason: 'kicked' });
       else { target.notice = 'kicked'; target.pendingResult = replay; }
+    }
+    return OK;
+  }
+
+  // Explicit per-game consent, off by default, never inherited on joining a room.
+  trainingOptIn(session, { on }) {
+    const room = this.roomOf(session);
+    if (!room) return fail(ERR.NOT_IN_ROOM);
+    if (room.spectatorOf(session.playerId)) return fail(ERR.SPECTATOR);
+    if (room.match) return fail(ERR.ROOM_STARTED);
+    if (!this.winEpisodes) return fail(ERR.BAD_MSG);
+    const seat = room.seatOf(session.playerId);
+    if (!seat || seat.isBot || seat.left) return fail(ERR.NOT_IN_ROOM);
+    if (!!seat.trainingOptIn !== on) {
+      seat.trainingOptIn = on;
+      this.broadcastState(room);
     }
     return OK;
   }
@@ -721,7 +741,10 @@ export class Lobby {
     let seed = 0;
     try { seed = this.seedFn() >>> 0; } catch { seed = randomInt(2 ** 32); }
     // The recorder stays in memory until a real victory. Disabled by default.
-    if (this.winEpisodes) ctx.episode = this.winEpisodes.start({ mode: room.mode, difficulty: room.difficulty, seed });
+    const consentedSeats = room.activeHumans().filter(s => s.trainingOptIn === true).map(s => s.seat);
+    if (this.winEpisodes && consentedSeats.length) {
+      ctx.episode = this.winEpisodes.start({ mode: room.mode, difficulty: room.difficulty, seed, consentedSeats });
+    }
     try {
       const match = new this.MatchClass({
         roomCode: room.code,
@@ -779,6 +802,7 @@ export class Lobby {
       if (!s || s.isBot) continue;
       if (s.left) { room.seats[i] = null; continue; }
       s.ready = false;
+      s.trainingOptIn = false; // next game requires a fresh explicit consent
       if (!s.connected) this.startGrace(room, s);
     }
     for (const s of room.spectators) if (!s.connected) this.startGrace(room, s);
@@ -980,7 +1004,7 @@ export class Lobby {
   /** @returns {Seat} */
   humanSeat(idx, session) {
     return {
-      seat: idx, playerId: session.playerId, name: session.name, isBot: false, ready: false, connected: session.connected, left: false,
+      seat: idx, playerId: session.playerId, name: session.name, isBot: false, ready: false, trainingOptIn: false, connected: session.connected, left: false,
       loadout: session.loadout || null,
       ops: session.ops || null,
       notOwned: session.notOwned || null,

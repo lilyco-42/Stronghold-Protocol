@@ -120,7 +120,10 @@ Official rule (bwiki 盟约, 更新公告 5114): before a match the player canno
 
 
 ## Optional fork-only decision telemetry (no gameplay rule changes)
-[ASSUMED] When consented and explicitly enabled, the server records only accepted
+[ASSUMED] The server-side SP_WIN_EPISODES gate and an explicit player-operated
+room.trainingOptIn {on:true} before each match are both necessary. Consent is
+reset after match end, and non-consenting players never contribute samples.
+When both gates pass, the server records only accepted
 strategic player actions and private pre-action state in bounded memory.
 Losses and unfinished matches are discarded; only team victories become local
 anonymous gzip episodes. This has no effect on match rules, the public protocol,
