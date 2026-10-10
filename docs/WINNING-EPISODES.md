@@ -1,7 +1,7 @@
 # Optional winning-decision dataset for a policy bot
 
-This fork feature only **collects** server-accepted player decisions. It does not
-train a model, deploy a bot or change game mechanics.
+This fork feature collects server-accepted decisions and builds an optional offline
+frequency baseline; it does not deploy a playable bot, claim optimality, or change the game.
 
 ## Safety and consent
 
@@ -83,5 +83,3 @@ execute any action, select target IDs or claim to be an optimal strategy.
 A future trainable policy must use the same held-out discipline, validate
 legal actions against the server, and compare actual win rates in seeded
 simulation. Generated data is local and excluded from git.
-
-
