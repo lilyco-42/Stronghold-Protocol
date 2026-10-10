@@ -12,6 +12,7 @@
 // Texts go through t() (docs/I18N.md).
 
 import { useEffect, useRef, useState } from '../../vendor/hooks.module.js';
+import { winningRecorder, exportWinningEpisodes } from '../ui/winningRecorder.js';
 import { DIFFICULTIES, DIFFICULTY_NAMES, DIFFICULTY_COLORS, MAX_SEATS, MAX_SPECTATORS } from '../../../shared/constants.js';
 import {
   html, Button, Icon, MicroLabel, PingPill, AvatarFrame, DifficultyTag, DifficultyIcon, Tooltip, confirmDialog, doctorNo,
@@ -225,6 +226,7 @@ export function RoomScreen() {
   const me = useStore((s) => s.me, shallowEqual);
   const conn = useStore((s) => s.connection, shallowEqual);
   const [busy, setBusy] = useState(null);
+  const [, repaintTraining] = useState(0);
   const alive = useRef(true);
   const inFlight = useRef(false); // synchronous guard against double clicks (state updates are async)
   useEffect(() => () => { alive.current = false; }, []);
@@ -260,6 +262,11 @@ export function RoomScreen() {
   };
   const setDifficulty = (difficulty) => run('diff', () => net.request('room.setDifficulty', { difficulty }));
   const setAiLast = (on) => run('ailast', () => net.request('room.setAiPicksLast', { on }));
+  const toggleTraining = () => { winningRecorder.setConsent(!winningRecorder.consent); repaintTraining(n => n + 1); };
+  const exportTraining = () => run('exportTraining', async () => {
+    const count = await exportWinningEpisodes();
+    toast(count ? t('已导出 {n} 局匿名胜局数据', { n: count }) : t('尚无匿名胜局数据'), 'info');
+  });
   // spectator seats: the host frees one; a spectator takes a free player seat with room.join of this room
   const removeSpectator = (playerId) => run(`rs${playerId}`, () => net.request('room.removeSpectator', { playerId }));
   const sit = () => run('sit', () => net.request('room.join', { code: room.code }));
@@ -343,6 +350,15 @@ export function RoomScreen() {
         <div class="room-bar__opts">
           <${DifficultyPicker} room=${room} isHost=${facts.isHost} busy=${busy} onPick=${setDifficulty} />
           <${AiLastToggle} option=${aiLastOption(room, me.playerId)} busy=${busy} onToggle=${setAiLast} />
+          ${!room.inMatch && facts.mine && !facts.spectating ? html`
+            <${Tooltip} text=${t("仅记录本机操作和局面；胜局完成后保存到此设备，可手动导出。不上传游戏服务器，不收集聊天、昵称或令牌。")}>
+              <button type="button" role="switch" aria-checked=${winningRecorder.consent ? "true" : "false"}
+                class=${`dpick__opt ailast__opt${winningRecorder.consent ? " is-active" : ""}`}
+                disabled=${!!busy || !online} onClick=${toggleTraining}>
+                <${Icon} name="check" class=${winningRecorder.consent ? "is-on" : ""} />${t("自愿保存本机匿名胜局（仅本局）")}
+              </button>
+            <//>` : null}
+          <${Button} variant="secondary" size="sm" disabled=${!!busy} onClick=${exportTraining}>${t("导出胜局训练数据")}</>
         </div>
       </div>
       <div class="room-bar__center">
