@@ -64,3 +64,24 @@ intent, snapshotting the **pre-action** state first; onMatchEnd() decides whethe
 to persist. This design is isolated from deterministic server/sim/ and remains
 disabled unless explicitly enabled. Changing the protocol or training target
 requires a version bump and new tests.
+
+## Offline baseline and episode-level validation
+
+After collecting consented, winning episodes, prepare a dataset locally:
+
+    node tools/build-winning-policy.mjs /var/lib/stronghold/win-episodes /var/lib/stronghold/policy
+
+The command reads both the pending spool and its sent/ archive, de-duplicates
+episode IDs and produces train.jsonl, holdout.jsonl, policy-baseline.json and
+metrics.json. The split is deterministic **per match episode**, not per action,
+preventing leakage from one victory into both train and validation.
+
+The baseline learns a frequency table of **action types**, conditioned on
+coarse game context (mode/difficulty/phase/round/level/funds/band). It reports
+held-out action-type accuracy and context coverage. It deliberately cannot
+execute any action, select target IDs or claim to be an optimal strategy.
+A future trainable policy must use the same held-out discipline, validate
+legal actions against the server, and compare actual win rates in seeded
+simulation. Generated data is local and excluded from git.
+
+

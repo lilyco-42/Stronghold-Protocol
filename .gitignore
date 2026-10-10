@@ -46,3 +46,4 @@ desktop.ini
 
 # Optional private, server-side policy training spool
 /var/winning-episodes/
+/var/winning-policy/
