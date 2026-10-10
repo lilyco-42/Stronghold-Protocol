@@ -28,6 +28,7 @@ effects), [DATA.md](DATA.md) (generated data), [ASSETS.md](ASSETS.md) (art and a
   match in memory — rounds, shop, economy, bots, validation. Nothing is written to disk.
 - **The browser** loads native ES modules with no bundler and no build step; the libraries are vendored into
   `public/vendor/` by `tools/vendor.mjs` on `npm install`.
+- **Optional local winning-decision recording** (`public/js/ui/winningRecorder.js`) listens to the browser Net client only, stores consented victorious decisions in that device's IndexedDB, and exports JSONL. It does not touch the game server, alter WebSocket payloads or upload automatically; see [CLIENT-WINNING-DATA.md](CLIENT-WINNING-DATA.md).
 - **The battle simulation** (`server/sim/`) is pure ESM without any Node API, served read-only at `/sim/`. Both sides
   run it from the same JSON battle description (`server/sim/spec.js`, the BattleSpec): each player's browser simulates
   its own battle (`public/js/battle/runner.js`) and reports progress and the result; the server checks the result

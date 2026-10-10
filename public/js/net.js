@@ -477,6 +477,7 @@ export class Net {
     if (!ws || ws.readyState !== WS_OPEN) return false;
     try {
       ws.send(JSON.stringify(obj));
+      this._emit("outgoing", obj); // client-only observers; no extra network traffic
       return true;
     } catch (err) {
       console.warn('[net] send failed', err);
