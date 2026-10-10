@@ -27,7 +27,7 @@ globalThis.localStorage = {
 // 浏览器模块在 Node 里跑：data.js 要的清单从盘上读，其余请求一律没有
 globalThis.fetch = async (u) => {
   const name = String(u).replace(/^\/data\//, '').replace(/\.json$/, '');
-  try { return { ok: true, status: 200, json: async () => readJson(`data/${name}.json`) }; }
+  try { readJson("data/" + name + ".json"); return { ok: true, status: 200, json: async () => readJson(`data/${name}.json`) }; }
   catch { return { ok: false, status: 404 }; }
 };
 
