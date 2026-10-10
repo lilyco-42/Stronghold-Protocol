@@ -358,13 +358,6 @@
     "anchor": "npm start          # 启动服务器：http://localhost:3000"
    }
   ],
-  "data/assets.json": [
-   {
-    "line": "{\"version\":1,\"hash\":\"bfdfd5e7efd9\",\"generator\":\"tools/fetch-assets.mjs\",\"stats\":{\"files\":10643,\"bytes\":574449900,\"chars\"…（整行 1700296 字符）",
-    "anchor": "",
-    "opaque": true
-   }
-  ],
   "public/css/screens/loadout.css": [
    {
     "line": "单行垂直列表：每款皮肤独占一行，左侧头像、中间完整名称与系列、右侧状态标签。兼容旧机型 (Chromium 80-84)。 */",

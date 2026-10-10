@@ -16,7 +16,14 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const OUT = path.join(ROOT, 'docs', 'EXT-SURFACE.json');
 const UPSTREAM = 'upstream/master';
 // 只关心会被上游覆盖的那一侧：我们自己新增的文件不需要记录（合并不会删它们）。
-const SKIP = [/^docs\//, /^test\//, /^NOTICE\.md$/];
+//  - docs/ 与 test/ 是我们的地盘；
+//  - data/assets.json 是 tools/fetch-assets.mjs 生成的**一整行** JSON：按「行」记账时记下来的其实是
+//    `{"version":1,"hash":"…","stats":{"files":…,"bytes":…` 这一串每次都变的机器值，于是每次正常刷新素材
+//    （或每次按叶子路径合并上游那份）都会报"我们的行不见了"。它自己就在注释里承认这是假红 —— 一条**每次必红**
+//    的闸门比没有闸门更糟：它会把真信号（皮肤条目被合并吃掉）训练成噪音去忽略。
+//    真正的覆盖在 test/skins-installed.test.js：它按结构查"清单里点名的每款皮肤都在 assets.json 里有条目"、
+//    stats.skins 与清单一致、引用的文件在盘上、条目里没混进外链 —— 比行前缀强得多，而且不受 hash/bytes 变动影响。
+const SKIP = [/^docs\//, /^test\//, /^NOTICE\.md$/, /^data\/assets\.json$/];
 
 const git = (args, quiet = false) => execFileSync('git', args, {
   cwd: ROOT, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024,
@@ -46,11 +53,11 @@ function ourLines(file) {
     const text = line.slice(1);
     const trimmed = text.trim();
     if (!trimmed || trimmed.startsWith('//') || trimmed.startsWith('/*') || trimmed.startsWith('*')) continue;
-    // 单行数据文件（data/assets.json 整份 JSON 就是一行，1 MB+）：按「行」记账没有意义，截断存下并标 opaque，
-    // 让读报告的人知道这是一整个文件级的挂载点，而不是一条可逐行复核的补丁。
-    // ⚠ 已知代价：opaque 条目存的是**行首 120 字符**，而 assets.json 的行首就是 `{"version":…,"stats":{…}}`，
-    // 所以每次正常刷新素材都会让 checkSurface 报"我们的行不见了"（假红，不是漏检）。方向是安全的（宁可红），
-    // 真要查皮肤条目有没有被合并吃掉，看 test/skins-installed.test.js —— 它是按结构查的，不受行首数字影响。
+    // 单行大文件（整份 JSON 就是一行）：按「行」记账没有意义，截断存下并标 opaque，让读报告的人知道这是
+    // 一个文件级的挂载点，而不是一条可逐行复核的补丁。
+    // ⚠ 但**不要**用它记生成物：opaque 条目存的是行首 120 字符，而生成物的行首就是 hash/bytes 这些每次都变的机器值，
+    //   记进去等于装一条每次必红的闸门（data/assets.json 因此已经进了 SKIP，理由见上面那段）。
+    //   要查生成物的结构有没有被合并吃掉，写按结构断言的测试（skins-installed.test.js 那种），不是这里。
     const opaque = trimmed.length > 4000;
     out.push({
       line: opaque ? `${trimmed.slice(0, 120)}…（整行 ${trimmed.length} 字符）` : trimmed,
