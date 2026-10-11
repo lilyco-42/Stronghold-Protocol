@@ -34,7 +34,7 @@ import './ui/compat.js';
 import { render } from '../vendor/preact.module.js';
 import { useErrorBoundary } from '../vendor/hooks.module.js';
 import { html, UiHosts, Button, MicroLabel, closeAllDialogs } from './ui/components.js';
-import { ConnectionBanner } from './ui/connBanner.js';
+import { ConnectionBanner, versionSkewNotice } from './ui/connBanner.js';
 import { ToastHost, toast, toastError, describeError } from './ui/toasts.js';
 import { net, identity, NetError } from './net.js';
 import { store, useStore, emptyMatch, selectRoute, sessionResetNotice, isSpectating } from './store.js';
@@ -402,6 +402,18 @@ async function boot() {
     });
   } catch (err) {
     console.warn('[app] build guard failed to start', err);
+  }
+  // A page and its server can be on different RELEASES while sharing PROTOCOL_VERSION (1), so nothing else on the wire
+  // says so — and this page computes its own battles (battle/runner.js) against its own /sim/ and /data/, so a page
+  // older than the server reports results the server accepts without recomputing them. Net.versionSkew compares the
+  // two; the banner shows it only for a page the server does not serve, because that is the one a reload cannot fix
+  // (ui/connBanner.js). The event fires once per connection, from `welcome.app` or the /healthz probe.
+  try {
+    const noticeSkew = () => store.patch('ui', { versionSkew: versionSkewNotice(net.versionSkew()) });
+    net.on('serverInfo', noticeSkew);
+    noticeSkew();
+  } catch (err) {
+    console.warn('[app] version skew notice failed', err);
   }
 }
 

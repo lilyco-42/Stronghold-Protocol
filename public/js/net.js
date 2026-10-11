@@ -30,6 +30,10 @@
 // to /shared/x.js (URL resolution clamps at the root); under Node it resolves to <repo>/shared.
 
 import { PROTOCOL_VERSION, ERR_TEXT, ERR } from '../../shared/constants.js';
+// The release this page is running. A separate import line from the one above because it answers a different
+// question: `version` on the wire is the format number (1 since 0.1.0, shared/constants.js), APP_VERSION is the
+// release — and only the release can tell this page apart from the server it is connected to (Net.versionSkew).
+import { APP_VERSION } from '../../shared/constants.js';
 import { validateC2S } from '../../shared/protocol.js';
 import { N_, t } from '../../shared/i18n.js';
 
@@ -171,6 +175,21 @@ export function healthUrl(wsUrl = defaultWsUrl(), loc = globalThis.location) {
   const origin = serverHttpOrigin(wsUrl);
   if (!origin || !loc || !loc.host) return '/healthz';
   return origin === `${loc.protocol}//${loc.host}` ? '/healthz' : `${origin}/healthz`;
+}
+
+/**
+ * Whether this page is served by something other than the game server it talks to: a packaged client (the desktop and
+ * mobile shells serve the payload from the app's own address — Electron / Tauri on 127.0.0.1:47821, Capacitor on
+ * https://localhost) or a copy of the page hosted elsewhere. The same condition `healthUrl` above already encodes.
+ *
+ * It decides one thing: whether a page that is out of step with its server can heal itself. A page the server itself
+ * serves is reloaded by ui/buildGuard.js the moment the served build tag moves; a page served from anywhere else
+ * re-reads the very same fixed payload on a reload, so reloading can never fix it — it has to be said instead.
+ * @param {string} [wsUrl] @param {{protocol?: string, host?: string}} [loc]
+ * @returns {boolean}
+ */
+export function pageNotFromServer(wsUrl = defaultWsUrl(), loc = globalThis.location) {
+  return healthUrl(wsUrl, loc) !== '/healthz';
 }
 
 /**
@@ -463,7 +482,10 @@ export class Net {
   _sendHello() {
     if (!this.name) return;
     const rid = this._nextRid();
-    const msg = { t: 'hello', rid, name: this.name, version: PROTOCOL_VERSION };
+    // `app` = the release this page runs (shared/protocol.js hello). `version` is the format number and has stayed 1,
+    // so the server has no other way to know it is talking to a 0.2.2 client — and it counts what it sees
+    // (server/net.js appVersions → /healthz clientApps). A server older than this field ignores it.
+    const msg = { t: 'hello', rid, name: this.name, version: PROTOCOL_VERSION, app: APP_VERSION };
     let token = null;
     try { token = this.getToken(); } catch { token = null; }
     if (typeof token === 'string' && token.length > 0 && token.length <= 64) {
@@ -532,6 +554,29 @@ export class Net {
       this.serverInfoFailed = true;
     }
     this._emit('serverInfo', { app: this.serverApp, url });
+  }
+
+  /**
+   * How this page's release compares with the connected server's. `PROTOCOL_VERSION` is 1 on both sides across every
+   * release, so nothing else on the wire can tell them apart — and this page simulates its own battles
+   * (public/js/battle/runner.js) against its own `/sim/` and `/data/`, reporting a result the server takes without
+   * recomputing it. A page OLDER than its server therefore computes battles under older rules and the server accepts
+   * them: the client/server desync that nothing used to flag. This is the flag (ui/connBanner.js shows it).
+   *
+   * `server` is what the server reported (`welcome.app`, else /healthz.app); `null` = we could not read it, and an
+   * unread version is 'unknown', never a mismatch — a fork whose /healthz has no CORS must not be accused of anything.
+   * `local` = this page is not served by the server it talks to (pageNotFromServer). Only then does the difference
+   * survive a reload, so only then is it worth a banner: a page the server itself serves is reloaded by
+   * ui/buildGuard.js the moment the served build tag moves.
+   * @returns {{ state: 'same'|'client-older'|'server-older'|'unknown', own: string, server: string|null, local: boolean }}
+   */
+  versionSkew() {
+    const own = APP_VERSION;
+    const server = this.serverApp;
+    const local = pageNotFromServer(serverKey(this.url));
+    if (!server) return { state: 'unknown', own, server: null, local };
+    if (server === own) return { state: 'same', own, server, local };
+    return { state: versionAtLeast(server, own) ? 'client-older' : 'server-older', own, server, local };
   }
 
   /**

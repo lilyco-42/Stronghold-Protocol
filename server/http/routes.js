@@ -26,6 +26,12 @@ export function healthReport({ startedAt, network, registry, lobby }) {
     // older than this reloads itself, so a deploy reaches clients that never reload
     build: buildTag(),
     sockets: network.connectionCount, sessions: registry.size, ...lobby.stats(),
+    // The client releases that connected since this process started, counting only the ones that are NOT this
+    // server's, plus `unknown` for a client too old to report its release (server/net.js countClientApp). A client
+    // older than the server simulates its own battles under its own rules and the server accepts the result, so this
+    // is how a host sees how much of its traffic is out of step — and it is the one number a player's report of
+    // 「客户端和服务端不同步」 turns into. Empty while every client is on this release.
+    clientApps: network.appVersions(),
   };
 }
 

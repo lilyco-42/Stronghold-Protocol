@@ -39,7 +39,7 @@
 
 import { randomBytes } from 'node:crypto';
 import { isIP } from 'node:net';
-import { C2S, validateC2S } from '../shared/protocol.js';
+import { C2S, isAppVersion, validateC2S } from '../shared/protocol.js';
 import { APP_VERSION, ERR, ERR_TEXT, NAME_MAX_LEN, PROTOCOL_VERSION } from '../shared/constants.js';
 
 /** Tunables (all overridable through the Network / SessionRegistry constructors). */
@@ -526,6 +526,15 @@ export class Network {
     /** @type {Map<string, number>} open sockets per client network key */
     this.connsPerKey = new Map();
     this.closed = false;
+    /**
+     * Cumulative count of the client RELEASES seen in `hello`, for the ones that are NOT this server's, plus
+     * `unknown` for a client built before the field existed (`appVersions()` → /healthz `clientApps`). The release
+     * is the only thing that separates a stale client from a current one — `hello.version` is the wire-format number
+     * and stays 1 — and a stale client simulates its own battles under its own rules (public/js/battle/runner.js),
+     * so this is the host's only view of how much of its traffic is out of step.
+     * @type {Record<string, number>}
+     */
+    this.clientApps = Object.create(null);
     this.heartbeatTimer = setInterval(() => this.heartbeat(), this.opts.heartbeatMs);
     this.heartbeatTimer.unref?.();
     const sweepMs = Math.max(20, Math.min(15_000, Math.floor(this.opts.reconnectWindowMs / 4)));
@@ -535,6 +544,35 @@ export class Network {
 
   /** Number of open sockets. */
   get connectionCount() { return this.conns.size; }
+
+  /**
+   * Count a `hello`'s client release (shared/protocol.js hello `app`). Only the releases that are NOT ours are kept,
+   * plus `unknown` for a client that sent no field at all (every client built before it existed — itself the signal
+   * that it is old). Nothing is refused on this: an old client plays, it just plays by its own rules, and the number
+   * is what tells the host how many players that is.
+   *
+   * Bounded on purpose: the key comes off the wire, and `hello` is dispatched before the protocol table is applied
+   * (see the `msg.t === 'hello'` branch below), so this function is the only thing validating it — `isAppVersion` is
+   * the same predicate the table declares. At most 8 distinct releases are kept and everything past them is folded
+   * into one `(other)` bucket.
+   * @param {unknown} app
+   */
+  countClientApp(app) {
+    const key = isAppVersion(app) ? app : 'unknown';
+    if (key === APP_VERSION) return;
+    if (!Object.hasOwn(this.clientApps, key) && Object.keys(this.clientApps).length >= 8) {
+      this.clientApps['(other)'] = (this.clientApps['(other)'] || 0) + 1;
+      return;
+    }
+    this.clientApps[key] = (this.clientApps[key] || 0) + 1;
+  }
+
+  /**
+   * The client releases counted since this process started, as `{ [release]: count }` — empty while every client is
+   * on this server's own release. Copied, so a caller cannot grow the live map.
+   * @returns {Record<string, number>}
+   */
+  appVersions() { return { ...this.clientApps }; }
 
   /**
    * Upgrade-time admission check (server/http/websocket.js): null to accept, otherwise the reason to refuse.
@@ -665,6 +703,10 @@ export class Network {
       session.connected = true;
       session.claimAt = Number.isFinite(msg.claimAt) ? msg.claimAt : null;
       session.disconnectedAt = null;
+      // One count per SESSION, not per socket: a rename re-sends `hello` on the live socket and a reconnect resumes
+      // the same session, so neither is a new client. `msg.app` is the client's own release (shared/protocol.js
+      // hello); absent = a client built before the field existed, counted as `unknown` (appVersions → /healthz).
+      if (!resumed) this.countClientApp(msg.app);
     }
     session.name = name;
     session.lastSeen = now;

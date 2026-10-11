@@ -81,6 +81,16 @@ export const isSkinId = (v) => typeof v === 'string' && v.length > 0 && v.length
 /** Structural check of `room.skins.skins`. */
 export const isSkinSelection = (v) => isMap(v, SKIN_LIMITS.entries, isId, isSkinId);
 
+/** Longest release string accepted in `hello.app` (a release is `0.2.3`, or a branch build like `0.2.3-dev`). */
+export const APP_LIMITS = Object.freeze({ len: 24 });
+/**
+ * A release string, as `hello.app` carries it. Deliberately narrow: the value ends up as a KEY in the host's
+ * `/healthz clientApps` table (server/net.js countClientApp), and `hello` is dispatched before the protocol table is
+ * applied, so this is the only thing between the wire and that table. Dots and dashes cover every release this
+ * project has shipped (`0.2.3`, `0.2.3-dev`, `v0.2.2-32-gabc1234`).
+ */
+export const isAppVersion = (v) => typeof v === 'string' && v.length > 0 && v.length <= APP_LIMITS.len && /^[A-Za-z0-9._-]+$/.test(v);
+
 // ---- operator loadout (DESIGN §16): room.loadout { entries } -------------------------------------------------
 
 /**
@@ -392,7 +402,15 @@ const target = (v) => {
 export const C2S = {
   // session & lobby
   hello: { name: (v) => isStr(v, NAME_MAX_LEN) && v.trim().length > 0, token: (v) => v == null || isStr(v, 64), version: (v) => v == null || isInt(v, 0, 1e6),
-    noReplace: isBool, claimAt: (v) => isNum(v, 0, Number.MAX_SAFE_INTEGER), $optional: ['token', 'version', 'noReplace', 'claimAt'] },
+    // `app` = the release the CLIENT is running (shared/constants.js APP_VERSION). `version` above is the wire-format
+    // number and has stayed 1 across every release, so it cannot tell a 0.2.2 client from a 0.2.3 one — while the
+    // client simulates its own battles (public/js/battle/runner.js) against its own /sim/ and /data/ and reports a
+    // result the server accepts without recomputing it. An older client therefore plays by older rules, silently.
+    // This field is what makes that visible: the server counts the releases it sees (server/net.js appVersions →
+    // /healthz clientApps), and the client notices the other direction (public/js/net.js versionSkew →
+    // ui/connBanner.js). Absent from every client built before it existed, which is itself the signal.
+    app: (v) => v == null || isAppVersion(v),
+    noReplace: isBool, claimAt: (v) => isNum(v, 0, Number.MAX_SAFE_INTEGER), $optional: ['token', 'version', 'noReplace', 'claimAt', 'app'] },
   ping: { c: (v) => typeof v === 'number' && Number.isFinite(v) },
   'room.create': { mode: (v) => v === 'solo' || v === 'coop', difficulty: (v) => DIFFICULTIES.includes(v) },
   'room.join': { code: (v) => isStr(v, ROOM_CODE_LEN + 2) && /^[A-Za-z0-9]+$/.test(v) },

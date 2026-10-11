@@ -433,8 +433,8 @@ describe('net.js', () => {
     assert.equal(defaultWsUrl({ protocol: 'https:', host: 'x.io' }), 'wss://x.io/ws');
   });
 
-  test('connect without a name → connected + ping; setName → hello with token & version', async () => {
-    const { PROTOCOL_VERSION } = await import(pathToFileURL(path.join(ROOT, 'shared/constants.js')).href);
+  test('connect without a name → connected + ping; setName → hello with token, version & release', async () => {
+    const { PROTOCOL_VERSION, APP_VERSION } = await import(pathToFileURL(path.join(ROOT, 'shared/constants.js')).href);
     const { net, ws, statuses } = await makeNet();
     net.connect();
     assert.equal(net.status, 'connecting');
@@ -443,7 +443,9 @@ describe('net.js', () => {
     assert.ok(ws().last('ping'), 'latency probe before hello');
     net.setName('  凯尔希  ');
     const hello = ws().last('hello');
-    assert.deepEqual({ ...hello, rid: 0 }, { t: 'hello', rid: 0, name: '凯尔希', version: PROTOCOL_VERSION, token: 'tok-1' });
+    // `version` is the wire-format number (1 on both sides of every release); `app` is the release this page runs,
+    // which is the only thing that can tell a 0.2.2 client from a 0.2.3 server (test/version-skew.test.js).
+    assert.deepEqual({ ...hello, rid: 0 }, { t: 'hello', rid: 0, name: '凯尔希', version: PROTOCOL_VERSION, app: APP_VERSION, token: 'tok-1' });
     assert.equal(net.status, 'handshaking');
     ws().recv({ t: 'welcome', rid: hello.rid, playerId: 'p_1', token: 't', name: '凯尔希', serverNow: Date.now() });
     assert.equal(net.status, 'online');
