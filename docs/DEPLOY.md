@@ -153,12 +153,13 @@ powershell -ExecutionPolicy Bypass -File scripts\install-service-windows.ps1 -Re
 
 ## 2. 让不在同一网络的朋友加入
 
-### 2.1 Tailscale / ZeroTier（推荐给家用小主机）
+### 2.1 Tailscale / ZeroTier / EasyTier（推荐给家用小主机）
 
 组一个虚拟局域网：不需要公网 IP、不需要改路由器、不暴露到互联网。
 
 - **Tailscale**：主机和朋友都安装 <https://tailscale.com/download>（Windows：`winget install Tailscale.Tailscale`）并登录。朋友用自己的账号时，在 Tailscale 管理后台把这台主机「Share」给他们，或邀请他们加入你的 tailnet。朋友访问 `http://<主机的 100.x.y.z 地址>:3000`（`tailscale ip -4` 查看；开了 MagicDNS 也可以用 `http://<主机名>:3000`）。
 - **ZeroTier**：在 <https://my.zerotier.com> 创建网络，主机和朋友安装客户端并加入同一个 Network ID，在后台勾选授权成员；访问 `http://<主机的 ZeroTier IP>:3000`。
+- **EasyTier**：<https://github.com/EasyTier/EasyTier>（Releases 有 Windows 安装包 / 绿色版 / Android APK）。与上面两个不同，它是**去中心化**的：不注册账号、没有海外控制面，网络只用「网络名 + 密码」标识。国内访问 Tailscale / ZeroTier 的控制面不稳时可换它：主机和朋友运行同一条 `easytier-core -d --network-name <起个不容易撞车的名字> --network-secret <密码> -p tcp://<共享节点>:11010`，然后访问 `http://10.126.126.x:3000`（默认虚拟网段 `10.126.126.0/24`；`easytier-cli peer` 列出各成员的虚拟 IP）。「共享节点」只负责让节点互相找到——两端能直连时数据不经过它，打不通时才由它中转。官方文档已不再给出具体的公共节点地址（官方也说明过游戏社区的节点需求超出了它的承载能力），社区有志愿者维护的节点但可用性没有保证；长期开服建议在任何一台有公网 IP 的机器上自己跑一个，命令同上。
 - 连不上时运行 `node tools/doctor.mjs`：看 VPN 网卡是否被 Windows 识别为「公用网络」，是的话按 1.2 改为专用，或安装自启时加 `-AllowPublicNetwork`。
 
 ### 2.2 cloudflared 临时隧道（朋友什么都不用装）
