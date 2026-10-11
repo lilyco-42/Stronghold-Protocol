@@ -208,6 +208,79 @@ export function seedAssets(store) {
 }
 
 /**
+ * Engine attempts before the simplified view. Only a *timeout* is retried, and the second attempt is cheap: the module
+ * graph is parsed and `ensurePixi` already put PIXI on `globalThis`, so it skips the 818 KB of vendor scripts.
+ * Why this exists (public issue #8): the toast this path falls back to says 「渲染器暂时未能加载…可刷新重试」 — a phone
+ * slow enough to miss the deadline got the simplified view (no Spine models at all) for the whole match, and the only
+ * remedy the product offered was a manual refresh. A timeout is not a capability answer, so ask once more.
+ */
+const ENGINE_TRIES = 2;
+const ENGINE_RETRY_MS = 600;
+
+/** A stage that ran out of time (withTimeout's message) — the one failure kind worth another attempt. */
+function isTimeout(err) {
+  return /timed out$/.test(String(err?.message || err));
+}
+
+/** Wait `ms`, or reject with the abort reason. */
+function delay(ms, signal) {
+  return new Promise((resolve, reject) => {
+    const onAbort = () => { clearTimeout(timer); reject(abortError(signal)); };
+    const timer = setTimeout(() => { signal?.removeEventListener('abort', onAbort); resolve(); }, ms);
+    signal?.addEventListener('abort', onAbort, { once: true });
+    if (signal?.aborted) onAbort();
+  });
+}
+
+/**
+ * One attempt at the render engine: import the store and the engine, build the view, check its API. Throws on failure;
+ * the caller retries or falls back. Everything this attempt acquired is released before it throws.
+ * @param {HTMLElement} host
+ * @param {any} opts
+ * @param {AbortSignal|undefined} signal outer cancellation
+ */
+async function attemptEngine(host, opts, signal) {
+  const controller = new AbortController();
+  const onAbort = () => controller.abort(abortError(signal));
+  signal?.addEventListener('abort', onAbort, { once: true });
+  if (signal?.aborted) onAbort();
+  let engineView = null;
+  const dispose = (view) => { try { view?.destroy?.(); } catch { /* ignore */ } };
+  try {
+    checkActive(controller.signal);
+    // the shared asset store (public/js/assets.js) keeps its Spine cache across remounts (next match, reconnect)
+    const am = await withTimeout(import('../assets.js'), LOAD_TIMEOUT_MS, 'asset store import', controller.signal).catch(() => {
+      checkActive(controller.signal);
+      return null;
+    });
+    checkActive(controller.signal);
+    if (am?.assets && typeof am.assets.ready === 'function') {
+      opts.assets = am.assets;
+      seedAssets(am.assets);
+    }
+    const mod = await withTimeout(import('../render/app.js'), LOAD_TIMEOUT_MS, 'render engine import', controller.signal);
+    checkActive(controller.signal);
+    if (typeof mod?.createFieldView !== 'function') throw new Error('createFieldView missing');
+    // A factory that ignores cancellation still belongs to this attempt when it eventually returns.
+    const pending = Promise.resolve(mod.createFieldView(host, { ...opts, signal: controller.signal })).then((view) => {
+      if (controller.signal.aborted) dispose(view); else engineView = view;
+      return view;
+    });
+    const view = await withTimeout(pending, LOAD_TIMEOUT_MS, 'createFieldView', controller.signal);
+    checkActive(controller.signal);
+    const missing = METHODS.filter((k) => typeof view?.[k] !== 'function');
+    if (missing.length) throw new Error(`view lacks ${missing.join(', ')}`);
+    return guardView(view, 'engine');
+  } catch (err) {
+    controller.abort();
+    dispose(engineView);
+    throw err;
+  } finally {
+    signal?.removeEventListener('abort', onAbort);
+  }
+}
+
+/**
  * Create a field view in `host`: the render engine when available, else the DOM fallback.
  * @param {HTMLElement} host
  * @param {{ signal?: AbortSignal }} [options] Cancels a pending mount without creating a fallback.
@@ -218,45 +291,29 @@ export async function mountFieldView(host, { signal } = {}) {
   const pref = renderPref();
   const opts = { data, assets: data.get('assets'), audio, settings: settingsStore.get(), padding: hudPadding, hud: hudBands };
   if (pref !== 'fallback') {
-    const controller = new AbortController();
-    const onAbort = () => controller.abort(abortError(signal));
-    signal?.addEventListener('abort', onAbort, { once: true });
-    if (signal?.aborted) onAbort();
-    let engineView = null;
-    const dispose = (view) => { try { view?.destroy?.(); } catch { /* ignore */ } };
-    try {
-      checkActive(controller.signal);
-      // the shared asset store (public/js/assets.js) keeps its Spine cache across remounts (next match, reconnect)
-      const am = await withTimeout(import('../assets.js'), LOAD_TIMEOUT_MS, 'asset store import', controller.signal).catch(() => {
-        checkActive(controller.signal);
-        return null;
-      });
-      checkActive(controller.signal);
-      if (am?.assets && typeof am.assets.ready === 'function') {
-        opts.assets = am.assets;
-        seedAssets(am.assets);
+    let failure = null;
+    let attempts = 0;
+    for (let attempt = 1; attempt <= ENGINE_TRIES; attempt++) {
+      attempts = attempt;
+      try {
+        return await attemptEngine(host, opts, signal);
+      } catch (err) {
+        // A cancelled mount is neither a failure nor a reason to retry — the caller asked for it.
+        checkActive(signal);
+        failure = err;
+        if (attempt < ENGINE_TRIES && isTimeout(err)) {
+          await delay(ENGINE_RETRY_MS, signal);
+          continue;
+        }
+        break;
       }
-      const mod = await withTimeout(import('../render/app.js'), LOAD_TIMEOUT_MS, 'render engine import', controller.signal);
-      checkActive(controller.signal);
-      if (typeof mod?.createFieldView !== 'function') throw new Error('createFieldView missing');
-      // A factory that ignores cancellation still belongs to this attempt when it eventually returns.
-      const pending = Promise.resolve(mod.createFieldView(host, { ...opts, signal: controller.signal })).then((view) => {
-        if (controller.signal.aborted) dispose(view); else engineView = view;
-        return view;
-      });
-      const view = await withTimeout(pending, LOAD_TIMEOUT_MS, 'createFieldView', controller.signal);
-      checkActive(controller.signal);
-      const missing = METHODS.filter((k) => typeof view?.[k] !== 'function');
-      if (missing.length) throw new Error(`view lacks ${missing.join(', ')}`);
-      return guardView(view, 'engine');
-    } catch (err) {
-      controller.abort();
-      dispose(engineView);
-      checkActive(signal);
-      console.warn('[field] render engine unavailable, using the simplified view:', err?.message || err);
-    } finally {
-      signal?.removeEventListener('abort', onAbort);
     }
+    console.warn('[field] render engine unavailable, using the simplified view:', failure?.message || failure);
+    // A screenshot of the dev panel (F12 in the shells) must be enough to tell the failure kinds apart — public issue #8
+    // had none, so every hypothesis about it stayed unverifiable on the reporting device.
+    try {
+      globalThis.__SP_FIELD_FALLBACK__ = { reason: String(failure?.message || failure), attempts, at: Date.now() };
+    } catch { /* dev hook only */ }
   }
   checkActive(signal);
   return guardView(createFallbackView(host, { ...opts, assets: data.get('assets') }), 'fallback');

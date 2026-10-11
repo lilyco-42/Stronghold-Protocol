@@ -38,7 +38,8 @@ function fixture() {
     AbortController, DOMException, URLSearchParams, Promise,
     console: { warn: (...args) => warnings.push(args) },
     audio: {}, data: { get() { return null; } }, settingsStore: { get() { return {}; } },
-    setTimeout(fn) { timers.set(++timerId, fn); return timerId; },
+    // A fired timer is no longer pending (real setTimeout semantics); `clearTimeout` removes a cancelled one.
+    setTimeout(fn) { const id = ++timerId; timers.set(id, () => { timers.delete(id); fn(); }); return id; },
     clearTimeout(id) { timers.delete(id); },
     importAssets: async () => null,
     importApp: async () => ({
@@ -55,9 +56,13 @@ function fixture() {
   });
   vm.runInContext(source + '\nglobalThis.mount = mountFieldView;', context, { filename: sourcePath.pathname });
   return {
-    host, unrelated, timers, requests, fallbacks, warnings, view,
+    host, unrelated, timers, requests, fallbacks, warnings, view, context,
     mount: (signal) => context.mount(host, { signal }),
-    timeout() { const fn = [...timers.values()].at(-1); assert.ok(fn, 'initialization has a deadline'); fn(); },
+    /** Fire the newest pending timer (the initialization deadline, or the pause between engine attempts). */
+    fireLast() { const fn = [...timers.values()].at(-1); assert.ok(fn, 'a timer is pending'); fn(); },
+    timeout() { this.fireLast(); },
+    /** The dev hook `mountFieldView` leaves behind when it settles on the simplified view (F12 diagnosis). */
+    diagnostics() { return vm.runInContext('globalThis.__SP_FIELD_FALLBACK__', context); },
   };
 }
 
@@ -133,26 +138,91 @@ test('an invalid renderer API is disposed and aborted before fallback mounts', a
   fallback.destroy();
 });
 
+test('a timed-out engine mount is retried once and the retry mounts the engine', async () => {
+  const f = fixture();
+  const pending = f.mount();
+  await flush();
+  assert.equal(f.requests.length, 1, 'the first attempt reaches the factory');
+  f.timeout(); // attempt 1 misses the createFieldView deadline (public issue #8: a slow phone)
+  await flush();
+  assert.equal(f.requests[0].signal.aborted, true, 'the abandoned attempt is cancelled');
+  assert.equal(f.fallbacks.length, 0, 'a timeout is not yet a reason for the simplified view');
+  f.fireLast(); // the pause between attempts
+  await flush();
+  assert.equal(f.requests.length, 2, 'the engine is attempted a second time');
+  const raw = f.view('engine');
+  f.requests[1].resolve(raw);
+  const mounted = await pending;
+  assert.equal(mounted.kind, 'engine');
+  assert.equal(raw.destroyCalls, 0);
+  assert.equal(f.fallbacks.length, 0);
+  assert.equal(f.warnings.length, 0, 'a recovered mount warns about nothing');
+  assert.equal(f.diagnostics(), undefined, 'no fallback diagnostic on a recovered mount');
+  assert.equal(f.timers.size, 0);
+  assert.deepEqual(f.host.children, [f.unrelated, raw.node]);
+  mounted.destroy();
+});
+
 test('a timed-out factory returning late cannot remove a replacement view or unrelated children', async () => {
   const f = fixture();
   const first = f.mount();
   await flush();
   f.timeout();
-  const fallback = await first;
-  assert.equal(fallback.kind, 'fallback');
-  fallback.destroy();
-  const replacementPending = f.mount();
+  await flush();
+  f.fireLast(); // the pause between attempts
   await flush();
   const replacement = f.view('replacement');
   f.requests[1].resolve(replacement);
-  const mounted = await replacementPending;
+  const mounted = await first;
+  assert.equal(mounted.kind, 'engine');
+  // the abandoned first attempt finally returns — it must dispose itself, never touch the mounted view
   const late = f.view('late');
   f.requests[0].resolve(late);
   await flush();
   assert.equal(late.destroyCalls, 1);
   assert.equal(replacement.destroyCalls, 0);
-  assert.equal(f.fallbacks[0].rendererAborted, true);
+  assert.equal(f.fallbacks.length, 0);
   assert.equal(f.timers.size, 0);
   assert.deepEqual(f.host.children, [f.unrelated, replacement.node]);
   mounted.destroy();
+});
+
+test('the simplified view mounts only after every attempt times out, and records why', async () => {
+  const f = fixture();
+  const pending = f.mount();
+  await flush();
+  f.timeout(); // attempt 1
+  await flush();
+  f.fireLast(); // the pause between attempts
+  await flush();
+  f.timeout(); // attempt 2
+  const fallback = await pending;
+  assert.equal(fallback.kind, 'fallback');
+  assert.equal(f.requests.length, 2, 'exactly two attempts, no more');
+  assert.equal(f.fallbacks.length, 1);
+  assert.equal(f.fallbacks[0].rendererAborted, true);
+  assert.equal(f.warnings.length, 1, 'the fallback is logged once');
+  // public issue #8 had no screenshot of this: the reason must be readable from the dev panel alone
+  const diag = f.diagnostics();
+  assert.equal(diag.attempts, 2);
+  assert.match(diag.reason, /createFieldView timed out$/);
+  assert.ok(Number.isFinite(diag.at));
+  assert.equal(f.timers.size, 0);
+  assert.deepEqual(f.host.children, [f.unrelated, f.fallbacks[0].view.node]);
+  fallback.destroy();
+});
+
+test('a failing (non-timeout) engine mount is not retried', async () => {
+  const f = fixture();
+  const pending = f.mount();
+  await flush();
+  // an API-shape failure is a capability answer, not a budget one: the fallback mounts at once
+  f.requests[0].resolve(f.view('invalid', false));
+  const fallback = await pending;
+  assert.equal(fallback.kind, 'fallback');
+  assert.equal(f.requests.length, 1, 'no second attempt');
+  assert.match(f.diagnostics().reason, /^view lacks /);
+  assert.equal(f.diagnostics().attempts, 1);
+  assert.equal(f.timers.size, 0);
+  fallback.destroy();
 });

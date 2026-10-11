@@ -267,14 +267,39 @@ function wireNet() {
 }
 
 /**
+ * Whether the match screen owns the app right now — the one state in which a `/data/*.json` file must never be flipped
+ * back to `loading` (it would blank the match to its spinner, screens/game.js `useGameData`). Also the build guard's
+ * "do not reload under a running game".
+ */
+const inMatch = () => selectRoute(store.get()) === 'game';
+
+/**
+ * Backoff between the repair passes of `warmGameData`, one entry per extra pass. 1.5 s then 5 s: long enough for a
+ * WebView that was just reloaded (Android reclaiming a backgrounded app, a browser discarding the tab) to have the
+ * shell's own server answering again, short enough to be over before a room's match normally starts.
+ */
+const DATA_REPAIR_MS = Object.freeze([1500, 5000]);
+
+/**
  * Download every data file of the match UI (gameComponents GAME_FILES: operators, skills, bonds, items, enemies, 特质 …)
  * in the background once the player is in a room — a match is near (the lobby alone never downloads them). The game's
  * texts are static data loaded once per page — never fetched during a match — and the match screen waits for these
  * files, so with them warmed it opens at once and no text ever appears late (user playtest #3 item 9). Idempotent (the
  * data store shares each file's promise).
+ *
+ * A file that comes back `missing` is then refetched a few times (DATA_REPAIR_MS, data.js `repairMissing`): a transient
+ * failure gets 2.6 s from `RETRY_DELAYS_MS` and is final for the page after that, and the moment a phone enters a room
+ * is exactly when the whole set can fail together — the WebView was just reloaded (Android reclaiming a backgrounded
+ * app) and the shell's own server is still coming up. One bad window used to leave an entire match without a single
+ * operator name or portrait: the shop cards fell back to their raw ids (`slot.id`, ui/shopBar.js) and every portrait
+ * stayed the image-less placeholder (public issue #8; community report 2026-10-11).
+ *
+ * The refetch is safe here and only here: the player is in the room, and neither the room screen nor the lobby reads
+ * these files, so `invalidate` (which flips a file back to `loading`) blanks nothing. The pass stops the moment the
+ * match screen takes over — `useGameData` holds it on a spinner while any file is unsettled (screens/game.js).
  */
 function warmGameData() {
-  const go = () => { data.loadAll(GAME_FILES).catch(() => {}); };
+  const go = () => { data.repairMissing(GAME_FILES, DATA_REPAIR_MS, { shouldStop: inMatch }).catch(() => {}); };
   if (typeof globalThis.requestIdleCallback === 'function') globalThis.requestIdleCallback(go, { timeout: 2500 });
   else setTimeout(go, 600);
 }
@@ -397,7 +422,7 @@ async function boot() {
   // so a running game is never thrown away.
   try {
     startBuildGuard({
-      inMatch: () => selectRoute(store.get()) === 'game',
+      inMatch,
       onStale: ({ waiting }) => { if (waiting) store.patch('ui', { buildStale: true }); },
     });
   } catch (err) {

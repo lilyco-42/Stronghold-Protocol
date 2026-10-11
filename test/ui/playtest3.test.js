@@ -419,7 +419,7 @@ describe('9: busy indicators and data loading', () => {
     assert.match(css, /\.chud__msg \.icon \{ width: \.22rem; height: \.22rem; color: var\(--gold\); \}/);
   });
 
-  test('data store: a transient failure is retried (the file stays loading), a 404 / bad JSON is not; a superseded retry stays silent', async () => {
+  test('data store: a transient failure is retried (the file stays loading), a 404 is not; a body that does not parse is retried too; a superseded retry stays silent', async () => {
     const waits = [];
     const wait = async (ms) => { waits.push(ms); };
     let calls = 0;
@@ -452,7 +452,9 @@ describe('9: busy indicators and data loading', () => {
       const bad = createDataStore({ wait, fetch: async () => { nBad++; return { ok: true, status: 200, json: async () => JSON.parse('{"broken": ') }; } });
       await bad.load('bands');
       assert.equal(bad.status('bands'), 'missing');
-      assert.equal(nBad, 1, 'a delivered file that is not JSON is final');
+      // a truncated body is the usual reason a phone sees one (a half-read response, an error page) and the next attempt
+      // fixes it, so it is retried like any other transient failure — a file that really is not JSON still ends missing
+      assert.equal(nBad, 1 + RETRY_DELAYS_MS.length, 'a body that never parses is retried, then final');
       let nDown = 0;
       const down = createDataStore({ wait, fetch: async () => { nDown++; throw new TypeError('offline'); } });
       await down.load('items');
@@ -480,7 +482,46 @@ describe('9: busy indicators and data loading', () => {
     } finally { console.warn = warn; }
   });
 
-  test('every data file the in-match UI reads is in GAME_FILES (the match screen waits for them: no text appears late); main.js warms them in a room', () => {
+  test('data store: repairMissing refetches what settled missing, is bounded by its delays, and honours shouldStop', async () => {
+    const waits = [];
+    const wait = async (ms) => { waits.push(ms); };
+    const warn = console.warn;
+    console.warn = () => {};
+    try {
+      // the window right after a WebView reload: every file is down for a moment, then the shell's server answers
+      let chessCalls = 0;
+      const d = createDataStore({
+        wait,
+        fetch: async (url) => {
+          if (String(url).includes('chess')) {
+            chessCalls++;
+            if (chessCalls <= 3) throw new TypeError('Failed to fetch');
+          }
+          return { ok: true, status: 200, json: async () => ({ list: [{ id: 'x' }] }) };
+        },
+      });
+      const left = await d.repairMissing(['chess', 'bonds'], [1500, 5000]);
+      assert.deepEqual(left, [], 'the repair pass recovers the file');
+      assert.equal(d.status('chess'), 'ready');
+      assert.equal(d.lookup('chess', 'x').id, 'x', 'the match UI finds its records again');
+      assert.equal(chessCalls, 4, 'three spent attempts, then one repair fetch');
+      assert.deepEqual(waits, [600, 2000, 1500], 'RETRY_DELAYS_MS, then the repair backoff');
+
+      // a file that is really gone: the passes are bounded, no infinite refetching
+      let goneCalls = 0;
+      const gone = createDataStore({ wait, fetch: async () => { goneCalls++; return { ok: false, status: 404, json: async () => ({}) }; } });
+      assert.deepEqual(await gone.repairMissing(['bands'], [1500, 5000]), ['bands']);
+      assert.equal(goneCalls, 3, 'one load plus one fetch per delay, then it gives up');
+
+      // the match screen took over: never flip a file back to loading under it
+      let stoppedCalls = 0;
+      const stopped = createDataStore({ wait, fetch: async () => { stoppedCalls++; throw new TypeError('offline'); } });
+      assert.deepEqual(await stopped.repairMissing(['chess'], [1500, 5000], { shouldStop: () => true }), ['chess']);
+      assert.equal(stoppedCalls, 1 + RETRY_DELAYS_MS.length, 'no repair fetch once stopped');
+    } finally { console.warn = warn; }
+  });
+
+  test('every data file the in-match UI reads is in GAME_FILES (the match screen waits for them: no text appears late); main.js warms them in a room and repairs the ones that never arrived', () => {
     const files = [
       ...readdirSync(path.join(ROOT, 'public/js/ui')).filter((f) => f.endsWith('.js')).map((f) => `public/js/ui/${f}`),
       ...['game', 'briefing', 'bandDraft', 'result'].map((s) => `public/js/screens/${s}.js`),
@@ -493,7 +534,8 @@ describe('9: busy indicators and data loading', () => {
     assert.deepEqual(missing, [], 'read by the match UI but not awaited by the match screen');
     const main = read('public/js/main.js');
     assert.match(main, /if \(s\.room && !prev\.room\) warmGameData\(\);/);
-    assert.match(main, /data\.loadAll\(GAME_FILES\)/);
+    assert.match(main, /data\.repairMissing\(GAME_FILES, DATA_REPAIR_MS, \{ shouldStop: inMatch \}\)/);
+    assert.match(main, /const inMatch = \(\) => selectRoute\(store\.get\(\)\) === 'game';/, 'the repair must stop under the match screen');
   });
 });
 

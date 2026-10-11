@@ -335,7 +335,20 @@ describe('wiring (render/app.js, ui/fieldHost.js)', () => {
 
   test('the field host seeds the asset store with the game data\'s copies', () => {
     const fh = read('public/js/ui/fieldHost.js');
-    assert.match(fh, /opts\.assets = am\.assets;\n {8}seedAssets\(am\.assets\);/);
+    assert.match(fh, /opts\.assets = am\.assets;\n {6}seedAssets\(am\.assets\);/);
     assert.match(fh, /give\('assets', store\.seed\?\.bind\(store\)\);\n {2}give\('local', store\.seedLocal\?\.bind\(store\)\);/);
+  });
+
+  test('the field host retries a timed-out engine mount once and leaves a reason behind for a bug report', () => {
+    const fh = read('public/js/ui/fieldHost.js');
+    // the outer 12 s deadline can be missed on a slow phone (public issue #8): a timeout asks once more, a capability
+    // answer (missing API, throw) does not
+    assert.match(fh, /const ENGINE_TRIES = 2;/);
+    assert.match(fh, /if \(attempt < ENGINE_TRIES && isTimeout\(err\)\) \{/);
+    assert.match(fh, /function isTimeout\(err\) \{\n {2}return \/timed out\$\/\.test\(String\(err\?\.message \|\| err\)\);/);
+    // every previous attempt is released before the next one starts
+    assert.match(fh, /controller\.abort\(\);\n {4}dispose\(engineView\);\n {4}throw err;/);
+    // a screenshot of the dev panel must be enough to tell the failure kinds apart (issue #8 had none)
+    assert.match(fh, /globalThis\.__SP_FIELD_FALLBACK__ = \{ reason: String\(failure\?\.message \|\| failure\), attempts, at: Date\.now\(\) \};/);
   });
 });
