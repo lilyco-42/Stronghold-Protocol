@@ -1,5 +1,5 @@
 {
- "generated": "2026-10-09",
+ "generated": "2026-10-11",
  "upstream": "upstream/master",
  "files": {
   "AGENTS.md": [
@@ -1134,6 +1134,10 @@
     "anchor": "export function hasBackSpine(m, id) {"
    },
    {
+    "line": "return isObj(sp) && typeof sp.skel === 'string' && /^(?:https?:\\/\\/|\\/)[^\\s]*\\.skel(?:\\?[^\\s]*)?$/.test(sp.skel) && typeof sp.atlas === 'string' && isObj(sp.anims);",
+    "anchor": "export function validSpine(sp) {"
+   },
+   {
     "line": "picture: (id, o) => unitPictureUrl(m(), id, o),",
     "anchor": "export function createAssets(options) {"
    },
@@ -1146,6 +1150,106 @@
    {
     "line": "skins: 'skins.json',",
     "anchor": "export const DATA_FILES = Object.freeze({"
+   },
+   {
+    "line": "if (!err) return false;",
+    "anchor": "const transientFailure = (err) => {"
+   },
+   {
+    "line": "const loadAll = (...names) => Promise.all(names.flat().map(load));",
+    "anchor": "export function createDataStore(opts = {}) {"
+   },
+   {
+    "line": "const statusOf = (name) => entries.get(name)?.status ?? 'idle';",
+    "anchor": "export function createDataStore(opts = {}) {"
+   },
+   {
+    "line": "const invalidate = (name) => {",
+    "anchor": "export function createDataStore(opts = {}) {"
+   },
+   {
+    "line": "if (!entries.has(name)) return Promise.resolve(null);",
+    "anchor": "export function createDataStore(opts = {}) {"
+   },
+   {
+    "line": "entries.delete(name);",
+    "anchor": "export function createDataStore(opts = {}) {"
+   },
+   {
+    "line": "localized.delete(name);",
+    "anchor": "export function createDataStore(opts = {}) {"
+   },
+   {
+    "line": "warned.delete(name);",
+    "anchor": "export function createDataStore(opts = {}) {"
+   },
+   {
+    "line": "const p = load(name);",
+    "anchor": "export function createDataStore(opts = {}) {"
+   },
+   {
+    "line": "notify(name); // status is 'loading' again, never a stuck 'idle'",
+    "anchor": "export function createDataStore(opts = {}) {"
+   },
+   {
+    "line": "return p;",
+    "anchor": "export function createDataStore(opts = {}) {"
+   },
+   {
+    "line": "};",
+    "anchor": "export function createDataStore(opts = {}) {"
+   },
+   {
+    "line": "async function repairMissing(names, delays, { shouldStop } = {}) {",
+    "anchor": "export function createDataStore(opts = {}) {"
+   },
+   {
+    "line": "for (let pass = 0; ; pass++) {",
+    "anchor": "export function createDataStore(opts = {}) {"
+   },
+   {
+    "line": "await loadAll(names).catch(() => {});",
+    "anchor": "export function createDataStore(opts = {}) {"
+   },
+   {
+    "line": "const missing = names.filter((n) => statusOf(n) === 'missing');",
+    "anchor": "export function createDataStore(opts = {}) {"
+   },
+   {
+    "line": "if (!missing.length || pass >= delays.length || shouldStop?.()) return missing;",
+    "anchor": "export function createDataStore(opts = {}) {"
+   },
+   {
+    "line": "await wait(delays[pass]);",
+    "anchor": "export function createDataStore(opts = {}) {"
+   },
+   {
+    "line": "if (shouldStop?.()) return missing;",
+    "anchor": "export function createDataStore(opts = {}) {"
+   },
+   {
+    "line": "for (const n of missing) invalidate(n);",
+    "anchor": "export function createDataStore(opts = {}) {"
+   },
+   {
+    "line": "}",
+    "anchor": "export function createDataStore(opts = {}) {"
+   },
+   {
+    "line": "}",
+    "anchor": "export function createDataStore(opts = {}) {"
+   },
+   {
+    "line": "loadAll,",
+    "anchor": "export function createDataStore(opts = {}) {"
+   },
+   {
+    "line": "repairMissing,",
+    "anchor": "export function createDataStore(opts = {}) {"
+   },
+   {
+    "line": "invalidate,",
+    "anchor": "export function createDataStore(opts = {}) {"
    }
   ],
   "public/js/main.js": [
@@ -1158,11 +1262,27 @@
     "anchor": "import { installLoadoutSync, installOwnershipSync, installDiySync } from './ui/l"
    },
    {
+    "line": "const inMatch = () => selectRoute(store.get()) === 'game';",
+    "anchor": "function wireNet() {"
+   },
+   {
+    "line": "const DATA_REPAIR_MS = Object.freeze([1500, 5000]);",
+    "anchor": "function wireNet() {"
+   },
+   {
+    "line": "const go = () => { data.repairMissing(GAME_FILES, DATA_REPAIR_MS, { shouldStop: inMatch }).catch(() => {}); };",
+    "anchor": "function warmGameData() {"
+   },
+   {
     "line": "installSkinsSync({ net });",
     "anchor": "async function boot() {"
    },
    {
     "line": "data.load('skins').catch(() => {});",
+    "anchor": "async function boot() {"
+   },
+   {
+    "line": "inMatch,",
     "anchor": "async function boot() {"
    }
   ],
@@ -1544,6 +1664,58 @@
     "anchor": "import { t } from '../../../shared/i18n.js';"
    },
    {
+    "line": "let board3dError = boardPref === '2d' ? 'disabled by preference' : !want3d ? 'WebGL2 unavailable' : null;",
+    "anchor": "export async function createFieldView(host, options = {}) {"
+   },
+   {
+    "line": "board3dError = null;",
+    "anchor": "export async function createFieldView(host, options = {}) {"
+   },
+   {
+    "line": "board3dError = 'WebGL context lost';",
+    "anchor": "export async function createFieldView(host, options = {}) {"
+   },
+   {
+    "line": "let board3dPending = want3d;",
+    "anchor": "export async function createFieldView(host, options = {}) {"
+   },
+   {
+    "line": "const boardReady = want3d",
+    "anchor": "export async function createFieldView(host, options = {}) {"
+   },
+   {
+    "line": "? Promise.all([artListed, threePromise, packPromise]).then(([listed, THREE, pack]) => {",
+    "anchor": "export async function createFieldView(host, options = {}) {"
+   },
+   {
+    "line": "board3dPending = false;",
+    "anchor": "export async function createFieldView(host, options = {}) {"
+   },
+   {
+    "line": "if (!listed) { board3dError = '3D board atlas not listed'; return false; }",
+    "anchor": "export async function createFieldView(host, options = {}) {"
+   },
+   {
+    "line": "if (!THREE) { board3dError = 'Three.js module unavailable'; return false; }",
+    "anchor": "export async function createFieldView(host, options = {}) {"
+   },
+   {
+    "line": "if (!pack) { board3dError = '3D board pack unavailable'; return false; }",
+    "anchor": "export async function createFieldView(host, options = {}) {"
+   },
+   {
+    "line": "return enable3d(THREE, pack);",
+    "anchor": "export async function createFieldView(host, options = {}) {"
+   },
+   {
+    "line": "}, (err) => { board3dPending = false; board3dError = String(err?.message || err); return false; })",
+    "anchor": "export async function createFieldView(host, options = {}) {"
+   },
+   {
+    "line": ": Promise.resolve(false);",
+    "anchor": "export async function createFieldView(host, options = {}) {"
+   },
+   {
     "line": "const baseId = rec?.baseId || piece.id;",
     "anchor": "export async function createFieldView(host, options = {}) {"
    },
@@ -1553,6 +1725,14 @@
    },
    {
     "line": "const sig = `${info.kind}|${info.defId}|${info.golden ? 1 : 0}|${info.spine || ''}|${info.skin || ''}`;",
+    "anchor": "export async function createFieldView(host, options = {}) {"
+   },
+   {
+    "line": "board3d: board3d ? { on: true, ...board3d.stats(), losses: recover.count } : { on: false, pending: board3dPending, error: board3dError, recovering: !!recover.timer, losses: recover.count },",
+    "anchor": "export async function createFieldView(host, options = {}) {"
+   },
+   {
+    "line": "void boardReady;",
     "anchor": "export async function createFieldView(host, options = {}) {"
    }
   ],
@@ -1564,6 +1744,48 @@
    {
     "line": "skin: u.skin ?? skinForUnit(u) ?? null,",
     "anchor": "export function renderInfo(u) {"
+   }
+  ],
+  "public/js/render/board3d/load.js": [
+   {
+    "line": "const canvas = document.createElement('canvas');",
+    "anchor": "export function webgl2Available(allowSlow = false) {"
+   },
+   {
+    "line": "const android = /Android/i.test(globalThis.navigator?.userAgent || '');",
+    "anchor": "export function webgl2Available(allowSlow = false) {"
+   },
+   {
+    "line": "let gl = null;",
+    "anchor": "export function webgl2Available(allowSlow = false) {"
+   },
+   {
+    "line": "try {",
+    "anchor": "export function webgl2Available(allowSlow = false) {"
+   },
+   {
+    "line": "gl = canvas.getContext('webgl2', allowSlow ? {} : { failIfMajorPerformanceCaveat: true });",
+    "anchor": "export function webgl2Available(allowSlow = false) {"
+   },
+   {
+    "line": "} catch { /* a strict context request may fail on older Android WebViews */ }",
+    "anchor": "export function webgl2Available(allowSlow = false) {"
+   },
+   {
+    "line": "if (!gl && android && !allowSlow) {",
+    "anchor": "export function webgl2Available(allowSlow = false) {"
+   },
+   {
+    "line": "try { gl = canvas.getContext('webgl2', {}); } catch { /* true WebGL2 failure → 2D */ }",
+    "anchor": "export function webgl2Available(allowSlow = false) {"
+   },
+   {
+    "line": "}",
+    "anchor": "export function webgl2Available(allowSlow = false) {"
+   },
+   {
+    "line": "gl.getExtension?.('WEBGL_lose_context')?.loseContext?.();",
+    "anchor": "export function webgl2Available(allowSlow = false) {"
    }
   ],
   "public/js/render/units.js": [
@@ -1746,6 +1968,284 @@
    {
     "line": "const res = await Promise.race([fetchFn(healthUrl(), { cache: 'no-store', signal: ctrl ? ctrl.signal : undefined }), tooSlow]);",
     "anchor": "export async function fetchBuild(fetchFn, o = {}) {"
+   }
+  ],
+  "public/js/ui/fieldHost.js": [
+   {
+    "line": "const ENGINE_TRIES = 2;",
+    "anchor": "export function seedAssets(store) {"
+   },
+   {
+    "line": "const ENGINE_RETRY_MS = 600;",
+    "anchor": "export function seedAssets(store) {"
+   },
+   {
+    "line": "function isTimeout(err) {",
+    "anchor": "export function seedAssets(store) {"
+   },
+   {
+    "line": "return /timed out$/.test(String(err?.message || err));",
+    "anchor": "export function seedAssets(store) {"
+   },
+   {
+    "line": "}",
+    "anchor": "export function seedAssets(store) {"
+   },
+   {
+    "line": "function delay(ms, signal) {",
+    "anchor": "export function seedAssets(store) {"
+   },
+   {
+    "line": "return new Promise((resolve, reject) => {",
+    "anchor": "export function seedAssets(store) {"
+   },
+   {
+    "line": "const onAbort = () => { clearTimeout(timer); reject(abortError(signal)); };",
+    "anchor": "export function seedAssets(store) {"
+   },
+   {
+    "line": "const timer = setTimeout(() => { signal?.removeEventListener('abort', onAbort); resolve(); }, ms);",
+    "anchor": "export function seedAssets(store) {"
+   },
+   {
+    "line": "signal?.addEventListener('abort', onAbort, { once: true });",
+    "anchor": "export function seedAssets(store) {"
+   },
+   {
+    "line": "if (signal?.aborted) onAbort();",
+    "anchor": "export function seedAssets(store) {"
+   },
+   {
+    "line": "});",
+    "anchor": "export function seedAssets(store) {"
+   },
+   {
+    "line": "}",
+    "anchor": "export function seedAssets(store) {"
+   },
+   {
+    "line": "async function attemptEngine(host, opts, signal) {",
+    "anchor": "export function seedAssets(store) {"
+   },
+   {
+    "line": "const controller = new AbortController();",
+    "anchor": "export function seedAssets(store) {"
+   },
+   {
+    "line": "const onAbort = () => controller.abort(abortError(signal));",
+    "anchor": "export function seedAssets(store) {"
+   },
+   {
+    "line": "signal?.addEventListener('abort', onAbort, { once: true });",
+    "anchor": "export function seedAssets(store) {"
+   },
+   {
+    "line": "if (signal?.aborted) onAbort();",
+    "anchor": "export function seedAssets(store) {"
+   },
+   {
+    "line": "let engineView = null;",
+    "anchor": "export function seedAssets(store) {"
+   },
+   {
+    "line": "const dispose = (view) => { try { view?.destroy?.(); } catch { /* ignore */ } };",
+    "anchor": "export function seedAssets(store) {"
+   },
+   {
+    "line": "try {",
+    "anchor": "export function seedAssets(store) {"
+   },
+   {
+    "line": "checkActive(controller.signal);",
+    "anchor": "export function seedAssets(store) {"
+   },
+   {
+    "line": "const am = await withTimeout(import('../assets.js'), LOAD_TIMEOUT_MS, 'asset store import', controller.signal).catch(() => {",
+    "anchor": "export function seedAssets(store) {"
+   },
+   {
+    "line": "checkActive(controller.signal);",
+    "anchor": "export function seedAssets(store) {"
+   },
+   {
+    "line": "return null;",
+    "anchor": "export function seedAssets(store) {"
+   },
+   {
+    "line": "});",
+    "anchor": "export function seedAssets(store) {"
+   },
+   {
+    "line": "checkActive(controller.signal);",
+    "anchor": "export function seedAssets(store) {"
+   },
+   {
+    "line": "if (am?.assets && typeof am.assets.ready === 'function') {",
+    "anchor": "export function seedAssets(store) {"
+   },
+   {
+    "line": "opts.assets = am.assets;",
+    "anchor": "export function seedAssets(store) {"
+   },
+   {
+    "line": "seedAssets(am.assets);",
+    "anchor": "export function seedAssets(store) {"
+   },
+   {
+    "line": "}",
+    "anchor": "export function seedAssets(store) {"
+   },
+   {
+    "line": "const mod = await withTimeout(import('../render/app.js'), LOAD_TIMEOUT_MS, 'render engine import', controller.signal);",
+    "anchor": "export function seedAssets(store) {"
+   },
+   {
+    "line": "checkActive(controller.signal);",
+    "anchor": "export function seedAssets(store) {"
+   },
+   {
+    "line": "if (typeof mod?.createFieldView !== 'function') throw new Error('createFieldView missing');",
+    "anchor": "export function seedAssets(store) {"
+   },
+   {
+    "line": "const pending = Promise.resolve(mod.createFieldView(host, { ...opts, signal: controller.signal })).then((view) => {",
+    "anchor": "export function seedAssets(store) {"
+   },
+   {
+    "line": "if (controller.signal.aborted) dispose(view); else engineView = view;",
+    "anchor": "export function seedAssets(store) {"
+   },
+   {
+    "line": "return view;",
+    "anchor": "export function seedAssets(store) {"
+   },
+   {
+    "line": "});",
+    "anchor": "export function seedAssets(store) {"
+   },
+   {
+    "line": "const view = await withTimeout(pending, LOAD_TIMEOUT_MS, 'createFieldView', controller.signal);",
+    "anchor": "export function seedAssets(store) {"
+   },
+   {
+    "line": "checkActive(controller.signal);",
+    "anchor": "export function seedAssets(store) {"
+   },
+   {
+    "line": "const missing = METHODS.filter((k) => typeof view?.[k] !== 'function');",
+    "anchor": "export function seedAssets(store) {"
+   },
+   {
+    "line": "if (missing.length) throw new Error(`view lacks ${missing.join(', ')}`);",
+    "anchor": "export function seedAssets(store) {"
+   },
+   {
+    "line": "return guardView(view, 'engine');",
+    "anchor": "export function seedAssets(store) {"
+   },
+   {
+    "line": "} catch (err) {",
+    "anchor": "export function seedAssets(store) {"
+   },
+   {
+    "line": "controller.abort();",
+    "anchor": "export function seedAssets(store) {"
+   },
+   {
+    "line": "dispose(engineView);",
+    "anchor": "export function seedAssets(store) {"
+   },
+   {
+    "line": "throw err;",
+    "anchor": "export function seedAssets(store) {"
+   },
+   {
+    "line": "} finally {",
+    "anchor": "export function seedAssets(store) {"
+   },
+   {
+    "line": "signal?.removeEventListener('abort', onAbort);",
+    "anchor": "export function seedAssets(store) {"
+   },
+   {
+    "line": "}",
+    "anchor": "export function seedAssets(store) {"
+   },
+   {
+    "line": "}",
+    "anchor": "export function seedAssets(store) {"
+   },
+   {
+    "line": "let failure = null;",
+    "anchor": "export async function mountFieldView(host, { signal } = {}) {"
+   },
+   {
+    "line": "let attempts = 0;",
+    "anchor": "export async function mountFieldView(host, { signal } = {}) {"
+   },
+   {
+    "line": "for (let attempt = 1; attempt <= ENGINE_TRIES; attempt++) {",
+    "anchor": "export async function mountFieldView(host, { signal } = {}) {"
+   },
+   {
+    "line": "attempts = attempt;",
+    "anchor": "export async function mountFieldView(host, { signal } = {}) {"
+   },
+   {
+    "line": "try {",
+    "anchor": "export async function mountFieldView(host, { signal } = {}) {"
+   },
+   {
+    "line": "return await attemptEngine(host, opts, signal);",
+    "anchor": "export async function mountFieldView(host, { signal } = {}) {"
+   },
+   {
+    "line": "} catch (err) {",
+    "anchor": "export async function mountFieldView(host, { signal } = {}) {"
+   },
+   {
+    "line": "checkActive(signal);",
+    "anchor": "export async function mountFieldView(host, { signal } = {}) {"
+   },
+   {
+    "line": "failure = err;",
+    "anchor": "export async function mountFieldView(host, { signal } = {}) {"
+   },
+   {
+    "line": "if (attempt < ENGINE_TRIES && isTimeout(err)) {",
+    "anchor": "export async function mountFieldView(host, { signal } = {}) {"
+   },
+   {
+    "line": "await delay(ENGINE_RETRY_MS, signal);",
+    "anchor": "export async function mountFieldView(host, { signal } = {}) {"
+   },
+   {
+    "line": "continue;",
+    "anchor": "export async function mountFieldView(host, { signal } = {}) {"
+   },
+   {
+    "line": "}",
+    "anchor": "export async function mountFieldView(host, { signal } = {}) {"
+   },
+   {
+    "line": "break;",
+    "anchor": "export async function mountFieldView(host, { signal } = {}) {"
+   },
+   {
+    "line": "console.warn('[field] render engine unavailable, using the simplified view:', failure?.message || failure);",
+    "anchor": "export async function mountFieldView(host, { signal } = {}) {"
+   },
+   {
+    "line": "try {",
+    "anchor": "export async function mountFieldView(host, { signal } = {}) {"
+   },
+   {
+    "line": "globalThis.__SP_FIELD_FALLBACK__ = { reason: String(failure?.message || failure), attempts, at: Date.now() };",
+    "anchor": "export async function mountFieldView(host, { signal } = {}) {"
+   },
+   {
+    "line": "} catch { /* dev hook only */ }",
+    "anchor": "export async function mountFieldView(host, { signal } = {}) {"
    }
   ],
   "public/js/ui/gameComponents.js": [
@@ -2008,6 +2508,60 @@
    {
     "line": "}",
     "anchor": "function installPrefSync({ net, timers, target, notify, key, stateKey, msgType,"
+   }
+  ],
+  "public/js/ui/shopBar.js": [
+   {
+    "line": "const missingRecords = new Set();",
+    "anchor": "const cx = (...p) => p.flat().filter(Boolean).join(' ');"
+   },
+   {
+    "line": "function unresolvedRecord(kind, id) {",
+    "anchor": "const cx = (...p) => p.flat().filter(Boolean).join(' ');"
+   },
+   {
+    "line": "const file = kind === 'item' ? 'items' : 'chess';",
+    "anchor": "const cx = (...p) => p.flat().filter(Boolean).join(' ');"
+   },
+   {
+    "line": "const diag = { kind, id, file, status: data.status(file), at: Date.now() };",
+    "anchor": "const cx = (...p) => p.flat().filter(Boolean).join(' ');"
+   },
+   {
+    "line": "if (!missingRecords.has(id)) {",
+    "anchor": "const cx = (...p) => p.flat().filter(Boolean).join(' ');"
+   },
+   {
+    "line": "missingRecords.add(id);",
+    "anchor": "const cx = (...p) => p.flat().filter(Boolean).join(' ');"
+   },
+   {
+    "line": "try { (globalThis.__SP_MISSING_RECORDS__ ||= []).push(diag); } catch { /* dev hook only */ }",
+    "anchor": "const cx = (...p) => p.flat().filter(Boolean).join(' ');"
+   },
+   {
+    "line": "console.warn(`[shop] no ${file} record for ${id} (data status: ${diag.status})`);",
+    "anchor": "const cx = (...p) => p.flat().filter(Boolean).join(' ');"
+   },
+   {
+    "line": "}",
+    "anchor": "const cx = (...p) => p.flat().filter(Boolean).join(' ');"
+   },
+   {
+    "line": "return diag;",
+    "anchor": "const cx = (...p) => p.flat().filter(Boolean).join(' ');"
+   },
+   {
+    "line": "}",
+    "anchor": "const cx = (...p) => p.flat().filter(Boolean).join(' ');"
+   },
+   {
+    "line": "<span class=\"scard__name\" data-missing=${c ? undefined : unresolvedRecord('chess', slot.id).id}>${c?.name || t('干员')}</span>",
+    "anchor": "export function ChessCard({ slot, idx, priv, frozen = false, reason = null, free"
+   },
+   {
+    "line": "<span class=\"scard__name\" data-missing=${it ? undefined : unresolvedRecord('item', slot.id).id}>${it?.name || t('装备')}</span>",
+    "anchor": "export function ItemCard({ slot, idx, frozen = false, reason = null, free = fals"
    }
   ],
   "public/js/ui/teamPanel.js": [
