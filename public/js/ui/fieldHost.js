@@ -13,6 +13,7 @@ import { createFallbackView } from './fallbackField.js';
 import { data } from '../data.js';
 import { audio } from '../audio.js';
 import { settingsStore } from './settings.js';
+import { recordError } from '../diag.js';
 
 const LOAD_TIMEOUT_MS = 12000;
 const METHODS = ['setStage', 'setCamera', 'setPrep', 'enterBattle', 'pushSnapshot', 'pushEvents', 'highlightTiles', 'on', 'resize', 'destroy'];
@@ -253,6 +254,10 @@ export async function mountFieldView(host, { signal } = {}) {
       controller.abort();
       dispose(engineView);
       checkActive(signal);
+      // This is a handled failure, not a window.error/unhandledrejection. Keep it
+      // in the player's copied diagnostics, otherwise the report falsely says
+      // "errors: none recorded" while the battlefield is in simplified mode.
+      recordError('render', err, 'full engine unavailable; simplified field active');
       console.warn('[field] render engine unavailable, using the simplified view:', err?.message || err);
     } finally {
       signal?.removeEventListener('abort', onAbort);

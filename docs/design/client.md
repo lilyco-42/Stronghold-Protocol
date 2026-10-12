@@ -145,6 +145,7 @@ On same-battle metadata refresh, remembered once-spawned device records also see
 This preserves device tile picking and live-HP cards; records explicitly supplied by the refresh take precedence,
 and a different field never inherits the previous field's devices.
 The same fallback covers import failure, timeout and WebGL initialization errors; a reload can retry.
+A failed full renderer mount also records its handled exception under `render` in the copied diagnostics; normal navigation cancellation does not. This distinguishes a real simplified-view fallback from an empty error report without asserting the GPU is unsupported.
 It does not diagnose a particular user's GPU or persist a disabled renderer preference (§28.25).
 
 Community UI and recovery (§29.6): DIY reuses roster stats and skill previews; Swire's coins show current/cap. The lobby player chip opens statistics and the responsive header keeps optional controls from overlapping its title. Settlement's summary scrolls separately from Return. Failed board art can retry, and failed three.js imports use two bounded fresh URLs. Failed engine initialization can remount on online/visibility, at most twice consecutively, cleaning up each previous view; explicit fallback/2D stays selected.

@@ -16,7 +16,7 @@ const METHODS = ['setStage', 'setCamera', 'setPrep', 'enterBattle', 'pushSnapsho
 const flush = async () => { for (let i = 0; i < 16; i++) await Promise.resolve(); };
 
 function fixture() {
-  const timers = new Map(), requests = [], fallbacks = [], warnings = [];
+  const timers = new Map(), requests = [], fallbacks = [], warnings = [], recorded = [];
   let timerId = 0;
   const unrelated = { name: 'unrelated' };
   const host = {
@@ -37,6 +37,7 @@ function fixture() {
   const context = vm.createContext({
     AbortController, DOMException, URLSearchParams, Promise,
     console: { warn: (...args) => warnings.push(args) },
+    recordError: (...args) => recorded.push(args),
     audio: {}, data: { get() { return null; } }, settingsStore: { get() { return {}; } },
     setTimeout(fn) { timers.set(++timerId, fn); return timerId; },
     clearTimeout(id) { timers.delete(id); },
@@ -55,7 +56,7 @@ function fixture() {
   });
   vm.runInContext(source + '\nglobalThis.mount = mountFieldView;', context, { filename: sourcePath.pathname });
   return {
-    host, unrelated, timers, requests, fallbacks, warnings, view,
+    host, unrelated, timers, requests, fallbacks, warnings, recorded, view,
     mount: (signal) => context.mount(host, { signal }),
     timeout() { const fn = [...timers.values()].at(-1); assert.ok(fn, 'initialization has a deadline'); fn(); },
   };
@@ -92,6 +93,7 @@ test('cancelling a pending mount rejects without fallback and disposes a late re
   assert.equal(result.value.name, 'AbortError');
   assert.equal(f.fallbacks.length, 0);
   assert.equal(f.warnings.length, 0);
+  assert.equal(f.recorded.length, 0, 'normal navigation cancellation is not a render failure');
   assert.equal(f.timers.size, 0);
   assert.equal(getEventListeners(controller.signal, 'abort').length, 0);
   const late = f.view('late');
@@ -126,6 +128,9 @@ test('an invalid renderer API is disposed and aborted before fallback mounts', a
   f.requests[0].resolve(invalid);
   const fallback = await pending;
   assert.equal(fallback.kind, 'fallback');
+  assert.equal(f.recorded.length, 1);
+  assert.equal(f.recorded[0][0], 'render');
+  assert.match(f.recorded[0][1].message, /view lacks/);
   assert.equal(invalid.destroyCalls, 1);
   assert.equal(f.fallbacks[0].rendererAborted, true);
   assert.equal(f.timers.size, 0);
