@@ -95,6 +95,15 @@ test('nothing under public/ points a request at an off-device URL', async () => 
     /new\s+WebSocket\s*\(\s*["'`](https?:\/\/[^'"`\s)]+)/g,
     /@import\s+(?:url\()?\s*["']?(https?:\/\/[^)'"\s]+)/g,
   ];
+  // `<a href>` 是**导航**（玩家点了才发生），不是资源加载。上面第一条正则按"引用形式"拦 href，
+  // 分不清 `<a href>` 与 `<link href>` / `<img src>`，所以把 `<a>` 的 href 单独摘出来，
+  // 只对**确切 URL** 白名单放行 —— 放行整类 href、或放行整个 github.com，闸门就形同虚设了。
+  // 目前只有一条：上游 0.2.5 在标题页加的「项目仓库」链接（`public/js/screens/title.js`，
+  // 带 target="_blank" rel="noopener noreferrer"；不点它不会有任何网络行为）。
+  // ⚠️ 客户端仓 `tools/check-payload-offline.mjs` 的 `ANCHOR_NAV` / `ALLOWED_NAV` 是**同一套判据**，
+  //    改这里就要同步改那边，否则切包时会在客户端仓再红一次（0.2.5 的 cut 就是这么红的）。
+  const ANCHOR = /<a\b[^>]*\bhref\s*=\s*["'](https?:\/\/[^"'\s]+)/gi;
+  const ALLOWED = new Set(['https://github.com/sganggs/Stronghold-Protocol']);
   const BARE = /https?:\/\/[^\s"'<>)\]]+/g;
   const exts = new Set(['.html', '.css', '.js', '.mjs', '.json', '.svg', '.txt', '.atlas']);
   const hits = [];
@@ -105,11 +114,16 @@ test('nothing under public/ points a request at an off-device URL', async () => 
       if (e.isDirectory()) { await walk(p); continue; }
       if (!exts.has(path.extname(e.name).toLowerCase())) continue;
       const text = await readFile(p, 'utf8');
-      for (const rx of FORMS) for (const m of text.matchAll(rx)) hits.push(`${path.relative(ROOT, p)} → ${m[1]}`);
+      const anchors = new Set([...text.matchAll(ANCHOR)].map((m) => m[1]));
+      for (const rx of FORMS) for (const m of text.matchAll(rx)) {
+        if (anchors.has(m[1]) && ALLOWED.has(m[1])) continue; // 点了才跳转的导航链接，不是出站请求
+        hits.push(`${path.relative(ROOT, p)} → ${m[1]}`);
+      }
       bare += [...text.matchAll(BARE)].length;
     }
   };
   await walk(path.join(ROOT, 'public'));
   assert.deepEqual(hits, [], `这些是真正会发出去的站外请求：\n  ${hits.slice(0, 8).join('\n  ')}`);
   assert.ok(bare > 20, `裸 URL 计数只有 ${bare} —— 扫描大概没跑到 vendor/，这条测试就失去意义了`);
+  assert.equal(ALLOWED.size, 1, '白名单只该有这一条；加条目要同时改客户端仓的同一套判据');
 });
