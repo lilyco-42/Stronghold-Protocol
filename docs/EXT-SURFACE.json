@@ -1,5 +1,5 @@
 {
- "generated": "2026-10-11",
+ "generated": "2026-10-13",
  "upstream": "upstream/master",
  "files": {
   "AGENTS.md": [
@@ -1160,10 +1160,6 @@
    }
   ],
   "public/js/main.js": [
-   {
-    "line": "import { installAudio, audio } from './audio.js';",
-    "anchor": "import { GameScreen } from './screens/game.js';"
-   },
    {
     "line": "import { installSkinsSync } from './ui/skins.js';",
     "anchor": "import { installLoadoutSync, installOwnershipSync, installDiySync } from './ui/l"
