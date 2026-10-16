@@ -1,7 +1,8 @@
 // Correctness lint only (npm run lint). No formatter, no stylistic rules, no repo-wide reformat.
 //
 // Node: server, shared, tools, scripts, types.
-// Browser: public/js (also loaded under Node by unit tests, so `process` is a known global).
+// Browser: public/js (also loaded under Node by unit tests, so `process` is a known global) and the plugin studio's page,
+// public/studio.
 // Tests: Node globals plus browser globals (page.evaluate callbacks).
 // Warnings (unused vars, and a few rules that fire on intentional patterns) do not fail the run.
 // `npm run lint` does not pass --max-warnings=0.
@@ -39,6 +40,10 @@ const rules = {
   'preserve-caught-error': 'warn',
 };
 
+// ECMA-262 §21.3.2: the Math functions whose results are "implementation-approximated".
+const APPROXIMATED_MATH = ['acos', 'acosh', 'asin', 'asinh', 'atan', 'atanh', 'atan2', 'cbrt', 'cos', 'cosh', 'exp',
+  'expm1', 'hypot', 'log', 'log1p', 'log10', 'log2', 'pow', 'sin', 'sinh', 'tan', 'tanh'];
+
 const nodeFiles = [
   'server/**/*.js',
   'shared/**/*.js',
@@ -71,13 +76,27 @@ export default [
     rules,
   },
   {
-    files: ['public/js/**/*.js'],
+    files: ['public/js/**/*.js', 'public/studio/**/*.js'],
     languageOptions: {
       ecmaVersion: 2024,
       sourceType: 'module',
       globals: { ...globals.browser, process: 'readonly' },
     },
     rules,
+  },
+  {
+    // The sim runs in every player's browser and on the server, and must give the same bits everywhere. ECMA-262
+    // leaves these Math functions (and **) implementation-approximated: engines differ in the last bits.
+    files: ['server/sim/**/*.js'],
+    rules: {
+      'no-restricted-properties': ['error', ...APPROXIMATED_MATH.map((property) => ({
+        object: 'Math', property, message: 'implementation-approximated (engines differ in the last bits): use server/sim/detmath.js',
+      }))],
+      'no-restricted-syntax': ['error',
+        { selector: "BinaryExpression[operator='**']", message: 'implementation-approximated: use powi from server/sim/detmath.js' },
+        { selector: "AssignmentExpression[operator='**=']", message: 'implementation-approximated: use powi from server/sim/detmath.js' },
+      ],
+    },
   },
   {
     // Node test runner, plus browser tests whose page.evaluate callbacks use DOM globals.

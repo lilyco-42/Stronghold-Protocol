@@ -105,7 +105,7 @@ async function handleAdminAnnounce(req, res, board) {
   const a = board.current;
   sendJson(req, res, 200, {
     ok: true,
-    announcement: a ? { id: a.id, text: a.text, startedAt: a.startAt } : null,
+    announcement: a ? { id: a.id, text: a.text, startedAt: a.startedAt } : null,
     message: (result.lines || []).join(' '),
   });
 }

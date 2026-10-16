@@ -67,7 +67,7 @@ test('PREP: a player who un-readies right after everybody was ready keeps the pr
   m.dispose();
 });
 
-test('merge with a full hand and a full temp: the elite takes its deployed copy\'s tile (PRTS) and keeps the returned items', () => {
+test('merge with a full visible bench: the elite takes its deployed copy\'s tile and returned items queue', () => {
   const { m, ps } = prepSolo({ seed: 903 });
   const id = chessOfTier(1, (c) => c.position === 'MELEE').find((c) => m.pool.has(c) && m.gd.mergeCount(c) === 3);
   const t1 = legalTileFor(m, ps, id);
@@ -93,7 +93,9 @@ test('merge with a full hand and a full temp: the elite takes its deployed copy\
   assert.ok(elite, 'the elite stands on a consumed copy\'s tile');
   assert.equal(ps.find(elite.uid).key, `${t1[0]},${t1[1]}`, 'the copy that deploys first (legalTileFor walks the top row left to right: on one row, the deploy order)');
   assert.equal(elite.poolCopies, 3, 'it holds all three copies');
-  assert.deepEqual(elite.items.map((x) => x.id).sort(), ['chess_item_1_01_e_a', 'chess_item_2_04_e_a'], 'returned items are kept on it');
+  assert.deepEqual(elite.items, [], 'returned equipment must be equipped again');
+  assert.equal(ps.temp.length, 7);
+  for (const item of [itA, itB]) assert.equal(ps.find(item.uid).piece, item);
   checkInvariants(m);
   m.dispose();
 });
@@ -394,6 +396,22 @@ test('collectViolations reports corrupted state (funds, pool accounting, duplica
   ps.board.set('12,9', ps.newPiece('chess', id, { poolCopies: 0 }));
   const v = collectViolations(m, { limit: 50 }).join('\n');
   for (const re of [/funds -1/, /pool .*left .* held/, /duplicate uid/, /stale bonds/, /illegal tile|outside/]) assert.match(v, re);
+  m.dispose();
+});
+
+test('collectViolations: a 教鞭 choice belongs to its owner\'s open prep only', () => {
+  const { m, ps } = prepSolo({ seed: 922 });
+  const art = giveItem(m, ps, 'chess_item_6_03_m');
+  assert.deepEqual(ps.useArt(art.uid, 10, 5), { ok: true });
+  assert.deepEqual(collectViolations(m), [], 'an open choice in its own prep is fine');
+  const pc = ps.personalChoice;
+  pc.round = m.round - 1;
+  assert.match(collectViolations(m).join('\n'), /personal choice outside its own prep/, 'a choice left from an earlier round');
+  pc.round = m.round;
+  pc.cards = [pc.cards[0], pc.cards[0]];
+  assert.match(collectViolations(m).join('\n'), /personal choice of 2 cards/, 'the same card twice');
+  ps.personalChoice = null;
+  assert.deepEqual(collectViolations(m), []);
   m.dispose();
 });
 

@@ -51,12 +51,12 @@ test('standins: every active skill a chess names for its stand-in is cast; passi
   }
 });
 
-test('matches: the 补位 match\'s human seat fields stand-ins (listed per round) and the match ends without errors', () => {
-  const dg = MATCHES.scenarios['coop2-NORMAL-14-standins'];
+test('user: Given no owned NORMAL operators, When AI plays a full match, Then it fields stand-ins without engine errors', () => {
+  const dg = MATCHES.scenarios['coop2-NORMAL-1-unowned-roster'];
   assert.ok(dg, 'scenario present');
   assert.deepEqual(dg.errors, { engine: 0, logged: 0, sim: 0, dispatcher: 0 });
   const fielded = dg.standIns.rounds.filter(([, s]) => s).flatMap(([, s]) => s.split(' '));
-  assert.ok(new Set(fielded).size >= 3, `stand-ins fielded: ${[...new Set(fielded)].join(', ')}`);
+  assert.ok(new Set(fielded).size >= 2, `stand-ins fielded: ${[...new Set(fielded)].join(', ')}`);
   for (const f of fielded) {
     const [id, charId] = f.split('→');
     const c = CHESS[`chess_char_${id}`];

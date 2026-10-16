@@ -26,6 +26,11 @@
 // SP_START_SHOP stocks its first slots) — test/ui/diy.e2e.test.js: a tier-5 自选 piece is sold from level 5.
 // SP_FINISH_AFTER=<round>: the match ends (a defeat: m.result, the RESULT screen) once that round has settled, instead
 // of going on to the next round — test/ui/standin.e2e.test.js: the result lineup of the board just fought with.
+// SP_PLUGINS_DIR=<dir>: the server's plugin folders (startServer `pluginsDir`) — test/ui/plugins.e2e.test.js: a cosmetic
+// plugin switched on during a match.
+// SP_SLOW_SPAWNS=<humanIdx>:<factor>: that human's (seat order) normal battles spawn their enemies at <factor> × the
+// scheduled times (and intervals) — a leaker's battle then runs to the round's time limit, long after a teammate's quick
+// one (test/ui/watch-bonds.e2e.test.js, "after the own battle": a window for watching and a reload).
 // Not a test file (node --test runs it as a no-op module when NODE_TEST_CONTEXT is set).
 
 import { startServer } from '../../server/index.js';
@@ -52,6 +57,8 @@ if (!process.env.NODE_TEST_CONTEXT) {
   const forcedStage = String(process.env.SP_STAGE || '').trim();
   const startLevel = Math.max(0, Math.min(6, Number(process.env.SP_START_LEVEL) || 0));
   const finishAfter = Math.max(0, Number(process.env.SP_FINISH_AFTER) || 0);
+  const [slowIdx, slowFactor] = String(process.env.SP_SLOW_SPAWNS || '').split(':').map(Number);
+  const slowSpawns = Number.isInteger(slowIdx) && slowIdx >= 0 && slowFactor > 0 ? { idx: slowIdx, factor: slowFactor } : null;
 
   class FastMatch extends Match {
     constructor(opts) {
@@ -127,6 +134,19 @@ if (!process.env.NODE_TEST_CONTEXT) {
       super.afterSettle();
     }
 
+    _ccField(args) {
+      const f = super._ccField(args);
+      const ps = slowSpawns && f.kind === 'normal' ? this.order.filter((x) => !x.isBot)[slowSpawns.idx] : null;
+      if (ps && f.players.includes(ps.playerId)) {
+        for (const x of f.spec.spawns) {
+          if (!x || !Number.isFinite(Number(x.time))) continue;
+          x.time = Number(x.time) * slowSpawns.factor;
+          if (Number(x.interval) > 0) x.interval = Number(x.interval) * slowSpawns.factor;
+        }
+      }
+      return f;
+    }
+
     scheduleBotPrep(ps, i = 0) {
       if (!idleBots) { super.scheduleBotPrep(ps, i); return; }
       const round = this.round;
@@ -176,7 +196,8 @@ if (!process.env.NODE_TEST_CONTEXT) {
     }
   }
 
-  const srv = await startServer({ port: Number(process.env.PORT) || 0, host: process.env.HOST || '127.0.0.1', quiet: true, MatchClass: FastMatch });
+  const srv = await startServer({ port: Number(process.env.PORT) || 0, host: process.env.HOST || '127.0.0.1', quiet: true, MatchClass: FastMatch,
+    ...(process.env.SP_PLUGINS_DIR ? { pluginsDir: process.env.SP_PLUGINS_DIR } : {}) });
   console.log(`fast server on ${srv.url} (timers ×${timerScale}, combat ${combatSpeed}×${startAt ? `, first round ${startAt}` : ''})`);
   const stop = () => { srv.close().finally(() => process.exit(0)); };
   process.on('SIGTERM', stop);

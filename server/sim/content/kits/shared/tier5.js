@@ -36,8 +36,9 @@
 //   'overload', 'ember', 'bloodBattle', 'reborn', 'candle', 'wake' {scale}, 'mote', 'hpShare', 'crit',
 //   'meltdown', 'soul', 'sleepGuard', 'weightless'; engine kinds used: 'dodge'.
 
-import { bodyInKeys } from '../../../body.js';
+import { bodyInRange } from '../../../body.js';
 import { absoluteRangeKeys, sortEnemyTargets } from '../../../targeting.js';
+import { hypot } from '../../../detmath.js';
 
 // ---- text-only constants (the official blackboards carry no key for these) --------------------------------------
 /** 华法琳 S1 "只当目标生命值不满一半时才会触发"; 塞雷娅 S1 "血量小于等于一半"; 山 module "生命值高于50%时". */
@@ -60,7 +61,7 @@ const RING1 = 1.5;
 const num = (v, d = 0) => (typeof v === 'number' && Number.isFinite(v) ? v : d);
 const on = (u) => !!u && u.alive && u.deployed && !u.removed;
 /** In the unit's current range: an ally by its tile, an enemy by its body (a huge one's every tile — sim/body.js). */
-const inRange = (unit, x) => !!unit.rangeKeySet && bodyInKeys(x, unit.rangeKeySet);
+const inRange = (unit, x) => !!unit.rangeKeySet && bodyInRange(x, unit.rangeKeySet);
 const talent = (chess, i) => (chess?.talents || []).find((t) => t && t.index === i)?.bb ?? {};
 const talentRec = (chess, i) => (chess?.talents || []).find((t) => t && t.index === i) ?? null;
 const traitBb = (chess) => chess?.trait?.bb ?? {};
@@ -70,7 +71,7 @@ const maxCharges = (chess, def) => num(def?.skill?.maxCharges, num(chess?.skill?
 const batPct = (sec, chess) => { const b = num(chess?.stats?.bat, 1) || 1; const v = num(sec) / b; return v ? Math.max(-0.9, v) : 0; };
 /** Drop zero / non-finite entries (a zero mod is noise in the buff list). */
 const mods = (m) => { const o = {}; for (const k of Object.keys(m)) { const v = m[k]; if (typeof v === 'number' && Number.isFinite(v) && v !== 0) o[k] = v; } return o; };
-const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+const dist = (a, b) => hypot(a.x - b.x, a.y - b.y);
 const nationOf = (u) => u?.def?.raw?.nationId ?? null;
 const inFaction = (u, bond, nations) => !!u?.def && ((u.def.bonds || []).includes(bond) || nations.includes(nationOf(u)));
 const isAbyssal = (u) => u?.def?.raw?.groupId === 'abyssal' || ABYSSAL.has(u?.def?.charId);
@@ -95,13 +96,6 @@ const skillRange = (chess, def, extra = null) => {
   const g = skillGrid(chess, def);
   return g || extra ? { ...(g ? { rangeGrid: g } : {}), ...(extra || {}) } : undefined;
 };
-/** "攻击范围内存在N名及以上敌人时攻击速度+X" (modules REA-Y). */
-function crowdAspd(battle, unit, key, aspd, cnt) {
-  if (!aspd || !(cnt > 0)) return;
-  whileOn(battle, unit, 0.2, () => {
-    if (battle.enemiesInKeys(unit.rangeKeys, unit, unit.profile).length >= cnt) battle.addBuff(unit, { key, duration: 0.3, mods: { aspd } });
-  });
-}
 /** "攻击范围内存在元素损伤爆发的敌人时，技力自然恢复速度+X/秒" (modules PRI-Y). */
 function burstSpUp(battle, unit, key, sp) {
   if (!(sp > 0)) return;
@@ -199,7 +193,7 @@ function enemiesInGrid(battle, unit, grid, n = 0, { ignoreStealth = false } = {}
   let list;
   if (ignoreStealth) {
     const set = new Set(keys);
-    list = battle.enemies.filter((e) => e.alive && !e.hidden && e.deployed && !e.s.flags.untargetable && bodyInKeys(e, set));
+    list = battle.enemies.filter((e) => e.alive && !e.hidden && e.deployed && !e.s.flags.untargetable && bodyInRange(e, set));
   } else list = battle.enemiesInKeys(keys, unit, { canHitFly: true });
   sortEnemyTargets(battle, unit, list, null);
   return n > 0 && list.length > n ? list.slice(0, n) : list;
@@ -207,6 +201,6 @@ function enemiesInGrid(battle, unit, grid, n = 0, { ignoreStealth = false } = {}
 
 export {
   HALF_HP, NEVER, AURA_IV, AURA_DUR, RING1, num, on, inRange, talent, talentRec, traitBb, skillGrid, maxCharges, batPct,
-  mods, dist, inFaction, isAbyssal, isOp, selectedId, lazySkills, instantKind, skillRange, crowdAspd, burstSpUp,
+  mods, dist, inFaction, isAbyssal, isOp, selectedId, lazySkills, instantKind, skillRange, burstSpUp,
   leaderOf, elementHit, whileOn, spAura, burstDamageUp, lowHpHealUp, moduleRangeUp, permBuff, enemiesInGrid,
 };

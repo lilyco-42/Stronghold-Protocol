@@ -137,9 +137,12 @@ export class Battle {
     this._evq = [];
     this.projectiles = new ProjectileSystem(this);
     this._occ = new Array(ROWS * COLS).fill(null);
-    this._eb = new Array(ROWS * COLS);
+    this._eb = new Array(ROWS * COLS);   // range buckets (colliders: queries.js _buildEnemyIndex)
     for (let i = 0; i < this._eb.length; i++) this._eb[i] = [];
     this._ebUsed = [];
+    this._et = new Array(ROWS * COLS);   // tile buckets (格子判定: the position's tile, a huge enemy's rectangle tiles)
+    for (let i = 0; i < this._et.length; i++) this._et[i] = [];
+    this._etUsed = [];
     this._idSeq = 0;
     this._attackSeq = 0;   // DamageInfo.attackId of normal attacks (one id per attack, all its damage instances)
     this._deploySeq = 0;
@@ -148,6 +151,11 @@ export class Battle {
     this.killed = 0;
     this.total = 0;
     this.leakedCount = 0;
+    // The HUD capsule's own counters (DESIGN §14, PR #157 semantics): only the enemies the field itself scheduled
+    // (`inTotal`, spawns.js `_queueSpawn` — `total` is their denominator) count here. `killed` / `leakedCount` above keep
+    // the official LP / 完美作战 reading: every `counted` enemy, runtime splits and summons included.
+    this.killedInTotal = 0;
+    this.leakedInTotal = 0;
     this.errors = [];
     this.errorCount = 0;
     this._errKeys = new Set();
@@ -167,9 +175,34 @@ export class Battle {
 
     // ---- content
     this.contentMode = opts.content ?? 'full';
-    this._safe(() => installContent(this, { mode: this.contentMode, extra: opts.extraContent }), 'installContent');
-    for (const u of this.allyUnits) if (!u.kit) this._setupUnit(u);
-    if (typeof opts.setup === 'function') this._safe(() => opts.setup(this), 'opts.setup');
+    try {
+      installContent(this, { mode: this.contentMode, extra: opts.extraContent });
+    } catch (e) {
+      if (!this.contentFault) this._handlerError('installContent', null, e);
+    }
+    if (this.contentFault) {
+      // [ASSUMED] A DSL kit that still throws after the set was built means the content set is corrupt.
+      // Do not call forceEnd: that would start() and deploy. The player sees the ordinary forced result;
+      // battle.errors carries content:dsl and the code (DESIGN §32.7). Host and page share this constructor.
+      this.finished = true;
+      this.started = true;
+      this.reason = 'forced';
+      try { this._result = this._buildResult(); }
+      catch { this._result = { time: this.time, reason: 'forced', perPlayer: {}, killed: this.killed, total: this.total, resolved: this.resolved, errors: this.errorCount }; }
+    } else {
+      for (const u of this.allyUnits) if (!u.kit) this._setupUnit(u);
+      if (typeof opts.setup === 'function') this._safe(() => opts.setup(this), 'opts.setup');
+    }
+  }
+
+  /**
+   * The HUD capsule's numerator (DESIGN §14): the field's own scheduled enemies (`inTotal`) that are 已解决 — knocked
+   * down (`killedInTotal`) or leaked (`leakedInTotal`) — never above the denominator `total`. The official reading:
+   * 开局 0/3 → 漏一个 1/3 → 打死一个 2/3 → 打死会分裂的 3/3; a leaked split child still costs LP (`leakedCount`) and breaks
+   * 完美作战, but it is no enemy of the stage's own list and moves no capsule number.
+   */
+  get resolved() {
+    return Math.min(this.total, this.killedInTotal + this.leakedInTotal);
   }
 
   [Symbol.for('nodejs.util.inspect.custom')]() {

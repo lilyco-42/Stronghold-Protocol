@@ -33,7 +33,9 @@
 //                 (never while 缪尔赛思 is down: her redeploy brings it back; split clones are never her 援军)
 //   香槟炸弹      untargetable trap: the first ground enemy touching its tile takes owner ATK × atk_scale phys (+1 hit
 //                 after duration_switch s on the field) and sluggish; the bomb is used up ('expired', never a knock-out;
-//                 its blast fx carries `consumed: true` so clients play the explosion, not a death sound)
+//                 its blast fx carries `consumed: true` so clients play the explosion, not a death sound); 禁疗, no HP
+//                 loss, never gone because of its HP (champagneHold — the owner's decision D2 of 2026-10-08); an
+//                 unrevealed 隐匿 enemy does not set it off (CHAMPAGNE_TRIGGER)
 //   从不混淆的方向 untargetable marker; when the owner's skill ends it vanishes and the owner returns to its tile
 //   黄金盟誓      attacks deal true damage (trait); lasts while the owner's skill runs; 维娜 S3 places one on every
 //                 free deployable tile around her (kits/ops/chess_char_6_07-siege2.js) — no per-owner deploy limit (SKILL_SUMMON_UNCAPPED)
@@ -79,6 +81,8 @@
 //
 // Exports for other content: spawnYanyou, spawnMapChar, findSummonTile, summonToken, tacticalPoint, wolfShadows,
 // COUNTDOWN_SUMMONS / startCountdown (the countdown summons' 无敌 + 禁疗 and timer bar, shared with the kits that time them),
+// champagneHold / CHAMPAGNE_TRIGGER (香槟炸弹's durability and the enemies it goes off on, shared with 琳琅诗怀雅's kit,
+// kits/ops/chess_char_3_04-swire2.js),
 // wolfShadowInterval, installWolfTacticalPoint, wolfTacticalPoint, wolfReturnNow (the 狼群's 战术点形态, shared with the
 // 伺夜 kit's own pack, kits/ops/chess_char_3_19-vigil.js), releaseSkillSummon, SKILL_SUMMON_START_DEPLOY, CAT_SHIELD_KEY,
 // TOKEN_IDS; mapCharTalents and touchGospel (Touch's 攫升 / 超脱 and 恳切福音, shared with the Touch 补位 stand-in kit,
@@ -86,12 +90,16 @@
 
 import { COLS, ROWS, MOVE_SCALE, FORCED_EXIT } from '../constants.js';
 import { absoluteRangeKeys, sortEnemyTargets, canTargetEnemy } from '../targeting.js';
-import { bodyInKeys, bodyOnTile } from '../body.js';
+import { bodyOnTile, bodyInRange } from '../body.js';
 import { hasHp } from '../damage.js';
+import { textCount } from '../../../shared/plugins/textNumber.js';
 import { genericKit } from './generic.js';
 import { bardRegen } from '../professions.js';
 import { normDir, localOrder } from '../dir.js';
 import { SKILL_SUMMON_START_DEPLOY } from '../../../shared/constants.js';
+import { hypot } from '../detmath.js';
+import { atPotential } from '../../../shared/potential.js';
+import { textFinite } from '../../../shared/plugins/textNumber.js';
 
 const num = (v, d = 0) => (typeof v === 'number' && Number.isFinite(v) ? v : (typeof v === 'string' && v.trim() !== '' && Number.isFinite(+v) ? +v : d));
 const GRID_3X3 = Object.freeze([[1, -1], [1, 0], [1, 1], [0, -1], [0, 0], [0, 1], [-1, -1], [-1, 0], [-1, 1]]);
@@ -156,7 +164,8 @@ function ownVariant(raw, owner) {
   const oid = owner?.def?.tokenOwner ?? owner?.defId;
   if (!vs || typeof vs !== 'object' || !oid) return null;
   const v = vs[oid] ?? vs[String(oid).replace(/_b$/, '_a')] ?? null;
-  return v ? withLoadout(v, owner.def?.loadout) : null;
+  // at the owner's potential (0.2.2: a 自选 summon's deploy limit / count, the talents — shared/potential.js)
+  return v ? withLoadout(atPotential(v, owner.def?.loadout?.potential), owner.def?.loadout) : null;
 }
 
 /**
@@ -242,7 +251,7 @@ function enemiesOnKeys(battle, keys) {
   const out = [];
   for (const e of battle.enemies) {
     if (!e.alive || e.hidden) continue;
-    if (bodyInKeys(e, set)) out.push(e);
+    if (bodyInRange(e, set)) out.push(e);
   }
   return out;
 }
@@ -451,7 +460,7 @@ export function findSummonTile(battle, owner, placement = 'melee', opts = {}) {
     let cover = 0;
     if (placement === 'enemy' || placement === 'melee') cover = countNear(enemies, r, c, 1);
     else if (placement === 'ally') cover = countNear(injured, r, c, 1);
-    const d = placement === 'ally' ? Math.hypot(c - owner.x, r - owner.y) : Math.hypot(c - focus.x, r - focus.y);
+    const d = placement === 'ally' ? hypot(c - owner.x, r - owner.y) : hypot(c - focus.x, r - focus.y);
     // last: the tile's offset in the owner's facing-RIGHT frame (for a RIGHT owner = the tile key order), so equal
     // candidates resolve the same way whichever direction the owner faces
     const [lr, lc] = localOrder(r - owner.tileR, c - owner.tileC, owner.dir);
@@ -490,7 +499,10 @@ function healDrone() {
       const v = variantOf(unit);
       const sk = v?.skill ?? unit.def?.raw?.skill ?? null;
       let life = /^skcom_withdraw/.test(String(sk?.skillId ?? sk?.id ?? '')) ? num(sk.duration, 0) : 0;
-      if (!(life > 0)) { const m = String(sk?.desc ?? sk?.description ?? '').match(/(\d+(?:\.\d+)?)秒后自动销毁/); if (m) life = +m[1]; }
+      if (!(life > 0)) {
+        const secs = textFinite(String(sk?.desc ?? sk?.description ?? ''), /(\d+(?:\.\d+)?)秒后自动销毁/, NaN);
+        if (Number.isFinite(secs)) life = secs;
+      }
       onDeploy(battle, unit, () => scheduleLifetime(battle, unit, life));
     },
   };
@@ -758,8 +770,8 @@ function wolfPack(bb, raw, def) {
   const lb = leader?.bb ?? {};
   const interval = wolfShadowInterval(def);
   const perBlock = num(lb['vigil_wolf_t_1_enhance[trigger].block_cnt'] ?? lb.block_cnt, 1);
-  const mMax = String(leader?.description ?? '').match(/至多(\d+)只/);
-  const maxShadows = mMax ? +mMax[1] : 1 + num(lb['vigil_wolf_t_1_enhance[trigger].max_stack_cnt'], 0);
+  // (counts read from text are capped like every other — textCount, DESIGN §32.5; the official 至多3只 reads 3)
+  const maxShadows = textCount(leader?.description, /至多(\d+)只/, 1 + num(lb['vigil_wolf_t_1_enhance[trigger].max_stack_cnt'], 0), 'at-most-pack');
   const defPen = num(talentBb(def, 'def_penetrate_fixed').def_penetrate_fixed, 0);
   const guardMul = num(talentWith(def, 'prob')?.bb?.damage_scale, 1); // module: 援军受到来自自身阻挡单位的伤害降低
   const s3Key = Object.keys(bb || {}).find((k) => /atk_scale$/.test(k));
@@ -772,10 +784,10 @@ function wolfPack(bb, raw, def) {
     skill: null,
     trait: { hitsFn: (b, u) => Math.max(1, u.mem.shadows ?? 1) },
     install(battle, unit) {
+      unit.mem.wolfCapacity = maxShadows; // (b.snap `wolves`, snapshot.js wolfView: the pips under the HP bar)
       // initial shadows: 伺夜's talent text ("初始两只"), else one below the maximum
       const ot = (ownerOf(unit)?.def?.talents || []).map((t) => t.description || '').join(' ');
-      const mi = ot.match(/初始(两|二|\d+)只/);
-      const initShadows = Math.max(1, Math.min(maxShadows, mi ? (/\d/.test(mi[1]) ? +mi[1] : 2) : maxShadows - 1));
+      const initShadows = Math.max(1, Math.min(maxShadows, textCount(ot, /初始(两|二|\d+)只/, maxShadows - 1, 'initial-pack')));
       onDeploy(battle, unit, () => {
         // back from its 战术点形态 (wolfReturnNow): 1 狼影 (PRTS 狼群 "从战术点形态转变为召唤物形态后拥有1只“狼影”") and a
         // fresh growth cycle; any other deployment: the initial count
@@ -1028,7 +1040,33 @@ function manifold(bb, raw, def) {
   };
 }
 
-/** 香槟炸弹 (琳琅诗怀雅 S2): untargetable trap consumed by the first ground enemy touching its tile. */
+/**
+ * 香槟炸弹's durability — the owner's decision D2 of 2026-10-08, a deliberate deviation (PRTS 香槟炸弹: 1000 HP and the 备注
+ * "即使自身生命值未满，模型下方也不会显示生命值槽" — officially it can lose HP; no 无敌 / 禁疗 note): it holds 禁疗 (no heal
+ * reaches it, no healer picks it), loses no HP (every damage to it is cancelled — the 活性源石 tick, an element hit too —
+ * and a 流失 is given back before the knock-out check) and so never leaves because of its HP; it goes when its 见面礼 is
+ * spent, as before. Flags only: no status icon, no 无敌 badge (its HP bar is hidden by the client). The token kit below
+ * and 琳琅诗怀雅's own bomb (kits/ops/chess_char_3_04-swire2.js) both install it. Until 0.2.1 a bomb on 活性源石 lost 70 HP/s
+ * and a medic healed a hurt one.
+ */
+export function champagneHold(battle, bomb) {
+  // PRTS 香槟炸弹: entity type 装置, not selected by ordinary auras/talents. The internal selection barrier has no
+  // visible status icon; it does not change the owner's explosion or the established HP protection (#476).
+  battle.addBuff(bomb, { key: 'token:champagneHold', flags: { noHeal: true, healFree: true, isolated: true }, persist: true, allowDead: true });
+  battle.on('hit', (ctx) => { if (ctx.target === bomb) ctx.dmg.cancel = true; }, { owner: bomb, priority: 1000 });
+  battle.on('elementHit', (ctx) => { if (ctx.target === bomb) ctx.dmg.cancel = true; }, { owner: bomb, priority: 1000 });
+  battle.on('damaged', (ctx) => { if (ctx.target === bomb && bomb.alive) bomb.hp = bomb.s.maxHp; }, { owner: bomb, priority: 1000 });
+}
+
+/**
+ * The enemies a 香槟炸弹 may set off on: ground and selectable (canTargetEnemy) — a 隐匿 enemy that is neither revealed nor
+ * blocked is none (PRTS 作战机制 §隐匿 "隐匿效果使得获得该效果的单位无法被任何敌方的能力索敌选中"; its pages carry no 无视隐匿 /
+ * 无视可选性 note; the other contact traps — 多萝西's 共振装置, 望's 棋子 — select so too). A community report the owner relayed
+ * (「香槟炸到没有破隐的隐匿敌人了」): until 0.2.1 it went off on any ground enemy, 隐匿 or not.
+ */
+export const CHAMPAGNE_TRIGGER = Object.freeze({ canHitFly: false, groundOnly: true });
+
+/** 香槟炸弹 (琳琅诗怀雅 S2): untargetable trap consumed by the first ground enemy touching its tile (champagneHold). */
 function champagne(bb) {
   const scale = num(bb['attack@atk_scale'] ?? bb.atk_scale, 0);
   const slug = num(bb['attack@sluggish'] ?? bb.sluggish, 0);
@@ -1040,7 +1078,7 @@ function champagne(bb) {
         if (!unit.alive) return;
         let hit = null;
         for (const e of battle.enemies) {
-          if (!e.alive || e.hidden || e.isFlying) continue;
+          if (!canTargetEnemy(unit, e, CHAMPAGNE_TRIGGER)) continue;   // (no unrevealed 隐匿 enemy)
           // touching its tile: a huge enemy on any tile of its body (body.js)
           const on = e.hitArea ? bodyOnTile(e, unit.tileR, unit.tileC) : Math.abs(e.x - unit.tileC) <= 0.5 && Math.abs(e.y - unit.tileR) <= 0.5;
           if (on && (!hit || e.spawnSeq < hit.spawnSeq)) hit = e;
@@ -1055,7 +1093,7 @@ function champagne(bb) {
       },
     },
     trait: { noAttack: true },
-    install(battle, unit) { untargetable(battle, unit); },
+    install(battle, unit) { untargetable(battle, unit); champagneHold(battle, unit); },
   };
 }
 
@@ -1236,7 +1274,7 @@ function yanyouKit(bb, raw) {
     const keys = [];
     const r0 = Math.floor(u.y - radius), r1 = Math.ceil(u.y + radius), c0 = Math.floor(u.x - radius), c1 = Math.ceil(u.x + radius);
     for (let r = Math.max(0, r0); r <= Math.min(ROWS - 1, r1); r++) {
-      for (let c = Math.max(0, c0); c <= Math.min(COLS - 1, c1); c++) if (Math.hypot(c - u.x, r - u.y) <= radius + 1e-9) keys.push(r * COLS + c);
+      for (let c = Math.max(0, c0); c <= Math.min(COLS - 1, c1); c++) if (hypot(c - u.x, r - u.y) <= radius + 1e-9) keys.push(r * COLS + c);
     }
     u.rangeKeys = keys;
     u.rangeKeySet = new Set(keys);
@@ -1299,7 +1337,7 @@ function yanyouKit(bb, raw) {
           const tgt = lockOf(unit) ?? topAggroEnemy(battle, unit);
           if (tgt) {
             const dx = tgt.x - unit.x, dy = tgt.y + num(unit.mem.hoverDy, 0) - unit.y;
-            const d = Math.hypot(dx, dy);
+            const d = hypot(dx, dy);
             if (d > YANYOU_STOP + 1e-6) {
               const step = Math.min(d - YANYOU_STOP, speed * dt);
               const R = battle.rect;
@@ -1351,7 +1389,7 @@ function airTile(battle, playerId, taken) {
       if (taken.has(r * COLS + c) || held.has(r * COLS + c) || !tileFree(battle, r, c)) continue;
       const t = battle.grid.tile(r, c);
       const cls = t.build === 'NONE' && t.pass !== 'ALL' ? 0 : t.build === 'NONE' ? 1 : 2;
-      const s = [cls, Math.hypot(r - cr, c - cc), r * COLS + c];
+      const s = [cls, hypot(r - cr, c - cc), r * COLS + c];
       let less = !bs;
       if (!less) for (let i = 0; i < 3; i++) { if (s[i] < bs[i] - 1e-9) { less = true; break; } if (s[i] > bs[i] + 1e-9) break; }
       if (less) { best = [r, c]; bs = s; }
@@ -1532,9 +1570,11 @@ function touchKit(bb, raw, def) {
 
 /**
  * Spawn a band map character (char_605_cmedic 预备干员-医疗 / char_613_acmedc Touch) at its stage position on the
- * player's half (data/stages.json `mapChars`; `_multi_only` positions only with a partner). Returns the unit or null.
+ * player's half (data/stages.json `mapChars`; `_multi_only` positions only with a partner). A prepared character may
+ * supply `preBattleAggroSeq` so its targeting order precedes the ordinary battle-start deployment. Returns the unit
+ * or null.
  */
-export function spawnMapChar(battle, playerId, tokenId, { alias = null } = {}) {
+export function spawnMapChar(battle, playerId, tokenId, { alias = null, preBattleAggroSeq = null } = {}) {
   const list = battle.stage?.raw?.mapChars ?? battle.stage?.mapChars ?? [];
   const ps = battle.getPlayer(playerId);
   const multi = battle.players.length > 1;
@@ -1551,7 +1591,7 @@ export function spawnMapChar(battle, playerId, tokenId, { alias = null } = {}) {
   for (const m of cands) {
     if (!tileFree(battle, m.pos[0], m.pos[1])) continue;
     // stage positions are field tiles: their direction is taken as it is (default RIGHT)
-    const u = battle.spawnToken(playerId, tokenId, m.pos[0], m.pos[1], { dir: normDir(m.dir) });
+    const u = battle.spawnToken(playerId, tokenId, m.pos[0], m.pos[1], { dir: normDir(m.dir), preBattleAggroSeq });
     if (u) return u;
   }
   return null;

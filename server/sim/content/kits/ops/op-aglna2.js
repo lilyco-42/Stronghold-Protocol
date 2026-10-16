@@ -59,10 +59,11 @@
 
 import { num, talentBb, skillRec, batMod, up, installAura, toggleBuff } from '../shared/tier1.js';
 import { absoluteRangeKeys, canTargetEnemy, sortEnemyTargets } from '../../../targeting.js';
-import { bodyInKeys } from '../../../body.js';
+import { bodyInRange } from '../../../body.js';
 import { hasHp } from '../../../damage.js';
 import { RESIST_STATUSES } from '../../../buffs.js';
 import { TICK } from '../../../constants.js';
+import { hypot } from '../../../detmath.js';
 
 const S1 = 'skchr_aglna2_1';
 const S2 = 'skchr_aglna2_2';
@@ -228,6 +229,8 @@ export default {
         },
         [S3]: {
           kind: 'ammo',
+          // The skill's initial attack area includes the eight surrounding tiles as well as its 3-9 grid.
+          trigger: { rule: 'ACTIVE_RANGE', grid: g39x4 },
           ammo: Math.max(1, Math.floor(num(b3['attack@trigger_time'], 1))),
           mods: { atkPct: num(b3.atk) }, flags: LIFTOFF,
           targeting: s3Targeting,
@@ -332,7 +335,7 @@ export default {
           if (slow > 0) {
             const keys = unit.rangeKeySet;
             for (const e of battle.enemies) {
-              if (!e.alive || e.hidden || !e.isFlying || !keys || !bodyInKeys(e, keys)) continue;
+              if (!e.alive || e.hidden || !e.isFlying || !keys || !bodyInRange(e, keys)) continue;
               battle.applyStrongest(e, 'aglna2:airSlow', { duration: MOVE_CHECK * 2, value: slow, mods: (v) => ({ moveMul: 1 - v }), source: unit });
             }
           }
@@ -342,7 +345,7 @@ export default {
           if (!st || !skillOn(unit, S3) || !up(unit) || st.flight || !unit.canAct || unit.blocking.length) return;
           const tgt = moveTarget(battle, unit);
           if (!tgt) return;
-          const dur = Math.hypot(tgt.r - unit.tileR, tgt.c - unit.tileC) / MOVE_SPEED;
+          const dur = hypot(tgt.r - unit.tileR, tgt.c - unit.tileC) / MOVE_SPEED;
           const act = unit.skill.activations;
           st.flight = tgt;
           battle.releaseBlocked(unit);

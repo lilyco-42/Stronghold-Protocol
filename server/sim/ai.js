@@ -21,23 +21,29 @@
 // (Battle.setAllyTarget: 白铁's 铁钳号·原型机, an enemy-camp summon our operators attack, 嘲讽等级 −2) on the range comes after
 // every enemy (acquireTargets) and a ranged attack flies to it like to an enemy.
 // Every enemy attack strikes at its clip's damage frame after its swing starts (attackWindup; a stun before the frame
-// cuts the swing — enemyAttack, GitHub #187). Unblocked ranged enemies attack allies within their radius and stand for
+// cuts the swing — enemyAttack, GitHub #187). The allies locked when the swing starts are the ones it hits, even if
+// they leave range before the frame (PRTS 作战机制 锁定人数; a melee hit settles on that ally, a ranged shot chases).
+// An operator whose cooldown reaches 0 on this tick keeps the target they had before enemies moved (noteAttackCommit);
+// a `rangeAoe` / `allInRange` attack and a heal still select at the strike. Unblocked ranged enemies attack allies within their radius and stand for
 // each attack's clip — through its wind-up and until the clip ends — then walk on (attackStand, GitHub #58;
 // ATTACK_PAUSE after the strike when no clip is known; 「不停止移动」 attackers never stop); every enemy whose block ends
 // after its strike (its blocker stunned by that strike, knocked out, retreated) stands for the rest of the clip too
 // (PRTS 状态机: an enemy's COMBAT state ends with its attack, not with its blocker); the candidates pass the
 // enemy's own rule (`e.profile.canTarget`) and are ordered
 // blocker → taunt → latest deployed (targeting.js sortAllyTargets). An enemy's damage type is its data's unless content
-// arms it (`e.profile.dmgType`: 转译基底's forms, whose data never attacks). Reaching the final leg's end = leak. A `fear` (恐惧) status suspends the route: the
-// enemy runs between random checkpoints away from the fear's source (fear.js moveFeared; a self-inflicted fear
-// flutters inside its own tile); an `attract` (诱导) status walks it to the status point instead (moveAttracted);
-// both re-plan the route when released (恐惧 outranks 诱导).
+// arms it (`e.profile.dmgType`: 转译基底's forms, whose data never attacks). Reaching the final leg's end = leak — on a
+// portal entrance it is a teleport to the far exit and a walk to that side's blue door instead (portalPickup). A `fear`
+// (恐惧) status suspends the route: the enemy runs between random checkpoints away from the fear's source (fear.js
+// moveFeared; a self-inflicted fear flutters inside its own tile); an `attract` (诱导) status walks it to the status
+// point instead (moveAttracted); both re-plan the route when released (恐惧 outranks 诱导).
 
 import { ATTACK_PAUSE, ALLY_COLLIDER_RADIUS, MOVE_SCALE, PROJECTILE_SPEEDS, PROJECTILE_SPEED, BOOMERANG_RETURN_SPEED, COLS, CHAIN_RADIUS } from './constants.js';
 import { sortEnemyTargets, sortAllyTargets, canTargetEnemy, canTargetAlly, tileKeyOf } from './targeting.js';
 import { reduceElement } from './damage.js';
 import { straightClear } from './grid.js';
 import { moveFeared, endFear } from './fear.js';
+import { hypot, powi } from './detmath.js';
+import { PLUGIN_TIMES_MAX } from '../../shared/plugins/limits.js';
 
 // ---------------------------------------------------------------------------------------------------------------
 // profiles
@@ -73,8 +79,19 @@ export function effectiveProfile(u) {
 // ---------------------------------------------------------------------------------------------------------------
 // ally attack loop
 
+/**
+ * One tick off an attack cooldown. What is left within 1e-9 of 0 is 0 (the engine's timer tolerance, as skills.js
+ * `timeLeft`, buff intervals and `every()`): 1 s counted down in thirty steps of 1/30 leaves 2.1e-16 in floating point,
+ * which held every attack whose interval is a whole number of ticks — 1 s, 3 s, 4 s … — one tick longer (PR #402; PRTS
+ * 作战机制 帧对齐: 1 s is 30 frames). A non-integer count still ends on the tick that crosses 0 (docs/SIM.md §2).
+ */
+export function attackCountdown(cd, dt) {
+  const left = cd - dt;
+  return left > 1e-9 ? left : 0;
+}
+
 export function updateAlly(b, u, dt) {
-  if (u.atkCd > 0 && u.canAct) u.atkCd = Math.max(0, u.atkCd - dt);
+  if (u.atkCd > 0 && u.canAct) u.atkCd = attackCountdown(u.atkCd, dt);
   if (u.blocking.length) enforceBlockCapacity(b, u);
   if (!u.canAct || !u.profile) return;
   // a rangeExtend change (buff added / expired) rebuilds the range — also for units that never attack (auras)
@@ -88,6 +105,18 @@ export function updateAlly(b, u, dt) {
   // (a 秘术师's `canAttack` is its own target rule: false = no valid target — 深靛's bound enemies, 维伊's marked ones)
   if (prof.canAttack && !prof.canAttack(b, u)) { if (prof.storeEnergy) { u.trait.hadTarget = false; storeEnergy(b, u, prof); } return; }
   let targets = acquireTargets(b, u, prof);
+  // A DEFAULT charged heal can replace this attack with an eligible ally even when no enemy exists.
+  // Run after cooldown/control checks so silence, disarm and the exact attack cadence still apply (#406).
+  if (!targets.length && sk?.triggerAllies && sk.onAboutToAttack()) {
+    prof = effectiveProfile(u);
+    if (prof.noAttack || !u.alive) return;
+    targets = acquireTargets(b, u, prof);
+  } else if (!targets.length) {
+    // The enemy phase already ran. A target that was in range when this cooldown reached 0 (noteAttackCommit,
+    // before that phase) is still this attack: the projectile chases them. A cast that found nobody is not one.
+    const committed = committedAttackTargets(b, u, prof);
+    if (committed.length) targets = committed;
+  }
   if (!targets.length) { u.trait.hadTarget = false; storeEnergy(b, u, prof); return; }
   u.trait.hadTarget = true;
   if (sk && sk.onAboutToAttack()) {
@@ -114,11 +143,53 @@ export function enforceBlockCapacity(b, u) {
   const cap = u.alive && u.deployed ? u.s.blockCnt : 0;
   let used = 0;
   for (const e of u.blocking) used += e.blockWeight ?? 1;
-  while (used > cap && u.blocking.length) {
+  while (used > cap && u.blocking.length) { // loop-cap: block cap and the blocking list
     const e = u.blocking.pop();
     if (e.blockedBy === u) { e.blockedBy = null; b._stealthSwitch(e); }   // a released 隐匿 enemy hides again later
     used -= e.blockWeight ?? 1;
   }
+}
+
+/**
+ * Snapshot, before enemies move this tick, the targets of every ally whose attack cooldown reaches 0 this tick.
+ * updateAlly falls back to it when the post-move search is empty, so an attack that was already due still fires
+ * and its projectile chases (PRTS 作战机制: a shot that has started keeps its target). `rangeAoe` / `allInRange`
+ * re-select at the strike (锁定攻击范围). Heals, disarmed units and units that cannot attack are not snapshotted.
+ */
+export function noteAttackCommit(b, dt) {
+  b._attackCommit = null;
+  const allies = b.allyUnits;
+  if (!allies || !allies.length) return;
+  let map = null;
+  for (let i = 0; i < allies.length; i++) {
+    const u = allies[i];
+    if (!u.alive || !u.deployed || !u.canAct || !u.profile) continue;
+    if (u.s.flags.disarm) continue;
+    if (u.atkCd > dt + 1e-9) continue;
+    // ready since an earlier tick and its last search (after that tick's enemy moves, the positions seen now) found
+    // nobody: nothing to keep, and no second search per idle ally per tick
+    if (u.atkCd <= 0 && u.trait && u.trait.hadTarget === false) continue;
+    const prof = effectiveProfile(u);
+    if (prof.noAttack || (prof.noAttackUnlessSkill && !(u.skill && u.skill.active))) continue;
+    if (prof.heal && prof.dmgType === 'heal') continue;
+    if (prof.allInRange || prof.rangeAoe) continue;
+    if (prof.canAttack && !prof.canAttack(b, u)) continue;
+    // acquireTargets writes `_fortressMelee` on the profile it is given; keep that off the live profile
+    const targets = acquireTargets(b, u, Object.assign({}, prof));
+    if (!targets.length) continue;
+    (map ??= new Map()).set(u.id, targets.filter((t) => t && t.alive));
+  }
+  b._attackCommit = map;
+}
+
+/** The pre-move snapshot for `u`, dropping anyone who died or became unselectable. Empty for a re-selecting AoE. */
+function committedAttackTargets(b, u, prof) {
+  if (!prof || prof.rangeAoe || prof.allInRange || (prof.heal && prof.dmgType === 'heal')) return [];
+  const raw = b._attackCommit && b._attackCommit.get(u.id);
+  if (!raw || !raw.length) return [];
+  const out = [];
+  for (let i = 0; i < raw.length; i++) if (raw[i] && canTargetEnemy(u, raw[i], prof)) out.push(raw[i]);
+  return out;
 }
 
 /** Collect targets for an ally with profile `prof`. */
@@ -151,6 +222,16 @@ export function acquireTargets(b, u, prof) {
   if (u.blocking.length) for (const e of b.blockedTargets(u, prof)) if (!cands.includes(e)) cands.push(e);
   // an ally target (Battle.setAllyTarget: 白铁's 铁钳号·原型机, an enemy-camp summon with 嘲讽等级 −2) after every enemy
   const extra = b._allyTargets && b._allyTargets.size ? b.allyTargetsInKeys(u.rangeKeys, u) : null;
+  // Fortress has an extra melee tile even against enemies it cannot block (PRTS branch / 号角). Its ordinary
+  // ranged targets still take priority; this does not fill the other tiles in its ranged blind spot.
+  if (prof.fortress && !cands.length && !extra?.length) {
+    const here = [u.tileR * COLS + u.tileC];
+    const near = b.enemiesInKeys(here, u, prof);
+    if (!near.length && b._allyTargets?.size) near.push(...b.allyTargetsInKeys(here, u));
+    prof._fortressMelee = near.length > 0;
+    sortEnemyTargets(b, u, near, prof.priority);
+    return near.slice(0, 1);
+  }
   if (extra && extra.length) {
     if (prof.allInRange) return cands.concat(extra);
     sortEnemyTargets(b, u, cands, prof.priority);
@@ -205,7 +286,8 @@ export function performAttack(b, u, prof, targets, opts = null) {
     const t = targets[i];
     b._ev(['atk', u.id, t.id, vis]);
     if (isHeal) { doHeal(b, u, prof, t); continue; }
-    const info = { isSkill, index: i, attackId, energy: i === 0 ? energy : 0 };
+    // Target acquisition mutates the fortress profile. Keep this shot's mode while its shell is in flight.
+    const info = { isSkill, index: i, attackId, fortressMelee: !!prof._fortressMelee, energy: i === 0 ? energy : 0 };
     const foe = t.side === 'enemy' || b.isAllyTarget(t);
     if (ranged && foe && prof.projectile === 'boomerang') {
       throwBoomerang(b, u, prof, t, info);
@@ -287,13 +369,31 @@ export function resolveHit(b, u, prof, target, info, x, y) {
   if (target && target.alive) {
     let mulT = skillMul;
     if (prof.dmgMul) { const m = typeof prof.dmgMul === 'function' ? prof.dmgMul(b, u, target) : prof.dmgMul; if (Number.isFinite(m)) mulT *= m; }
-    const hits = prof.hitsFn ? prof.hitsFn(b, u, info) : Math.max(1, prof.hits || 1);
+    const funnelMul = prof.funnelMul ? prof.funnelMul(b, u, target) : 1;
+    // Unreleased drones are additional damage on the caster's attack (PRTS 驭械术师), including a skill that only
+    // buffs or retargets that attack. `info.isSkill` is set for every attack or targeting override, so it must not
+    // decide this. `funnelBodyHits === 0` is the drone-only opt-out (the ramp stays inside the hits, no body).
+    // A volley shares one talent roll and attackId; extra drones never duplicate the body.
+    // [ASSUMED] Body instances precede additions at the existing projectile impact; a multi-hit volley keeps one ramp.
+    const attachedFunnel = !!prof.funnelMul && prof.funnelBodyHits !== 0;
+    if (!attachedFunnel) mulT *= funnelMul;
+    // (a count from a kit, a trait or text is capped here too: an attack of a target that takes no damage would otherwise
+    // loop as often as it says — DESIGN §32.5; official counts stay far below PLUGIN_TIMES_MAX)
+    const hits = Math.min(PLUGIN_TIMES_MAX, prof.hitsFn ? prof.hitsFn(b, u, info) : Math.max(1, prof.hits || 1));
     // `hitDmgMul` (professions.js header): each instance's 伤害倍率 — the DamageInfo `mul`, after DEF / RES — and only the
     // first instance may give 受击回复 (砾's two 50 % hits, PRTS 砾 特性备注)
     const split = Number.isFinite(prof.hitDmgMul) && prof.hitDmgMul > 0 ? prof.hitDmgMul : null;
     let dealtMain = 0;
-    for (let h = 0; h < hits && target.alive; h++) {
-      const d = { amount: atk * scale * mulT, type: baseType, isAttack: true, isSkill: info.isSkill, tags: prof.tags || [], attackId };
+    if (attachedFunnel && info.index === 0) {
+      const bodyHits = Math.min(PLUGIN_TIMES_MAX, Math.max(1, prof.funnelBodyHits > 0 ? prof.funnelBodyHits : 1));
+      for (let h = 0; h < bodyHits && target.alive; h++) { // loop-cap: funnelBodyHits ≤ PLUGIN_TIMES_MAX
+        dealtMain += b.dealDamage(u, target, { amount: atk * scale * mulT, type: baseType,
+          isAttack: true, isSkill: info.isSkill, tags: prof.tags || [], attackId });
+      }
+    }
+    for (let h = 0; h < hits && target.alive; h++) { // loop-cap: hits ≤ PLUGIN_TIMES_MAX
+      const d = { amount: atk * scale * mulT * (attachedFunnel ? funnelMul : 1), type: baseType,
+        isAttack: !attachedFunnel, isSkill: info.isSkill, tags: attachedFunnel ? [...(prof.tags || []), 'addition', 'funnel'] : (prof.tags || []), attackId };
       if (split != null) { d.mul = split; if (h > 0) d.noSp = true; }
       dealtMain += b.dealDamage(u, target, d);
     }
@@ -303,7 +403,7 @@ export function resolveHit(b, u, prof, target, info, x, y) {
     x = target.x; y = target.y;
   }
   // splash: a 中点判定 radius around the target's position — a huge enemy counts by its 判定中心 (Battle.enemiesInRadius)
-  if (prof.splashRadius > 0) {
+  if (prof.splashRadius > 0 && (!info.fortressMelee || prof.fortressMeleeSplash)) {
     const r = prof.splashRadius;
     const sc = prof.splashScale ?? 1;
     for (const e of b.foesInRadius(x, y, r, true)) {
@@ -325,13 +425,13 @@ export function resolveHit(b, u, prof, target, info, x, y) {
       let best = null, bd = Infinity;
       for (const e of b.enemiesInRadius(prev.x, prev.y, prof.chain.radius || CHAIN_RADIUS)) {
         if (hit.has(e.id) || !canTargetEnemy(u, e, prof)) continue;
-        const d = Math.hypot(e.x - prev.x, e.y - prev.y);
+        const d = hypot(e.x - prev.x, e.y - prev.y);
         if (d < bd - 1e-9 || (Math.abs(d - bd) <= 1e-9 && best && e.spawnSeq < best.spawnSeq)) { bd = d; best = e; }
       }
       if (!best) break;
       hit.add(best.id);
       b._ev(['atk', prev.id, best.id, 'chain']);
-      const d = b.dealDamage(u, best, { amount: atk * scale * skillMul * Math.pow(1 - (prof.chain.falloff ?? 0.15), k), type: baseType, isAttack: true, isSkill: info.isSkill, tags: ['chain'], attackId });
+      const d = b.dealDamage(u, best, { amount: atk * scale * skillMul * powi(1 - (prof.chain.falloff ?? 0.15), k), type: baseType, isAttack: true, isSkill: info.isSkill, tags: ['chain'], attackId });
       dealtTotal += d;
       if (prof.chain.sluggish && best.alive) b.applyStatus(best, 'sluggish', { duration: prof.chain.sluggish, source: u });
       if (each) each(best, d, 'chain');
@@ -389,7 +489,7 @@ function doHeal(b, u, prof, t) {
       if (!best) break;
       seen.add(best.id);
       b._ev(['atk', prev.id, best.id, 'chainHeal']);
-      b.heal(u, best, amount * Math.pow(1 - (h.falloff ?? 0.25), k));
+      b.heal(u, best, amount * powi(1 - (h.falloff ?? 0.25), k));
       prev = best;
     }
   }
@@ -455,7 +555,7 @@ function planLeg(b, e, leg) {
     if (f) {
       let x = k;
       let guard = COLS * 32;
-      while (x !== f.dest && guard-- > 0) {
+      while (x !== f.dest && guard-- > 0) { // loop-cap: flow-field guard
         x = f.next[x];
         if (x < 0) break;
         pts.push({ x: x % COLS, y: (x / COLS) | 0 });
@@ -475,7 +575,7 @@ function planLeg(b, e, leg) {
   R.version = b.grid.version;
   // suffix lengths for remaining-distance queries
   const suf = new Float64Array(pts.length);
-  for (let i = pts.length - 2; i >= 0; i--) suf[i] = suf[i + 1] + Math.hypot(pts[i + 1].x - pts[i].x, pts[i + 1].y - pts[i].y);
+  for (let i = pts.length - 2; i >= 0; i--) suf[i] = suf[i + 1] + hypot(pts[i + 1].x - pts[i].x, pts[i + 1].y - pts[i].y);
   R.suffix = suf;
 }
 
@@ -497,7 +597,7 @@ function tailLength(b, e, idx) {
       let len = 0;
       if (L.t === 'move') {
         const [sr, sc] = starts[i];
-        len = Math.hypot(L.r - sr, L.c - sc);
+        len = hypot(L.r - sr, L.c - sc);
         if (e.motion !== 'FLY' && b.grid.inBounds(sr, sc)) {
           const f = legField(b, L.r, L.c, sr * COLS + sc);
           const fl = f ? b.grid.fieldLength(f, sr * COLS + sc) : Infinity;
@@ -519,9 +619,9 @@ export function remainingDistance(b, e) {
   const leg = R.legs[R.legIdx];
   if (leg && leg.t === 'move' && R.pts && R.ptIdx < R.pts.length) {
     const p = R.pts[R.ptIdx];
-    d += Math.hypot(p.x - e.x, p.y - e.y) + R.suffix[R.ptIdx];
+    d += hypot(p.x - e.x, p.y - e.y) + R.suffix[R.ptIdx];
   } else if (leg && leg.t === 'move') {
-    d += Math.hypot(leg.c - e.x, leg.r - e.y);
+    d += hypot(leg.c - e.x, leg.r - e.y);
   }
   return d;
 }
@@ -532,15 +632,23 @@ export function remainingDistance(b, e) {
 export function updateEnemy(b, e, dt) {
   const R = e.route;
   if (!e.alive) return;
+  // Carried (§32.14.4): pinned by the carrier, route and attacks frozen. A hidden teleport still advances its
+  // wait legs below; a passenger must not, including a wait or a disappear/appear leg.
+  if (e.mem.carrier) { e.moving = false; return; }
   // hidden (teleporting) enemies only advance wait legs
   const stunned = e.s.flags.stun;
+  if (stunned || e.hidden || e.s.flags.fear) b._cutAttackStand(e);
+  // 失衡 (UNBALANCE, battle/displacement.js _unbalance): a state machine, not a status — 浮空 ends it (PRTS 术语释义 浮空
+  // 「触发浮空时清除受到的推/拉力…无法陷入失衡」); while it lasts the enemy neither walks nor starts a normal attack
+  if (e.s.flags.levitate && e.unbalanceUntil > b.time) e.unbalanceUntil = -Infinity;
+  const unbalanced = b.time < e.unbalanceUntil - 1e-9;   // (the 1e-9: a float-summed end such as 35/30 s keeps its frame)
   const prevCd = e.atkCd;
-  if (e.atkCd > 0 && !stunned && !e.hidden) e.atkCd = Math.max(0, e.atkCd - dt);
-  // a stun / freeze / sleep / 浮空 — or leaving the field — takes the enemy out of its attack: a swing short of its damage
-  // frame does not land, and the attack starts again from its wind-up afterwards (enemyAttack)
-  if (e.swing && (stunned || e.hidden)) e.swing = false;
+  if (e.atkCd > 0 && !stunned && !e.hidden) e.atkCd = attackCountdown(e.atkCd, dt);
+  // a stun / freeze / sleep / 浮空 / 失衡 — or leaving the field — takes the enemy out of its attack: a swing short of its
+  // damage frame does not land, and the attack starts again from its wind-up afterwards (enemyAttack)
+  if (e.swing && (stunned || e.hidden || unbalanced)) { e.swing = false; e.swingTargets = null; }
   // true: an unblocked ranged enemy in the wind-up of its next attack with a target in range (it stands)
-  const winding = !e.hidden && !stunned && enemyAttack(b, e, prevCd);
+  const winding = !e.hidden && !stunned && !unbalanced && enemyAttack(b, e, prevCd);
   if (!e.alive) return;
   // a stun / freeze / sleep cuts the attack clip short: no stand left once it ends [ASSUMED]. 沉睡 also holds 不可阻挡
   // (PRTS 异常效果 SLEEPING = 无法行动+无敌+不可阻挡): a sleeper's blocker lets go — its swing was cut above; Battle.applyStatus
@@ -569,12 +677,13 @@ export function updateEnemy(b, e, dt) {
   if (b.time < e.pauseUntil) return;
   // standing for an attack clip (attackStand, GitHub #58): only the walking waits — a checkpoint's WAIT keeps running
   // and DISAPPEAR / APPEAR legs still happen (advanceRoute); drawn idle (the client plays the clip, then Move again);
-  // a 恐惧 runs at once (it cannot attack)
-  const standing = winding || (b.time < e.atkStandUntil && !e.s.flags.fear);
+  // a 恐惧 runs at once (it cannot attack). 失衡 holds the walking too — under 恐惧 / 诱导 as well (失衡免疫 says 「失衡期间
+  // 无法自主移动」; no source exempts a fear)
+  const standing = winding || unbalanced || (b.time < e.atkStandUntil && !e.s.flags.fear);
   if (e.s.flags.noMove) { e.moving = false; return; }   // standing (a 重生, a form change): drawn idle, not walking
   // 恐惧 (ba.fear "无法被阻挡并四散逃跑"; PRTS 诱发移动: 恐惧 outranks 诱导): runs to random tiles of the fan away from
   // its source — a self-inflicted fear flutters inside its own tile (fear.js); the route re-plans once it ends
-  if (e.s.flags.fear && !e.hidden) { moveFeared(b, e, dt); return; }
+  if (e.s.flags.fear && !e.hidden) { if (unbalanced) e.moving = false; else moveFeared(b, e, dt); return; }
   if (e.mem.fearMove) endFear(e);
   // 诱导 (ba.attract "无法被阻挡并向目标位置移动"): walks to the attract point instead of following its route
   if (e.s.flags.attract) { if (standing) e.moving = false; else moveAttracted(b, e, dt); return; }
@@ -612,9 +721,9 @@ function moveAttracted(b, e, dt) {
   }
   let dist = e.s.moveSpeed * MOVE_SCALE * dt;
   let moved = false;
-  while (dist > 1e-9 && A.i < A.pts.length) {
+  while (dist > 1e-9 && A.i < A.pts.length) { // loop-cap: path points
     const p = A.pts[A.i];
-    const dx = p.x - e.x, dy = p.y - e.y, d = Math.hypot(dx, dy);
+    const dx = p.x - e.x, dy = p.y - e.y, d = hypot(dx, dy);
     if (d <= dist) { e.x = p.x; e.y = p.y; dist -= d; A.i++; } else { e.x += (dx / d) * dist; e.y += (dy / d) * dist; dist = 0; }
     moved = true;
   }
@@ -630,9 +739,12 @@ function moveAttracted(b, e, dt) {
 function advanceRoute(b, e, dt, R, standing = false) {
   let budget = dt;
   let guard = 16;
-  while (budget > 1e-9 && guard-- > 0 && e.alive) {
+  while (budget > 1e-9 && guard-- > 0 && e.alive) { // loop-cap: route guard
     const leg = R.legs[R.legIdx];
-    if (!leg) { b.leak(e); return; }
+    if (!leg) {
+      if (!portalPickup(b, e)) { b.leak(e); return; }
+      continue;
+    }
     if (leg.t === 'wait') {
       if (R.waitLeft == null) R.waitLeft = leg.time;
       const use = Math.min(budget, R.waitLeft);
@@ -643,6 +755,7 @@ function advanceRoute(b, e, dt, R, standing = false) {
       continue;
     }
     if (leg.t === 'disappear') {
+      b._cutAttackStand(e);
       b._setHidden(e, true);
       e.atkStandUntil = -Infinity; standing = false;   // off the field: its attack clip is over
       R.legIdx++; R.pts = null;
@@ -651,6 +764,8 @@ function advanceRoute(b, e, dt, R, standing = false) {
     if (leg.t === 'appear') {
       e.x = leg.c; e.y = leg.r;
       b._setHidden(e, false);
+      // a relocation is a forced state switch: it ends a 失衡 (PRTS 失衡位移机制 「被强制切换至其他状态机」)
+      e.unbalanceUntil = -Infinity;
       R.legIdx++; R.pts = null;
       continue;
     }
@@ -662,12 +777,12 @@ function advanceRoute(b, e, dt, R, standing = false) {
     let dist = speed * budget;
     e.moving = true;
     let steps = 64;
-    while (dist > 1e-9 && steps-- > 0) {
+    while (dist > 1e-9 && steps-- > 0) { // loop-cap: step budget
       if (!R.pts || R.version !== b.grid.version) planLeg(b, e, leg);
       if (R.ptIdx >= R.pts.length) break;
       const p = R.pts[R.ptIdx];
       const dx = p.x - e.x, dy = p.y - e.y;
-      const d = Math.hypot(dx, dy);
+      const d = hypot(dx, dy);
       if (d <= dist) {
         e.x = p.x; e.y = p.y;
         dist -= d;
@@ -681,11 +796,46 @@ function advanceRoute(b, e, dt, R, standing = false) {
     }
     budget = dist / speed;
     if (R.pts && R.ptIdx >= R.pts.length) {
-      if (leg.final) { b.leak(e); return; }
+      if (leg.final) {
+        if (!portalPickup(b, e)) { b.leak(e); return; }
+      }
       R.legIdx++;
       R.pts = null;
     }
   }
+}
+
+/**
+ * Boss-field portal pickup (tile_telin / tile_telout; GitHub #336, PR #337 by @2321Robin, both with a recording of the
+ * official game): a route that ENDS on a portal entrance does not leak there — the enemy is teleported out of the far
+ * exit and walks on to the blue door on the entrance's side, where it leaks. The boss / Hidden Core circuits end on
+ * an entrance ([1,3] / [1,17]; 137 routes of data/waves.json); their mid-route crossings are the routes' own DISAPPEAR /
+ * WAIT / APPEAR steps, every MOVE onto an entrance being followed by a DISAPPEAR, so only the route's end needs this.
+ * Appends vanish → wait → reappear → walk-to-door legs to the live route and returns true (false: not on an entrance,
+ * or no exit in the field). The exit is the telout farthest from the entrance, the door the end tile nearest to it:
+ * every explicit pair of the data (95, routes and extra routes) reads [1,3] / [1,17] → [5,10] — the farther of the two
+ * telouts [5,10] / [2,10] of the battle stages — and the doors [2,2] / [2,18] stand beside the entrances. Inside the
+ * portal the enemy stays hidden PORTAL_WAIT s, the wait of the explicit crossings of the same tiles (WAIT 3 s in 85 of
+ * the 95; 5 s in 9, 1 s in 1). [ASSUMED] the pairing (no tile carries a link) and the 3 s (no source times this one).
+ */
+const PORTAL_WAIT = 3;
+function portalPickup(b, e) {
+  const r = Math.round(e.y), c = Math.round(e.x);
+  if (!b.grid.inBounds(r, c) || b.grid.tile(r, c).special !== 'telin') return false;
+  const outs = b.grid.specialTiles('telout');
+  if (!outs.length) return false;
+  const dist = (p) => hypot(p[0] - r, p[1] - c);
+  const out = outs.reduce((a, x) => (dist(x) > dist(a) ? x : a));
+  const R = e.route;
+  R.legs.splice(R.legIdx + 1, 0, { t: 'disappear' }, { t: 'wait', time: PORTAL_WAIT }, { t: 'appear', r: out[0], c: out[1] });
+  const ends = b.grid.specialTiles('end');
+  if (ends.length) {
+    const door = ends.reduce((a, x) => (dist(x) < dist(a) ? x : a));
+    R.legs.push({ t: 'move', r: door[0], c: door[1], final: true });
+  }
+  R.pts = null;
+  R.tailVersion = -1;   // the appended tail invalidates the cached remaining-distance suffixes
+  return true;
 }
 
 /**
@@ -755,15 +905,17 @@ function attackTargets(b, e, radius, reach, own) {
 /**
  * One tick of an enemy's attack. Its cooldown (`atkCd`) counts down to the damage frame of its next attack: the swing
  * starts `attackWindup` before it — the cooldown down to the wind-up with a target in reach (attackTargets) — and lasts
- * while a target stays in reach; at the frame the attack is made on the targets in reach then. An enemy whose cooldown
- * ran out before it had a target (walking, a swing cut short) swings from the start: the whole wind-up from that tick.
- * A swing short of its frame is cut by a stun / freeze / sleep / 浮空 / leaving the field (updateEnemy), 缴械, 恐惧, 战栗
- * while blocked, or losing every target: no damage, and the next swing starts from its wind-up again — PRTS 状态机
+ * while that swing lasts. The allies it could hit when the swing started stay the ones it hits at the frame, even
+ * after they leave its reach (PRTS 作战机制 §AOE伤害判定: 锁定人数的无弹道攻击在抬手时选取目标，前摇结束时仍对它们造成伤害;
+ * a ranged shot is the projectile that then chases). An enemy whose cooldown ran out before it had a target (walking,
+ * a swing cut short) swings from the start: the whole wind-up from that tick.
+ * A swing short of its frame is cut by a stun / freeze / sleep / 浮空 / leaving the field (updateEnemy), 缴械, 恐惧 or 战栗
+ * while blocked: no damage, and the next swing starts from its wind-up again — PRTS 状态机
  * (ATTACK / COMBAT "每帧检查异常状态，若有则切换到异常状态的状态") and 异常效果 (STUNNED, DISARMED "正在进行的普通攻击将被
- * 中断"); GitHub #187 / #170 (a 0.1 s 卡西米尔 pulse, 忍冬 S3's 0.2 s stun). A strike already made stays made (a shot in
- * flight lands). An enemy with no attack clip known has no wind-up: it strikes as the swing starts (the old rule).
- * [ASSUMED] the targets are taken at the frame (the swing needs one in reach every tick; the official selection happens
- * as the swing starts); an enemy healer's heal has no wind-up.
+ * 中断"); GitHub #187 / #170 (a 0.1 s 卡西米尔 pulse, 忍冬 S3's 0.2 s stun). Leaving range does not cut it. A target that
+ * died or became unselectable (隐匿, 沉睡, 无法选择) is skipped; the swing still spends its cooldown. A strike already
+ * made stays made (a shot in flight lands). An enemy with no attack clip known has no wind-up: it strikes as the swing
+ * starts (the old rule). An enemy healer's heal has no wind-up.
  * Returns true while an unblocked ranged enemy swings (its wind-up): it stands (updateEnemy). `prevCd`: the cooldown
  * before this tick's countdown.
  */
@@ -773,7 +925,7 @@ function enemyAttack(b, e, prevCd) {
   const dmgType = (e.profile && e.profile.dmgType) || def.dmgType;
   if (dmgType === 'none' || e.s.atk <= 0) { e.swing = false; return false; }
   // 恐惧 / 缴械 / 战栗 (被阻挡后无法进行普通攻击): no normal attack, and the one swung is interrupted
-  if (e.s.flags.fear || e.s.flags.disarm || (e.s.flags.tremble && e.blockedBy)) { e.swing = false; return false; }
+  if (e.s.flags.fear || e.s.flags.disarm || (e.s.flags.tremble && e.blockedBy)) { e.swing = false; e.swingTargets = null; return false; }
   if (dmgType === 'heal') { if (e.atkCd <= 0) enemyHeal(b, e, e.base.rangeRadius); return false; }
   // applyWay MELEE enemies only ever hit their blocker, even when their data carries a rangeRadius (粉碎攻坚手 2.5,
   // 宿主士兵 2.5, 深池伙友卫队 1.4 … — that radius belongs to their abilities/splash, handled by content).
@@ -786,17 +938,32 @@ function enemyAttack(b, e, prevCd) {
   // applied to the candidates before the priority sort and the target count
   const own = e.profile && typeof e.profile.canTarget === 'function' ? e.profile.canTarget : null;
   const wind = attackWindup(e);
-  if (e.atkCd > wind + 1e-9) { e.swing = false; return false; }   // the cooldown runs
-  let targets = attackTargets(b, e, radius, reach, own);
-  if (!targets.length) { e.swing = false; return false; }          // ready, nobody in reach: no swing (or it is cut)
-  if (!e.swing) {
+  if (e.atkCd > wind + 1e-9) { e.swing = false; e.swingTargets = null; return false; }   // the cooldown runs
+  // A swing locks the allies it had when it started. Losing every current target does not cut it.
+  let targets;
+  if (e.swing) {
+    targets = e.swingTargets || [];
+  } else {
+    targets = attackTargets(b, e, radius, reach, own);
+    if (!targets.length) { e.swing = false; e.swingTargets = null; return false; }
     e.swing = true;
+    e.swingTargets = targets.slice();
     // ready before this tick (it walked with its cooldown over, or its swing was cut): the whole wind-up from now
     if (prevCd < wind) e.atkCd = wind;
   }
   // the wind-up (GitHub #58): an unblocked ranged enemy stands through it (a 「不停止移动」 one walks on)
   if (e.atkCd > 0) return !e.blockedBy && radius > 0 && !(e.profile?.attackMoves ?? def.attackMoves);
   e.swing = false;
+  const locked = targets.slice();
+  e.swingTargets = null;
+  // Out of reach is still a hit. Dead, hidden, asleep or (for a ranged shot) stealthed is not.
+  const still = (t) => {
+    if (!t || !t.alive) return false;
+    // its blocker is struck whatever its selectability — a crate too (attackTargets: PRTS 作战机制 「阻挡优先级最高」)
+    if (e.blockedBy === t && !(radius > 0 && e.profile && e.profile.blockFree)) return !!t.deployed;
+    return canTargetAlly(e, t, radius > 0);
+  };
+  targets = locked.filter(still);
   if (targets.length > 1) sortAllyTargets(e, targets);
   // `enemyAttackStart` { enemy, targets }: the enemy starts a normal attack, before 麻痹 may interrupt it (the client's
   // ON_BEFORE_ABILITY_SPELL_ON of an attack that 麻痹 can interrupt — 酒神 堕梦 "攻击范围内的敌人普通攻击时受到70点神经损伤",
@@ -825,10 +992,12 @@ function enemyAttack(b, e, prevCd) {
   const n = Math.max(1, Math.floor(e.profile?.maxTargets ?? 1) + Math.floor(e.s.maxTargets));
   if (targets.length > n) targets = targets.slice(0, n);
   if (b._hooks.beforeAttack) {
-    const ctx = { attacker: e, targets, isSkill: false, profile: e.profile };
+    // A dead locked ally is still passed through so a volley that does not need a living target (自制投石机)
+    // can aim at the last position. Content that clears the list cancels the strike, as before.
+    const ctx = { attacker: e, targets: targets.length ? targets : locked, isSkill: false, profile: e.profile };
     b.emit('beforeAttack', ctx);
-    targets = (ctx.targets || []).filter((t) => t && t.alive);
-    if (!targets.length || !e.alive) return false;
+    if (!e.alive || !ctx.targets || !ctx.targets.length) return false;
+    targets = ctx.targets.filter(still);
   }
   e.lastAttackAt = b.time;
   e.stats.attacks++;
@@ -839,6 +1008,8 @@ function enemyAttack(b, e, prevCd) {
   // — the 'atk' event (kind `e.profile.shot`, drawn by the content's own fx), cooldown, pause, the 'attack' hook — and
   // the content's 'attack' handler deals its damage
   const deferred = !!(e.profile && e.profile.deferHit);
+  // A lethal strike may immediately redeploy its target. Post-attack effects still belong to the struck deployment.
+  const targetDeployments = new Map(targets.map((t) => [t, t.deploySeq]));
   for (const t of targets) {
     b._ev(['atk', e.id, t.id, deferred ? (e.profile.shot || 'none') : rangedShot ? 'enemy' : 'none']);
     if (deferred) continue;
@@ -848,11 +1019,11 @@ function enemyAttack(b, e, prevCd) {
       if (!tt || !tt.alive || !e.alive && !rangedShot) return;
       b.dealDamage(e, tt, { amount: e.s.atk * (e.profile?.atkScale ?? 1), type, isAttack: true, attackId, isProjectile });
     };
-    if (rangedShot && Math.hypot(t.x - e.x, t.y - e.y) > 0.75) {
+    if (rangedShot && hypot(t.x - e.x, t.y - e.y) > 0.75) {
       b.addProjectile({ from: e, target: t, speed: PROJECTILE_SPEEDS.enemy, visual: 'enemy', source: e, onHit: (c) => hit(c.target, true) });
     } else hit(t);
   }
-  if (b._hooks.attack) b.emit('attack', { attacker: e, targets, isSkill: false });
+  if (b._hooks.attack) b.emit('attack', { attacker: e, targets, targetDeployments, isSkill: false });
   e.atkCd = e.s.interval;
   // stands for the rest of its attack clip (attackStand; the wind-up was stood before the strike) — every enemy, blocked
   // or not: PRTS 状态机, an enemy's ATTACK / COMBAT state "攻击结束后回退到MOVE状态" and checks only 异常状态 every frame

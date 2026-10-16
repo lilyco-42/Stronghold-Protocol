@@ -352,7 +352,7 @@ Combo check: `equip_chess_id` in blackboard is the partner's id WITHOUT the `_a/
 
 - Buff keys: 画卷 `trap_copy_front_char{}`; 教鞭 `trap_create_self_choice{choice_event=hunter_band_1}`; 神秘顾客 additionally `trap_disney_special{count=1}`.
 - `hunter_band_1` (choiceType PERSONAL_CHOOSE, "悬赏决策") pool is server-side. [ASSUMED] offer 3 random `enemyeffect_b_*` bounties (e.g. 碎骨·悬赏 +1, 萨卡兹百夫长·悬赏 +2, 泥岩·悬赏 +4, 锏·悬赏 +5, “复仇者”·悬赏 +6 funds; buff `add_enemy_kill_gain_coin{count,enemy_id,coin,round=1}`): adds 1 enemy to your next battle, killer gets `coin` funds.
-- 画卷 copy: duplicates the operator (same chess id incl. elite `_b`) AND clones its equipped items into the copy [DATA desc "包括精锐状态和装备"]; copy goes to hand [ASSUMED]; if hand full -> temporary hand.
+- 画卷 copy: duplicates the operator (same chess id incl. elite `_b`) AND its equipped items [DATA desc "包括精锐状态和装备"]; the copied items arrive unequipped (PRTS 画卷 备注 "使用后销毁，获得的装备为未装备状态"), gained like any item — the hand, overflow temp (destroyed with the usual toast when both are full); copy goes to hand [ASSUMED]; if hand full -> temporary hand.
 
 ## 8. Item sources other than the shop [DATA]
 
@@ -411,7 +411,7 @@ Pools referenced but NOT defined in client data (server-side) - proposed content
 - `pool_equip_vict` (维多利亚 bond, every 25 layers): {灼燃, 坚固, 加速, 战栗}维式重锤, uniform.
 - `pool_equip_pepe` (佩佩): 盟约之币 45%, 萨尔贡浓茶 45%, 黄沙罗盘 10% (golden 佩佩: 40/40/20).
 - `pool_equip_rockr` (洛洛 "定制品"): {有限加速器, 激光发射器, 护盾无人机, 双模机械臂, 蜂鸣器} uniform.
-- `pool_equip_kathe` (band_cathy 定向投放, on each shop upgrade 3 choose 1): every shop-eligible normal EQUIP, whatever the shop level (0.2.0: players' first-hand report 「原版凯瑟琳1升2都能有6本装备」; tier <= new shop level until then), uniform [ASSUMED]. `pool_equip_narant` (band_narant, every even round 2 choose 1): tier <= shop level normal EQUIP [ASSUMED].
+- `pool_equip_kathe` (band_cathy 定向投放, on each shop upgrade 3 choose 1): every shop-eligible normal EQUIP, whatever the shop level (0.2.0: players' first-hand report 「原版凯瑟琳1升2都能有6本装备」; tier <= new shop level until then), uniform [ASSUMED]. `pool_equip_narant` (band_narant 见者有份, every even round 2 choose 1): every shop-eligible normal EQUIP, whatever the shop level (0.3.0: community report 「给的装备都没有超过当前等级的，正常可以刷出更高等级的装备」; the blackboard has no tier; tier <= shop level until then), uniform [ASSUMED].
 - garrison_45 / 134 / 135 exist but are not referenced by any operator in `charChessDataDict` (unused this season).
 
 ## 9. Status / damage terms used by items

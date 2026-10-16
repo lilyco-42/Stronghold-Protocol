@@ -8,7 +8,7 @@
 //
 // Usage:  node tools/build-data.mjs [--refresh | --offline] [--out <dir>] [--cache <dir>]
 //                                   [--report <file>] [--quiet] [--no-research] [--force]
-//   --refresh      re-download every official file even if cached
+//   --refresh      re-download every official file; fail on download errors even if cached
 //   --offline      never download; fail when a file is missing from the cache
 //   --out          output directory (default: <repo>/data)
 //   --cache        official-data cache directory (default: <repo>/.cache/gamedata)
@@ -35,10 +35,13 @@ import { existsSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isDeepStrictEqual } from 'node:util';
-import { Grid, DEPLOY_REFUSED_TILES } from '../server/sim/grid.js';
+import { DEPLOY_REFUSED_TILES } from '../server/sim/grid.js';
+import { validateReferences } from '../shared/plugins/validate.js';
+import { computeGroundPaths } from '../server/sim/groundPaths.js';
 import { bandBondIds } from '../shared/bandBonds.js';
-import { statusKey, composeUnitRecord, standInRecord, unitForm } from '../shared/standIn.js';
+import { statusKey, composeUnitRecord } from '../shared/standIn.js';
 import { extendedGrid } from '../shared/loadoutRecord.js';
+import { FULL_RANK, atRank, stripPotential } from '../shared/potential.js';
 
 // ===== CLI & IO ==================================================================================
 
@@ -127,7 +130,8 @@ async function ensureGamedata(rel) {
       if (attempt < 4) await new Promise((r) => setTimeout(r, 500 * attempt));
     }
   }
-  if (existsSync(abs)) { warn(`download failed for ${rel}, using stale cache: ${lastErr.message}`); return abs; }
+  // A refresh cannot mix new downloads with an unverified cache from an earlier run.
+  if (!OPTS.refresh && existsSync(abs)) { warn(`download failed for ${rel}, using stale cache: ${lastErr.message}`); return abs; }
   throw new Error(`cannot obtain ${rel}: ${lastErr && lastErr.message}`);
 }
 
@@ -284,20 +288,24 @@ function bestCandidate(cands, phase, level, potRank = 0) {
 }
 
 /**
- * The potential rank every operator fights at: FULL potential, 潜能 6 = rank 5 (character_table `potentialRanks` lists
- * ranks 1–5, the 潜能 2–6 steps; a candidate's `requiredPotentialRank` counts the same way) — the owner's decision of
- * 2026-10-07 (GitHub #252, PR #255). The season's chess records (activity_table charChessDataDict `status`: evolvePhase,
- * charLevel, skillLevel, favorPoint 0, equipLevel) carry no potential field, while a tournament video shows 刺玫
- * (chess_char_1_06_a) at ATK 435 and cost 15: her E1 Lv55 413 / 17 plus her potentials 攻击力+22 and two 部署费用-1. Every
- * chess (normal and elite), 补位 stand-in and 自选 pick is built at this rank: its `potentialRanks` attribute modifiers are
- * added (withPotential) and its talent / trait / module candidates are picked at it (the 「天赋效果增强」 steps). The 原型干员
- * stand-ins have no potential ranks (unchanged). A summon picks its own talent / trait candidates at its owner's rank —
- * their `requiredPotentialRank` mirrors the owner's 「天赋效果增强」 (夕's “小自在” 化境 15 → 18 层, 凯尔希's Mon3tr 不毁重构,
- * 望's 棋子 +1 持有 / 部署) — and takes none of the owner's attribute modifiers (a token has no potential ranks; the owner's
+ * Potential (潜能) is a per-player runtime input (0.2.2, the owner's decision of 2026-10-08: 「调配干员里自己设置吧，默认满潜
+ * 满加成」; 0.2.1 baked full potential in, DESIGN §26.14). Official: 调度手册 「卫戍协议中干员潜能由自身已持有干员潜能决定」 —
+ * the season's chess records (activity_table charChessDataDict `status`: evolvePhase, charLevel, skillLevel, favorPoint 0,
+ * equipLevel) carry no potential field; a tournament video shows 刺玫 (chess_char_1_06_a) at ATK 435 and cost 15 (her
+ * E1 Lv55 413 / 17 plus 攻击力+22 and two 部署费用-1: an account at full potential). Ranks count like character_table
+ * `potentialRanks` (ranks 1–5 = the 潜能 2–6 steps) and a candidate's `requiredPotentialRank`.
+ * The builders take the rank from `ctx.potRank`: main() runs the chess / backups / tokens builders once per rank (0–5)
+ * and keeps the FULL-potential build (潜能 6 = rank 5, FULL_RANK: the default and what the data's own fields
+ * hold) annotated with what every lower rank changes (attachPotential: `potDown` leaves, chained talent entries —
+ * shared/potential.js, docs/DATA.md §2.3); a self-check proves shared/potential.js atRank rebuilds every rank exactly.
+ * At a rank, every chess (normal and elite), 补位 / 自选 unit form adds the `potentialRanks` attribute modifiers up to it
+ * (withPotential) and picks its talent / trait / module candidates at it (the 「天赋效果增强」 steps). The 原型干员
+ * stand-ins have no potential ranks. A summon picks its own talent / trait candidates at its owner's rank — their
+ * `requiredPotentialRank` mirrors the owner's 「天赋效果增强」 (夕's “小自在” 化境 15 → 18 层, 凯尔希's Mon3tr 不毁重构, 望's
+ * 棋子 +1 持有 / 部署) — and takes none of the owner's attribute modifiers (a token has no potential ranks; the owner's
  * ATK / cost / redeploy steps are the owner's own). Stage devices and the band's map characters are no player's
  * operators: rank 0.
  */
-const OPERATOR_POTENTIAL = 5;
 
 /** character_table potential attribute types → interpolateAttrs keys (every potential modifier of the season is an ADDITION). */
 const POTENTIAL_ATTRS = Object.freeze({
@@ -697,22 +705,32 @@ function splitModuleParts(modulePhase) {
 
 /**
  * Apply module trait-override parts to a trait blackboard/text (golden chess or their tokens).
- * Mutates `traitBB`; returns the (possibly overridden) trait template, module text and trait range id.
- * @returns {{ template: string, moduleText: string|null, rangeId: string|null }}
+ * Mutates `traitBB`; returns the (possibly overridden) trait template, module text and trait range id, and `descBB` —
+ * the blackboard the trait's own line is written with: a part whose target is `DISPLAY` (display only) and that adds a
+ * line without rewriting the trait's feeds its blackboard to that added line only. 圣约送葬人 REA-Y (uniequip_003_excu2):
+ * its DISPLAY part's `value` 12 is the 「攻击速度+{value}」 of its own line, not the trait's 「回复自身{value}生命」 (50 —
+ * GitHub #400; the battle heals 50, its kit reads traitBase). `traitBB` (the battle's trait blackboard) still takes
+ * every part, as before (the kits that read it are written against it).
+ * @returns {{ template: string, moduleText: string|null, rangeId: string|null, descBB: { bb: object, bbStr: object } }}
  */
 function applyModuleTraitParts(parts, phase, level, traitBB, template, rangeId, label, potRank = 0) {
   let moduleText = null;
+  const descBB = { bb: { ...traitBB.bb }, bbStr: { ...traitBB.bbStr } };
   for (const part of parts || []) {
     const mc = bestCandidate(part.overrideTraitDataBundle?.candidates, phase, level, potRank);
     if (!mc) continue;
     const mb = flattenBB(mc.blackboard, `${label} module trait`);
     Object.assign(traitBB.bb, mb.bb);
     Object.assign(traitBB.bbStr, mb.bbStr);
+    if (part.target !== 'DISPLAY' || mc.overrideDescripton) {
+      Object.assign(descBB.bb, mb.bb);
+      Object.assign(descBB.bbStr, mb.bbStr);
+    }
     if (mc.overrideDescripton) template = mc.overrideDescripton;
     if (mc.additionalDescription) moduleText = mc.additionalDescription;
     if (mc.rangeId) rangeId = mc.rangeId;
   }
-  return { template, moduleText, rangeId };
+  return { template, moduleText, rangeId, descBB };
 }
 
 /**
@@ -725,7 +743,7 @@ function traitRecord(ctx, char, phase, level, opParts, chessId, potRank = 0) {
   const traitBB = flattenBB(tc?.blackboard, `${chessId} trait`);
   const traitMod = applyModuleTraitParts(opParts, phase, level, traitBB,
     tc?.overrideDescripton || char.description || '', tc?.rangeId || null, chessId, potRank);
-  const tp = textPair(traitMod.template, traitBB.bb, traitBB.bbStr, `${chessId} trait`);
+  const tp = textPair(traitMod.template, traitMod.descBB.bb, traitMod.descBB.bbStr, `${chessId} trait`);
   const trait = { desc: tp.desc, descRaw: tp.descRaw, bb: traitBB.bb, bbStr: traitBB.bbStr, rangeGrid: rangeGrid(ctx, traitMod.rangeId) };
   if (traitMod.moduleText) {
     const mp = textPair(traitMod.moduleText, traitBB.bb, traitBB.bbStr, `${chessId} module trait`);
@@ -757,7 +775,7 @@ function moduleAttr(modulePhase) {
  * An override of an existing talent keeps the base values that the module candidate does not
  * restate (blackboard keys merged, module values win; name/text/range/token kept when absent).
  * `modPhase`/`modLevel` select module candidates (tokens: the owner's phase/level); `potRank` every candidate (tokens:
- * the owner's potential rank, OPERATOR_POTENTIAL).
+ * the owner's potential rank, ctx.potRank).
  * @returns {Array<{index:number,name:string|null,desc:string|null,descRaw:string|null,bb:object,bbStr:object,rangeGrid:any,tokenKey:string|null,hidden:boolean,fromModule:boolean}>}
  */
 function buildTalents(ctx, char, phase, level, moduleParts, label, modPhase = phase, modLevel = level, potRank = 0) {
@@ -980,8 +998,8 @@ function buildChess(ctx) {
     // Module parts flagged isToken upgrade the summons, not the operator (see splitModuleParts).
     const moduleParts = splitModuleParts(modulePhase);
 
-    // Stats at full potential (OPERATOR_POTENTIAL, withPotential) (+ module attribute bonus on golden).
-    const attrs = withPotential(char, interpolateAttrs(char, phase, level), OPERATOR_POTENTIAL, `chess ${chessId}`);
+    // Stats at the pass's potential rank (ctx.potRank, withPotential) (+ module attribute bonus on golden).
+    const attrs = withPotential(char, interpolateAttrs(char, phase, level), ctx.potRank, `chess ${chessId}`);
     if (!attrs) warn(`chess ${chessId}: cannot interpolate attributes`);
     const bonus = {};
     for (const b of modulePhase?.attributeBlackboard || []) bonus[b.key] = (bonus[b.key] || 0) + b.value;
@@ -991,7 +1009,7 @@ function buildChess(ctx) {
     // Trait (character trait candidate + module trait override on golden).
     // Trait-effect range (e.g. 散射手 front row, 傀儡师 substitute area) — NOT the attack range.
     const rangeId = char.phases?.[phase]?.rangeId || null;
-    const traitDefault = traitRecord(ctx, char, phase, level, moduleParts.op, chessId, OPERATOR_POTENTIAL);
+    const traitDefault = traitRecord(ctx, char, phase, level, moduleParts.op, chessId, ctx.potRank);
     rec.trait = traitDefault.trait;
     rec.rangeId = rangeId;
     rec.rangeGrid = rangeGrid(ctx, rangeId);
@@ -1021,16 +1039,16 @@ function buildChess(ctx) {
     }
     rec.skills = skillRecs.map((s) => ({ ...s, isDefault: s.index === sIdx }));
 
-    // Talents at full potential (module token parts excluded: they belong to the summons).
-    const talentList = baseTalentList(ctx, char, phase, level, `chess ${chessId}`, OPERATOR_POTENTIAL);
-    rec.talents = mergeTalentChanges(talentList, moduleTalentChanges(ctx, moduleParts.op, phase, level, `chess ${chessId}`, OPERATOR_POTENTIAL));
+    // Talents at the pass's potential rank (module token parts excluded: they belong to the summons).
+    const talentList = baseTalentList(ctx, char, phase, level, `chess ${chessId}`, ctx.potRank);
+    rec.talents = mergeTalentChanges(talentList, moduleTalentChanges(ctx, moduleParts.op, phase, level, `chess ${chessId}`, ctx.potRank));
 
     // Selectable modules of the golden chess (DESIGN §16): every ADVANCED uniequip of the character
     // (INITIAL = "no module") at the chess equipLevel, plus the no-module base the choices apply to.
     const moduleAlts = [];
     if (isGolden && equipLevel > 0) {
       rec.statsBase = statsFrom(attrs, {});
-      rec.traitBase = traitRecord(ctx, char, phase, level, [], chessId, OPERATOR_POTENTIAL).trait;
+      rec.traitBase = traitRecord(ctx, char, phase, level, [], chessId, ctx.potRank).trait;
       rec.talentsBase = mergeTalentChanges(talentList, []);
       rec.modules = [];
       for (const id of uniequip.charEquip?.[shop.charId] || []) {
@@ -1039,8 +1057,8 @@ function buildChess(ctx) {
         const ph = battleEquip[id]?.phases?.find((p) => p.equipLevel === equipLevel) || null;
         if (!ph) { warn(`chess ${chessId}: module ${id} has no level ${equipLevel} (not selectable)`); continue; }
         const parts = splitModuleParts(ph);
-        const hasTraitPart = parts.op.some((pt) => bestCandidate(pt.overrideTraitDataBundle?.candidates, phase, level, OPERATOR_POTENTIAL));
-        const tr = hasTraitPart ? traitRecord(ctx, char, phase, level, parts.op, chessId, OPERATOR_POTENTIAL) : null;
+        const hasTraitPart = parts.op.some((pt) => bestCandidate(pt.overrideTraitDataBundle?.candidates, phase, level, ctx.potRank));
+        const tr = hasTraitPart ? traitRecord(ctx, char, phase, level, parts.op, chessId, ctx.potRank) : null;
         if (tr && JSON.stringify(tr.classify) !== JSON.stringify(traitDefault.classify)) {
           warn(`chess ${chessId}: module ${id} changes the combat classification (not applied by loadouts)`);
         }
@@ -1051,7 +1069,7 @@ function buildChess(ctx) {
           isDefault: id === modId, level: equipLevel,
           attr: moduleAttr(ph),
           traitOverride: tr ? tr.trait : null,
-          talentChanges: moduleTalentChanges(ctx, parts.op, phase, level, `chess ${chessId}`, OPERATOR_POTENTIAL),
+          talentChanges: moduleTalentChanges(ctx, parts.op, phase, level, `chess ${chessId}`, ctx.potRank),
         });
         if (id !== modId) moduleAlts.push({ id, modulePhase: ph, moduleTokenParts: parts.token });
       }
@@ -1110,7 +1128,7 @@ function buildChess(ctx) {
       });
       if (!tokenOwners.has(tokenId)) tokenOwners.set(tokenId, []);
       tokenOwners.get(tokenId).push({
-        chessId, charId: shop.charId, phase, level, skillIndex: sIdx, skillLevel, potRank: OPERATOR_POTENTIAL,
+        chessId, charId: shop.charId, phase, level, skillIndex: sIdx, skillLevel, potRank: ctx.potRank,
         count: defUse.count(tokenId), golden: isGolden, modulePhase, moduleTokenParts: moduleParts.token,
         // 'display' only = listed by the character but not produced by this chess's default skill or talents.
         sources: ['talent', 'skill', 'display'].filter((s) => src.has(s)),
@@ -1213,11 +1231,11 @@ function buildUnitForm(ctx, charId, status, { chessId = null, skillIndex = null 
   const char = charTable[charId];
   const { phase, level, skillLevel, equipLevel } = status;
   const label = chessId ? `chess ${chessId}` : `unit ${charId}@${statusKey(status)}`;
-  const attrs = withPotential(char, interpolateAttrs(char, phase, level), OPERATOR_POTENTIAL, label);
+  const attrs = withPotential(char, interpolateAttrs(char, phase, level), ctx.potRank, label);
   if (!attrs) warn(`${label}: cannot interpolate attributes`);
   const stats = statsFrom(attrs, {});
   const rangeId = char.phases?.[phase]?.rangeId || null;
-  const base = traitRecord(ctx, char, phase, level, [], chessId || charId, OPERATOR_POTENTIAL);
+  const base = traitRecord(ctx, char, phase, level, [], chessId || charId, ctx.potRank);
   const skills = [];
   (char.skills || []).forEach((se, i) => {
     if (!se?.skillId || (i !== skillIndex && !unlocked(se.unlockCond, phase, level))) return;
@@ -1228,7 +1246,7 @@ function buildUnitForm(ctx, charId, status, { chessId = null, skillIndex = null 
     s.overrideTokenKey = se.overrideTokenKey || null;
     skills.push(s);
   });
-  const talents = mergeTalentChanges(baseTalentList(ctx, char, phase, level, label, OPERATOR_POTENTIAL), []);
+  const talents = mergeTalentChanges(baseTalentList(ctx, char, phase, level, label, ctx.potRank), []);
   const modules = [];
   if (equipLevel > 0) {
     for (const id of uniequip.charEquip?.[charId] || []) {
@@ -1237,8 +1255,8 @@ function buildUnitForm(ctx, charId, status, { chessId = null, skillIndex = null 
       const ph = battleEquip[id]?.phases?.find((p) => p.equipLevel === equipLevel) || null;
       if (!ph) { warn(`${label}: module ${id} has no level ${equipLevel} (not selectable)`); continue; }
       const parts = splitModuleParts(ph);
-      const hasTraitPart = parts.op.some((pt) => bestCandidate(pt.overrideTraitDataBundle?.candidates, phase, level, OPERATOR_POTENTIAL));
-      const tr = hasTraitPart ? traitRecord(ctx, char, phase, level, parts.op, chessId || charId, OPERATOR_POTENTIAL) : null;
+      const hasTraitPart = parts.op.some((pt) => bestCandidate(pt.overrideTraitDataBundle?.candidates, phase, level, ctx.potRank));
+      const tr = hasTraitPart ? traitRecord(ctx, char, phase, level, parts.op, chessId || charId, ctx.potRank) : null;
       if (tr && JSON.stringify(tr.classify) !== JSON.stringify(base.classify)) warn(`${label}: module ${id} changes the combat classification (not applied by loadouts)`);
       modules.push({
         uniEquipId: id, name: meta.uniEquipName || null,
@@ -1246,7 +1264,7 @@ function buildUnitForm(ctx, charId, status, { chessId = null, skillIndex = null 
         typeIcon: meta.typeIcon || null, icon: meta.uniEquipIcon || id, level: equipLevel,
         attr: moduleAttr(ph),
         traitOverride: tr ? tr.trait : null,
-        talentChanges: moduleTalentChanges(ctx, parts.op, phase, level, label, OPERATOR_POTENTIAL),
+        talentChanges: moduleTalentChanges(ctx, parts.op, phase, level, label, ctx.potRank),
       });
     }
   }
@@ -1299,7 +1317,7 @@ function buildBackups(ctx, chess) {
     const b = c.backup;
     if (c.chessType !== 'NORMAL' || !b?.charId || b.charId === c.charId) continue;
     if (!charTable[b.charId]) { warn(`chess ${c.chessId}: backup ${b.charId} missing from character_table`); continue; }
-    if (b.potRank !== 0) warn(`chess ${c.chessId}: backup potential ${b.potRank} (every unit form is built at full potential, OPERATOR_POTENTIAL)`);
+    if (b.potRank !== 0) warn(`chess ${c.chessId}: backup potential ${b.potRank} (a 补位 stand-in fights without potential: not applied)`);
     if (b.tmplId) warn(`chess ${c.chessId}: backup template ${b.tmplId} is not built`);
     addNeed(b.charId, c.status);
     if (!c.isGolden) standsIn.set(b.charId, [...(standsIn.get(b.charId) || []), c.chessId]);
@@ -1441,7 +1459,7 @@ const TOKEN_DECK_KEYS = Object.freeze(['max_deploy_count', 'max_deck_stack_cnt']
  * reads the frame only): PRTS 幻影 备注 "每次部署夜莺时获得2个可部署的幻影，最大可部署数量为3" (1 + 2); the owners' own
  * talents "最多同时部署3个" (麦哲伦 / 令: 1 + 2), "最多可部署2个" (白铁: 1 + 1); SUM-Y stage 2+ "最多同时部署4个" — its token part
  * (the same talent, max_deploy_count 3) replaces the talent's values. The candidates as everywhere: the token's phase /
- * level at its owner's potential rank (`potRank`, OPERATOR_POTENTIAL: 望's 棋子 takes its rank-2 candidate, +1 持有 / 部署 —
+ * level at its owner's potential rank (`potRank`, ctx.potRank: 望's 棋子 takes its rank-2 candidate, +1 持有 / 部署 —
  * 望's 潜能 3 「第一天赋效果增强」); a module's token part (`moduleTokenParts`, unlocked at the owner's
  * phase / level as moduleTalentChanges) replaces the base candidate of the same prefabKey key by key (mergeTalentChanges:
  * what it does not restate stays) — matched by prefabKey, not talentIndex (夜莺's RIN-Y stage 3 part names talentIndex 0
@@ -1469,8 +1487,8 @@ function tokenTalentDeckBonus(char, phase, level, moduleTokenParts, modPhase, mo
 /**
  * Build one owner-specific variant of a token / map character at (phase, level, skill level). Its stats add the module's
  * token attributes and the summon's talent additions to its deploy limit / holding (tokenTalentDeckBonus). Its talent /
- * trait candidates are picked at `potRank`, its owner's potential rank (OPERATOR_POTENTIAL; a map character: 0); the
- * owner's potential attribute modifiers never reach it (OPERATOR_POTENTIAL).
+ * trait candidates are picked at `potRank`, its owner's potential rank (ctx.potRank; a map character: 0); the owner's
+ * potential attribute modifiers never reach it.
  * @returns {object}
  */
 function tokenVariant(ctx, tokenId, char, { phase, level, skillIndex, skillLevel, modulePhase, moduleTokenParts, label, potRank = 0 }) {
@@ -1488,7 +1506,7 @@ function tokenVariant(ctx, tokenId, char, { phase, level, skillIndex, skillLevel
   const ownerPhase = phase, ownerLevel = level;
   const traitMod = applyModuleTraitParts(moduleTokenParts, ownerPhase, ownerLevel, tbb,
     tc?.overrideDescripton || char.description || '', null, label, potRank);
-  const tp = textPair(traitMod.template, tbb.bb, tbb.bbStr, `${label} trait`);
+  const tp = textPair(traitMod.template, traitMod.descBB.bb, traitMod.descBB.bbStr, `${label} trait`);
   const moduleTrait = traitMod.moduleText ? textPair(traitMod.moduleText, tbb.bb, tbb.bbStr, `${label} module trait`) : null;
   // Token skill: same index as the owner's skill when present, else the first defined one.
   const skills = char.skills || [];
@@ -1656,7 +1674,7 @@ function buildDiyTokens(ctx, units, owned) {
       for (const tokenId of form.tokens) {
         const tchar = charTable[tokenId];
         const label = `token ${tokenId}@${charId}@${key}`;
-        const at = (o) => tokenVariant(ctx, tokenId, tchar, { phase, level, skillIndex: first.index, skillLevel, modulePhase: null, moduleTokenParts: [], label, potRank: OPERATOR_POTENTIAL, ...o });
+        const at = (o) => tokenVariant(ctx, tokenId, tchar, { phase, level, skillIndex: first.index, skillLevel, modulePhase: null, moduleTokenParts: [], label, potRank: ctx.potRank, ...o });
         const u0 = tokenUse(first);
         const v = { ...at({}), count: u0.count(tokenId), sources: u0.sources(tokenId) };
         let produced = makes(v.sources);
@@ -2714,23 +2732,6 @@ function tileGlyph(t) {
   }
 }
 
-/**
- * Official ground route (research 08 §3.4, the same code the sim runs: server/sim/grid.js flow field — 4-direction
- * SPFA from the goal, crates cost 1000, Bresenham line-of-sight smoothing) as the tiles an enemy crosses, start and goal
- * included. The whole 19×21 map is walkable like in the client.
- * @param {object} stage { rows, legend }
- * @param {Array<{pos:number[], role:string}>} devices active devices to apply (crates = cost 1000, platforms/mounds = blocked)
- */
-function officialPath(stage, devices, start, end) {
-  const g = new Grid(stage, { r0: 0, r1: 18, c0: 0, c1: 20 });
-  for (const d of devices) {
-    if (!d.pos) continue;
-    if (d.role === 'crate') g.setObstacle(d.pos[0], d.pos[1], true, 'crate');
-    else g.setObstacle(d.pos[0], d.pos[1], true);
-  }
-  return g.findPath(start[0], start[1], end[0], end[1]);
-}
-
 /** Gameplay role of known stage devices. */
 const DEVICE_ROLES = {
   trap_1105_accrate: 'crate', trap_1106_achplat: 'platform', trap_032_mound: 'mound', trap_013_blower: 'blower',
@@ -2918,22 +2919,7 @@ function buildStages(ctx, modesById) {
     };
 
     // Helper ground routes (the official flow field + smoothing, as crossed tiles), without / with the active devices.
-    const gridStage = { rows, legend: glyphTiles };
-    const pairs = [
-      [[9, 10], [9, 2]], [[12, 10], [9, 2]], [[9, 18], [9, 2]], [[12, 18], [9, 2]],
-      [[2, 10], [2, 2]], [[5, 10], [2, 2]], [[2, 10], [1, 3]], [[5, 10], [1, 3]],
-      [[2, 10], [2, 18]], [[5, 10], [2, 18]], [[2, 10], [1, 17]], [[5, 10], [1, 17]],
-    ];
-    const groundPaths = {}, groundPathsWithDevices = {};
-    for (const [a, b] of pairs) {
-      const k = `${a.join(',')}->${b.join(',')}`;
-      const passable = (p) => tileAt(p[0], p[1])?.passableMask === 'ALL';
-      if (!passable(a) || !passable(b)) continue;
-      const p1 = officialPath(gridStage, [], a, b);
-      if (p1) groundPaths[k] = p1;
-      const p2 = officialPath(gridStage, activeBlocking, a, b);
-      if (p2) groundPathsWithDevices[k] = p2;
-    }
+    const { groundPaths, groundPathsWithDevices } = computeGroundPaths({ rows, tiles: glyphTiles, devices });
     const modes = [...(sd?.mode || [])];
     const o = lv.options || {};
     out[stageId] = {
@@ -3475,19 +3461,25 @@ function buildChoices(ctx, effects, items, chess) {
       pool_equip_normal: { kind: 'equip', rule: 'shopEligible', maxTier: 'shopLevel', assumed: true },
       pool_equip_shop_1: { kind: 'equip', rule: 'shopEligible', tiers: [1], assumed: true },
       // 凯瑟琳 定向投放 (up_shop_add_special_goods): every shop-eligible item, whatever the shop level — players' first-hand
-      // report (community, 2026-10-06): 「原版凯瑟琳1升2都能有6本装备」; the pool itself is server-side, uniform [ASSUMED]
-      // (until 0.2.0 it was capped at the shop level, so the 1 → 2 offer only ever showed tiers I–II)
-      pool_equip_kathe: { kind: 'equip', rule: 'shopEligible', assumed: true },
-      pool_equip_narant: { kind: 'equip', rule: 'shopEligible', maxTier: 'shopLevel', assumed: true },
+      // report (community, 2026-10-06): 「原版凯瑟琳1升2都能有6本装备」 — plus 突变细胞, which the shop never sells
+      // (maintainer, 2026-10-14: the official offer can roll it at any 调度中心 level, #631). The pool is server-side
+      // and the official table names it but not its weights, so the draw stays uniform [ASSUMED]. `also` is appended
+      // by Match.rollItemId; the shop item slot does not read it. Until 0.2.0 the pool was capped at the shop level.
+      pool_equip_kathe: { kind: 'equip', rule: 'shopEligible', also: [itemByName('突变细胞')], assumed: true },
+      // 娜仁图亚 见者有份 (preparation_start_add_special_goods_every_n_round): the blackboard names no tier cap. Players'
+      // first-hand report (community, 2026-10-14): the two equips can be above the current shop level. Same shape as
+      // 凯瑟琳 — every shop-eligible item, uniform [ASSUMED] (until 0.3.0 it was capped at the shop level, so an even
+      // round at level 1–2 never showed tier III+)
+      pool_equip_narant: { kind: 'equip', rule: 'shopEligible', assumed: true },
       // "获得一件带有随机特殊效果的维式重锤": the 4 hammers with a special effect (never sold, SHOP_EXCLUDED_ITEMS); the
       // weights are server-side (PRTS 11-25 note: "装备【灼燃维式重锤】的出现概率调整") — uniform [ASSUMED]
       pool_equip_vict: { kind: 'equip', items: ['灼燃维式重锤', '坚固维式重锤', '加速维式重锤', '战栗维式重锤'].map(itemByName), assumed: true },
       pool_equip_pepe: { kind: 'equip', weighted: [['盟约之币', 45], ['萨尔贡浓茶', 45], ['黄沙罗盘', 10]].map(([n, w]) => [itemByName(n), w]), goldenWeights: [40, 40, 20], assumed: true },
-      // 洛洛的定制品 = the same 4 special hammers (user playtest #4, first-hand: "几个特殊的维式重锤是干员洛洛或者维多利亚
-      // 阵营获得的"); uniform [ASSUMED]
-      pool_equip_rockr: { kind: 'equip', items: ['灼燃维式重锤', '坚固维式重锤', '加速维式重锤', '战栗维式重锤'].map(itemByName), assumed: true },
+      // 路标月报#2 BV1eLXXBqEgF, card-pool rule 6: measured subset weights. The four special hammers are still
+      // exclusive to this and Victoria's pools, but are not the whole of Rockrock's pool.
+      pool_equip_rockr: { kind: 'equip', weighted: [['维式重锤', 10], ['战栗维式重锤', 2], ['坚固维式重锤', 2], ['加速维式重锤', 2], ['灼燃维式重锤', 2], ['有限加速器', 1], ['护盾无人机', 4], ['激光发射器', 4]].map(([n, w]) => [itemByName(n), w]), assumed: true },
       pool_chess_glady: { kind: 'chess', items: ['斯卡蒂', '幽灵鲨', '深巡'].map(chessByName), assumed: true },
-      pool_char_pinus: { kind: 'chess', weighted: [['野鬃', 45], ['灰毫', 45], ['远牙', 10]].map(([n, w]) => [chessByName(n), w]), assumed: true },
+      pool_char_pinus: { kind: 'chess', weighted: [['野鬃', 10], ['灰毫', 10], ['远牙', 3]].map(([n, w]) => [chessByName(n), w]), assumed: true },
       pool_char_later: { kind: 'chess', bond: 'lateranoShip', minTier: 4, golden: true, rule: 'shopEligible', assumed: true },
       ...Object.fromEntries([1, 2, 3, 4, 5, 6].map((t) => [`pool_chess_shop_${t}_reward`, { kind: 'chess', tier: t, rule: 'shopEligible', assumed: true }])),
     },
@@ -3545,8 +3537,19 @@ function enemyScaleFor(table, type, difficulty, round, isHidden) {
  * Build data/config.json: modes (rounds, timers, shop, enemy scaling), economy, bans, timers,
  * titles, tips, broadcasts, trophies and other global tunables.
  */
-function buildConfig(ctx, waves, stages, bands) {
+function buildConfig(ctx, waves, stages, bands, chess, items) {
   const { act, ac } = ctx;
+  // Original experiment: 路标档案馆, BV1eLXXBqEgF (2026-03-29), 0:30 / 1:30 / 2:00.
+  // These are concurrent stock counts, not limits on appearances or total purchases during a match.
+  const stockByName = (records, counts) => Object.fromEntries(Object.entries(counts).map(([name, count]) => {
+    const rec = Object.values(records).find((r) => !r.isGolden && r.name === name);
+    if (!rec) throw new Error(`pool stock: missing ${name}`);
+    return [rec.chessId || rec.id, count];
+  }));
+  const chessStock = stockByName(chess, { 普罗旺斯: 10, 德克萨斯: 10, 跃跃: 10, 古米: 10, 格雷伊: 10,
+    风丸: 8, 赫默: 12, 休谟斯: 12, 砾: 12, 蒂比: 12, 调香师: 12 });
+  const itemStock = stockByName(items, { 简易通讯机: 5, 蜂鸣器: 6, 防暴盾: 6, 浓缩嗅盐: 6,
+    寻呼模块: 7, 伪装服: 7, 拉特兰桥夹: 7, 商业包装方案: 2 });
   const addendum = ctx.research.core?._criticAddendum || {};
   const multipliers = addendum.enemyStatMultipliers || DEFAULT_ENEMY_MULTIPLIERS;
   if (!addendum.enemyStatMultipliers) warn('config: using built-in enemy multiplier table (research 01 _criticAddendum missing)');
@@ -3652,7 +3655,10 @@ function buildConfig(ctx, waves, stages, bands) {
       storeCntMax: act.constData.storeCntMax,
       equipPerChess: 2, maxArtsPerRound: 2,
       poolCopies: { 1: 12, 2: 14, 3: 18, 4: 16, 5: 8, 6: 5 },
-      poolCopiesOverrides: { chess_char_6_11_a: 4 },
+      poolCopiesOverrides: chessStock,
+      coopPoolMultiplier: 2,
+      itemPoolCopies: { 1: 4, 2: 6, 3: 7, 4: 8, 5: 7, 6: 3 },
+      itemPoolCopiesOverrides: itemStock,
       goldenCopies: 3,
       mergeCount: 3,
       mergeCountOverrides: Object.fromEntries(Object.entries(act.charChessDataDict).filter(([, c]) => !c.isGolden && c.upgradeNum && c.upgradeNum !== 3).map(([id, c]) => [id, c.upgradeNum])),
@@ -3672,6 +3678,8 @@ function buildConfig(ctx, waves, stages, bands) {
       formula: 'one pool for every boss field ("所有人将一起对敌方领袖造成伤害"; the mirrored copies of a pair field share it, "两侧的敌方领袖共享生命值（敌方领袖的总生命值不变）") = bloodPoint[difficulty] × share. perPlayer true (the owner\'s decision of 2026-10-06, PR #209): co-op share = coop × the players alive when the fight starts (bots and AI 托管 seats count, eliminated and departed seats do not), at most aliveFull; solo share = solo (1). perPlayer false (the fixed pool of 0.1.x, 「保持固定血量」): co-op share = coop whatever the count (× alive / aliveFull with aliveScaling, the alive / 4 proportion [ASSUMED]: 巴哈姆特 12294); solo was 0.25 [ASSUMED]',
       perPlayer: true, coop: 1, solo: 1, aliveFull: 4, aliveScaling: false, aliveAssumed: true, unaffectedByEnemyScale: true,
     },
+    // minTeamLpExclusive 1 = LP > 1 (at least 2 left): PRTS's user-contributed text, which the community's measurement
+    // (Bilibili 路标月报#2, cited on GitHub #645) matches — kept by the owner on 2026-10-15
     hiddenCore: { single: 350, multi: 1200, minTeamLpExclusive: 1, difficulties: ['NORMAL', 'HARD', 'ABYSS'], checkedAfterRound: 14 },
     dp: { init: 10, perSec: 1, max: 99 },
     unite: { maxHelpers: 2, helperOrder: 'unitsOnField>activeBond>undownedUnits; pair: unitsOnField>activeBond>activeLayers>undownedUnits, first = right field (PRTS 帮助)', layerGainsEnabled: false, keepsHpSpPositions: true, leakedEnemyFullHp: true,
@@ -3680,8 +3688,8 @@ function buildConfig(ctx, waves, stages, bands) {
     timers: {
       infoCheck: step('INFO_CHECK')?.time ?? 25, infoCheckHint: step('INFO_CHECK')?.hintTime ?? 5,
       // bandTurn: one turn of the co-op strategy draft = its only countdown (server/match/Match.js BAND_TURN_SECONDS,
-      // [ASSUMED] — user playtest #4 item 4; the official data only has the whole step's 50 s, kept for reference)
-      bandDraft: step('BAND_CHECK')?.time ?? 50, bandDraftHint: step('BAND_CHECK')?.hintTime ?? 15, bandTurn: 30,
+      // owner official-play report 2026-10-10: 50 s per turn; the official whole-step value stays as reference)
+      bandDraft: step('BAND_CHECK')?.time ?? 50, bandDraftHint: step('BAND_CHECK')?.hintTime ?? 15, bandTurn: 50,
       battleCheck: step('BATTLE_CHECK')?.time ?? 3,
       spFirst: 30, spTurn: act.modeDataDict.mode_multi_normal?.specialPhaseTime ?? 16,
       soloPrepTimeData: 300, soloSpTimeData: act.modeDataDict.mode_single_normal?.specialPhaseTime ?? 150,
@@ -3725,50 +3733,118 @@ function buildConfig(ctx, waves, stages, bands) {
   };
 }
 
-// ===== validation ===============================================================================
+// ===== potential (0.2.2) =========================================================================
 
-/** Recursively find non-finite numbers (NaN/Infinity would silently become null in JSON). */
-function findNonFinite(obj, path, out) {
-  if (typeof obj === 'number') { if (!Number.isFinite(obj)) out.push(path); return; }
-  if (!obj || typeof obj !== 'object') return;
-  if (Array.isArray(obj)) { obj.forEach((v, i) => findNonFinite(v, `${path}[${i}]`, out)); return; }
-  for (const [k, v] of Object.entries(obj)) findNonFinite(v, `${path}.${k}`, out);
+/** Keys of the talent lists whose entries chain their lower-rank values (shared/potential.js talentAtRank). */
+const POTENTIAL_TALENT_LISTS = new Set(['talents', 'talentsBase', 'talentChanges']);
+const isPlainObj = (v) => !!v && typeof v === 'object' && !Array.isArray(v);
+
+/**
+ * A talent entry built at ranks 0 … `hi` (`vals[r]`) as one chained entry: the rank-`hi` entry, with `potMin` (the
+ * lowest rank that builds the same entry) and `potBelow` (the entry below it — only the fields it changes, `desc` /
+ * `descRaw` / `bb` …, chained the same way) when a lower rank builds another one: the candidates by
+ * `requiredPotentialRank`.
+ */
+function chainTalent(vals, hi) {
+  const node = vals[hi];
+  let m = hi;
+  while (m > 0 && isDeepStrictEqual(vals[m - 1], node)) m--;
+  if (m === 0) return node;
+  const below = chainTalent(vals, m - 1);
+  const part = {};
+  for (const [k, v] of Object.entries(below)) if (k === 'potMin' || k === 'potBelow' || !isDeepStrictEqual(v, node[k])) part[k] = v;
+  return { ...node, potMin: m, potBelow: part };
 }
 
 /**
- * Cross-file referential integrity checks. Returns a list of error strings (empty = OK).
- * The same invariants are asserted by test/data.test.js.
+ * The full-rank value `vals[FULL_RANK]` annotated with what the lower ranks change: talent lists chain their entries
+ * (chainTalent), every other differing leaf — or a value whose shape changes — records its exact value at each rank where
+ * it differs from the rank above in `potDown[rank][dotted.path]`.
  */
-function validateAll(f) {
-  const errors = [];
-  const err = (m) => errors.push(m);
-  const { config, chess, bonds, garrisons, items, bands, effects, choices, enemies, factions, waves, stages, bosses, tokens, backups } = f;
-  for (const [name, obj] of Object.entries(f)) {
-    const bad = [];
-    findNonFinite(obj, name, bad);
-    bad.slice(0, 5).forEach((p) => err(`non-finite number at ${p}`));
+function annotatePotential(vals, path, potDown, label) {
+  const full = vals[FULL_RANK];
+  if (vals.every((v) => isDeepStrictEqual(v, full))) return full;
+  const key = path[path.length - 1];
+  if (POTENTIAL_TALENT_LISTS.has(key) && vals.every((v) => Array.isArray(v) && v.length === full.length)) {
+    return full.map((_, i) => chainTalent(vals.map((v) => v[i]), FULL_RANK));
   }
+  if (isPlainObj(full) && vals.every((v) => isPlainObj(v) && isDeepStrictEqual(Object.keys(v), Object.keys(full)))) {
+    const o = {};
+    for (const k of Object.keys(full)) o[k] = annotatePotential(vals.map((v) => v[k]), [...path, k], potDown, label);
+    return o;
+  }
+  if (Array.isArray(full) && vals.every((v) => Array.isArray(v) && v.length === full.length)) {
+    return full.map((_, i) => annotatePotential(vals.map((v) => v[i]), [...path, i], potDown, label));
+  }
+  if (!path.length || path.some((k) => String(k).includes('.'))) {
+    warn(`${label}: a potential-dependent value at "${path.join('/')}" cannot be written as a potDown path`);
+    return full;
+  }
+  for (let r = FULL_RANK - 1; r >= 0; r--) {
+    if (!isDeepStrictEqual(vals[r], vals[r + 1])) (potDown[r] ||= {})[path.join('.')] = vals[r];
+  }
+  return full;
+}
+
+/**
+ * One record / form / variant built at every rank (`vals[r]`, r = 0 … FULL_RANK) as its full-rank build annotated for
+ * the lower ranks (annotatePotential; `potDown` last, only when something differs), checked: shared/potential.js
+ * atRank must rebuild every rank exactly (an error otherwise).
+ * @returns {object} the annotated full-rank value
+ */
+function withPotentialData(vals, label, errors) {
+  const potDown = {};
+  const out = annotatePotential(vals, [], potDown, label);
+  const res = Object.keys(potDown).length && isPlainObj(out) ? { ...out, potDown } : out;
+  for (let r = 0; r <= FULL_RANK; r++) {
+    if (!isDeepStrictEqual(stripPotential(atRank(res, r)), stripPotential(vals[r]))) errors.push(`potential ${label}: shared/potential.js atRank does not rebuild rank ${r}`);
+  }
+  return res;
+}
+
+/**
+ * Annotate the full-potential build with every lower rank (docs/DATA.md §2.3): each chess record, each backups.json unit
+ * form and each token variant (data/tokens.json and backups.json `tokens`: the owner's potential — a record's top-level
+ * defaults stay the first owner's full-potential ones). `passes[r]` = { chess, backups, tokens } built at rank r.
+ * @returns {string[]} errors (an atRank mismatch, a record missing at a rank)
+ */
+function attachPotential(passes) {
+  const errors = [];
+  const full = passes[FULL_RANK];
+  for (const id of Object.keys(full.chess)) {
+    const vals = passes.map((p) => p.chess[id]);
+    if (vals.some((v) => !v)) { errors.push(`potential chess ${id}: missing at a rank`); continue; }
+    full.chess[id] = withPotentialData(vals, `chess ${id}`, errors);
+  }
+  for (const [charId, unit] of Object.entries(full.backups.units)) {
+    for (const key of Object.keys(unit.forms)) {
+      const vals = passes.map((p) => p.backups.units[charId]?.forms?.[key]);
+      if (vals.some((v) => !v)) { errors.push(`potential unit ${charId}@${key}: missing at a rank`); continue; }
+      unit.forms[key] = withPotentialData(vals, `unit ${charId}@${key}`, errors);
+    }
+  }
+  for (const [file, pick] of [['tokens', (p) => p.tokens], ['backups tokens', (p) => p.backups.tokens]]) {
+    for (const [tokenId, rec] of Object.entries(pick(full))) {
+      for (const owner of Object.keys(rec.variants || {})) {
+        const vals = passes.map((p) => pick(p)[tokenId]?.variants?.[owner]);
+        if (vals.some((v) => !v)) { errors.push(`potential ${file} ${tokenId}@${owner}: missing at a rank`); continue; }
+        rec.variants[owner] = withPotentialData(vals, `${file} ${tokenId}@${owner}`, errors);
+      }
+    }
+  }
+  return errors;
+}
+
+// ===== validation ===============================================================================
+
+function validateAll(f) {
+  const errors = validateReferences(f);
+  const err = m => errors.push(m);
+  const { chess, bonds, bands, items, tokens, backups, stages } = f;
   const visible = Object.values(chess).filter((c) => !c.isGolden && c.visible);
   if (Object.keys(bonds).length !== 23) err(`expected 23 bonds, got ${Object.keys(bonds).length}`);
   if (Object.keys(bands).length !== 40) err(`expected 40 bands, got ${Object.keys(bands).length}`);
   if (visible.length !== 112) err(`expected 112 visible non-DIY chess, got ${visible.length}`);
-  for (const c of Object.values(chess)) {
-    if (!chess[c.baseId]) err(`chess ${c.chessId}: baseId missing`);
-    if (c.goldenId && !chess[c.goldenId]) err(`chess ${c.chessId}: goldenId missing`);
-    for (const b of c.bonds) if (!bonds[b]) err(`chess ${c.chessId}: bond ${b} missing`);
-    for (const g of c.garrisonIds) if (!garrisons[g]) err(`chess ${c.chessId}: garrison ${g} missing`);
-    for (const t of c.tokens) if (!tokens[t]) err(`chess ${c.chessId}: token ${t} missing`);
-    for (const t of c.talents || []) if (t.tokenKey && !c.tokens.includes(t.tokenKey)) err(`chess ${c.chessId}: talent token ${t.tokenKey} not in tokens`);
-    if (c.isDiy) continue;
-    if (!c.stats) err(`chess ${c.chessId}: no stats`);
-    if (!c.skill) err(`chess ${c.chessId}: no resolvable skill`);
-    if (!Array.isArray(c.rangeGrid)) err(`chess ${c.chessId}: no range grid`);
-    // DESIGN §16 loadout choices
-    if (!Array.isArray(c.skills) || c.skills.filter((s) => s.isDefault).length !== 1 || c.skills.find((s) => s.isDefault)?.skillId !== c.skill?.skillId) err(`chess ${c.chessId}: skills[] without exactly one default = skill`);
-    if (c.modules && (c.modules.filter((m) => m.isDefault).length !== (c.module?.active ? 1 : 0) || !c.statsBase || !c.traitBase || !c.talentsBase)) err(`chess ${c.chessId}: inconsistent module choices`);
-    // 高台 legality is read from the trait text at place time (shared/highGround.js), never a field on the record
-    if (c.placement !== undefined) err(`chess ${c.chessId}: placement is not a data field`);
-  }
   // the deliberate trigger deviations (DESIGN §21.29, §22.10) still override an official TAKE_DAMAGE row, on the normal
   // chess and its elite alike (a DEFAULT one may resolve to the owner's ACTIVE_RANGE on top: 深巡 S2)
   const deviationHolds = (rule, trig) => trig.rawRule === 'TAKE_DAMAGE' && (trig.rule === rule || (ACTIVE_RANGE_OVER.has(rule) && trig.rule === 'ACTIVE_RANGE'));
@@ -3795,52 +3871,7 @@ function validateAll(f) {
       }
     }
   }
-  // 补位 / 自选 (data/backups.json, DATA.md §18): a PRESET chess is its own backup; every NORMAL chess (both forms)
-  // composes into its stand-in (shared/standIn.js standInRecord) with the chess's skill and module; every DIY slot is a
-  // DIY chess and every prototype pick of its tier has a form for both slot statuses; derived bonds exist
   if (backups) {
-    for (const c of Object.values(chess)) {
-      const b = c.backup;
-      if (c.chessType === 'PRESET' && b?.charId !== c.charId) err(`chess ${c.chessId}: a PRESET chess's backup must be itself`);
-      if (c.chessType === 'DIY' && b?.charId !== null) err(`chess ${c.chessId}: a DIY slot has no backup`);
-      if (c.chessType !== 'NORMAL') continue;
-      const r = standInRecord(c, backups);
-      if (!r) { err(`chess ${c.chessId}: no stand-in ${b?.charId}@${statusKey(c.status)} in backups.json`); continue; }
-      if (!r.stats || !Array.isArray(r.rangeGrid) || !r.trait) err(`chess ${c.chessId}: stand-in ${b.charId} without stats / range / trait`);
-      if (r.skill?.index !== b.skillIndex || r.skills.filter((s) => s.isDefault).length !== 1) err(`chess ${c.chessId}: stand-in skill ${b.skillIndex} is not unlocked at ${statusKey(c.status)}`);
-      if (b.uniEquipId && c.status.equipLevel > 0 && !r.module?.active) err(`chess ${c.chessId}: stand-in module ${b.uniEquipId} has no level ${c.status.equipLevel}`);
-      if (r.tokens.length) err(`chess ${c.chessId}: stand-in ${b.charId} summons ${r.tokens.join(', ')} (no tokens.json variant)`);
-    }
-    for (const [id, s] of Object.entries(backups.diy.slots)) {
-      const slot = chess[id], golden = chess[s.goldenId];
-      if (!slot?.isDiy || slot.isGolden || slot.tier !== s.tier || !golden?.isDiy) { err(`DIY slot ${id}: not a DIY chess pair of tier ${s.tier}`); continue; }
-      if (!backups.diy.prototypes[s.tier]?.length) err(`DIY slot ${id}: no prototype picks`);
-      for (const p of backups.diy.prototypes[s.tier] || []) {
-        for (const rec of [slot, golden]) if (!unitForm(backups, p, rec.status)) err(`DIY slot ${rec.chessId}: prototype ${p} has no form ${statusKey(rec.status)}`);
-        // the locked selection exists at both slot forms (the module at the elite's stage)
-        const lk = backups.diy.locked?.[s.tier]?.[p];
-        if (!lk) { err(`DIY slot ${id}: prototype ${p} has no locked selection`); continue; }
-        for (const rec of [slot, golden]) {
-          const f = unitForm(backups, p, rec.status);
-          if (f && !f.skills.some((x) => x.index === lk.skillIndex)) err(`DIY slot ${rec.chessId}: prototype ${p} has no skill ${lk.skillIndex} at ${statusKey(rec.status)}`);
-          if (f && lk.uniEquipId && rec.status.equipLevel > 0 && !f.modules.some((m) => m.uniEquipId === lk.uniEquipId)) err(`DIY slot ${rec.chessId}: prototype ${p} has no module ${lk.uniEquipId} at ${statusKey(rec.status)}`);
-        }
-      }
-      // every owned pick: a form at both slot statuses with every skill, and at the elite every module of the character
-      for (const p of backups.diy.ownedPool) {
-        const u = backups.units[p];
-        for (const rec of [slot, golden]) {
-          const f = unitForm(backups, p, rec.status);
-          if (!f) { err(`DIY slot ${rec.chessId}: owned pick ${p} has no form ${statusKey(rec.status)}`); continue; }
-          if (f.skills.length !== 3) err(`DIY slot ${rec.chessId}: owned pick ${p} has ${f.skills.length} skills at ${statusKey(rec.status)}`);
-          const ids = Object.keys(u.moduleNames).filter((m) => u.moduleNames[m].typeName !== 'ORIGINAL');
-          if (rec.status.equipLevel > 0 && JSON.stringify(f.modules.map((m) => m.uniEquipId)) !== JSON.stringify(ids)) err(`DIY slot ${rec.chessId}: owned pick ${p} modules ${f.modules.map((m) => m.uniEquipId)} ≠ ${ids}`);
-          for (const t of f.tokens) if (!backups.tokens?.[t]?.variants?.[`${p}@${statusKey(rec.status)}`]) err(`DIY pick ${p}@${statusKey(rec.status)}: summon ${t} has no variant in backups.json tokens`);
-        }
-      }
-    }
-    for (const [id, o] of Object.entries(backups.diy.operators)) for (const b of o.bonds) if (!bonds[b]) err(`DIY pick ${id}: bond ${b} missing`);
-    for (const id of Object.keys(backups.tokens || {})) if (tokens[id]) err(`backups.json token ${id} is also a tokens.json record`);
     // the 重装 stand-ins' deviations (STANDIN_TRIGGER_DEVIATIONS) still override an official TAKE_DAMAGE row, on every form
     for (const [charId, skillsOf] of Object.entries(STANDIN_TRIGGER_DEVIATIONS)) {
       const forms = Object.values(backups.units[charId]?.forms || {});
@@ -3854,58 +3885,6 @@ function validateAll(f) {
       }
     }
   }
-  for (const b of Object.values(bonds)) {
-    for (const m of b.members) if (!chess[m]) err(`bond ${b.bondId}: member ${m} missing`);
-    if (!b.thresholds.length) err(`bond ${b.bondId}: no thresholds`);
-    if (!effects[b.effectId]) err(`bond ${b.bondId}: effect ${b.effectId} missing`);
-  }
-  for (const it of Object.values(items)) {
-    if (!effects[it.effectId]) err(`item ${it.id}: effect missing`);
-    if (it.goldenId && !items[it.goldenId]) err(`item ${it.id}: golden missing`);
-    if (it.giveBondId && !bonds[it.giveBondId]) err(`item ${it.id}: giveBond ${it.giveBondId} missing`);
-    if (it.requiresBondId && !bonds[it.requiresBondId]) err(`item ${it.id}: requiresBond ${it.requiresBondId} missing`);
-  }
-  for (const b of Object.values(bands)) if (!effects[b.effectId]) err(`band ${b.bandId}: effect missing`);
-  for (const b of Object.values(bands)) for (const id of b.bondIds || []) if (!bonds[id]) err(`band ${b.bandId}: bond ${id} missing`);
-  for (const w of Object.values(waves)) {
-    for (const sp of w.spawns) {
-      if (sp.action) continue;
-      if (!enemies[sp.key]) err(`wave ${w.id}: enemy ${sp.key} missing`);
-      if (!w.routes[sp.routeIndex]) err(`wave ${w.id}: route ${sp.routeIndex} missing`);
-    }
-    for (const [bn, phases] of Object.entries(w.branches)) for (const sp of phases.flat()) {
-      if (sp.action) continue;
-      if (!enemies[sp.key]) err(`wave ${w.id} branch ${bn}: enemy ${sp.key} missing`);
-      if (!w.extraRoutes[sp.routeIndex]) err(`wave ${w.id} branch ${bn}: extraRoute ${sp.routeIndex} missing`);
-    }
-    for (const k of Object.keys(w.overrides)) if (!enemies[k]) err(`wave ${w.id}: override for unknown enemy ${k}`);
-  }
-  for (const s of Object.values(stages)) {
-    if (s.rows.length !== 19 || s.rows.some((r) => r.length !== 21)) err(`stage ${s.id}: not 19x21`);
-    if (s.rows.some((r) => r.includes('?'))) err(`stage ${s.id}: unknown tile glyph`);
-    if (s.name !== s.id && /[A-Za-z]/.test(s.name)) err(`stage ${s.id}: Latin text in player-facing name "${s.name}"`);
-  }
-  // the escaped level of 1 / 2 helpers (config.unite.templates) has its map record (kind 'unite'; no field uses it)
-  for (const [n, id] of Object.entries(config.unite.templates)) {
-    if (stages[id]?.kind !== 'unite' || stages[id].helpers !== Number(n) || stages[id].active) err(`unite template ${id}: no inactive 联防 stage for ${n} helper(s)`);
-  }
-  for (const m of Object.values(config.modes)) {
-    for (const [r, rd] of Object.entries(m.rounds)) {
-      const tpls = rd.template ? [rd.template] : Object.values(rd.bossTemplates || {});
-      if (!tpls.length) err(`mode ${m.modeId} round ${r}: no template`);
-      for (const t of tpls) if (!waves[t]) err(`mode ${m.modeId} round ${r}: template ${t} missing`);
-    }
-    for (const s of m.stages) if (!stages[s]) err(`mode ${m.modeId}: stage ${s} missing`);
-    for (const b of [...m.activeBondIds, ...m.inactiveBondIds]) if (!bonds[b]) err(`mode ${m.modeId}: bond ${b} missing`);
-  }
-  for (const b of Object.values(bosses)) if (!enemies[b.enemyKey]) err(`boss ${b.bossId}: enemy missing`);
-  for (const e of Object.values(factions.entries)) {
-    for (const k of [e.key, ...e.N.map((x) => x.key), ...e.E.map((x) => x.key)]) if (!enemies[k]) err(`faction ${e.key}: enemy ${k} missing`);
-  }
-  for (const card of choices.cards.bounty) for (const a of card.adds) if (a.enemyKey && !enemies[a.enemyKey]) err(`bounty ${card.effectId}: enemy ${a.enemyKey} missing`);
-  for (const [pid, p] of Object.entries(choices.pools)) {
-    for (const id of [...(p.items || []), ...(p.weighted || []).map((x) => x[0])]) if (!id || !(items[id] || chess[id])) err(`pool ${pid}: unresolved entry ${id}`);
-  }
   for (const id of Object.keys(SHOP_EXCLUDED_ITEMS)) if (!items[id] || items[id].itemType !== 'EQUIP' || items[id].isGolden) err(`SHOP_EXCLUDED_ITEMS: ${id} is not a normal EQUIP item`);
   for (const [id, fl] of Object.entries(TOKEN_ABNORMAL)) {
     if (!tokens[id]) err(`TOKEN_ABNORMAL: ${id} is not a token`);
@@ -3916,16 +3895,8 @@ function validateAll(f) {
     if (!t || t.kind !== 'summon') err(`TOKEN_POSITION_CORRECTIONS: ${id} is not a summon`);
     else if (t.position !== pos || !['MELEE', 'RANGED', 'ALL'].includes(pos)) err(`TOKEN_POSITION_CORRECTIONS: ${id}: position ${t.position}`);
   }
-  for (const t of Object.values(tokens)) {
-    if (!t.stats) err(`token ${t.tokenId}: no stats`);
-    for (const [o, v] of Object.entries(t.variants || {})) if (!Array.isArray(v.sources) || !v.sources.length) err(`token ${t.tokenId}@${o}: no sources`);
-  }
-  for (const e of Object.values(enemies)) {
-    const s = e.stats;
-    // DESIGN §5.5 contract: rangeRadius > 0 ⇔ attacks units it is not blocked by (never for MELEE).
-    if (!(s.rangeRadius >= 0) || (e.applyWay === 'MELEE' && s.rangeRadius !== 0)) err(`enemy ${e.key}: rangeRadius ${s.rangeRadius} (${e.applyWay})`);
-    // bat 0 would mean "attack every tick"; aspd 0 is official only for a few skill-driven leaders.
-    if (!(s.maxHp > 0) || !(s.bat > 0) || !(s.aspd >= 0) || !(s.moveSpeed >= 0) || !(s.lpr >= 0)) err(`enemy ${e.key}: bad core stats ${JSON.stringify({ maxHp: s.maxHp, bat: s.bat, aspd: s.aspd, moveSpeed: s.moveSpeed, lpr: s.lpr })}`);
+  for (const s of Object.values(stages)) {
+    if (s.name !== s.id && /[A-Za-z]/.test(s.name)) err(`stage ${s.id}: Latin text in player-facing name "${s.name}"`);
   }
   return errors;
 }
@@ -3936,15 +3907,23 @@ async function main() {
   const t0 = Date.now();
   const ctx = await loadContext();
   log('building…');
-  const { chess, tokenOwners } = buildChess(ctx);
-  const backups = buildBackups(ctx, chess);
+  // one pass of the operator builders per potential rank (潜能 1–6, ctx.potRank): the full-potential pass is the data,
+  // annotated below with what every lower rank changes (attachPotential)
+  const passes = [];
+  for (let r = 0; r <= FULL_RANK; r++) {
+    const pctx = { ...ctx, potRank: r };
+    const built = buildChess(pctx);
+    passes.push({ ctx: pctx, chess: built.chess, tokenOwners: built.tokenOwners, backups: buildBackups(pctx, built.chess) });
+  }
+  const { chess, backups } = passes[FULL_RANK];
   const effects = buildEffects(ctx);
   const bonds = buildBonds(ctx, chess, effects);
   const garrisons = buildGarrisons(ctx, chess);
   const items = buildItems(ctx, effects);
   const bands = buildBands(ctx, effects);
   const enemies = buildEnemies(ctx);
-  const tokens = buildTokens(ctx, chess, tokenOwners, enemies);
+  for (const p of passes) p.tokens = buildTokens(p.ctx, p.chess, p.tokenOwners, enemies);
+  const tokens = passes[FULL_RANK].tokens;
   const waves = buildWaves(ctx, enemies);
   const stages = buildStages(ctx, ctx.act.modeDataDict);
   const factions = buildFactions(ctx, enemies);
@@ -3953,10 +3932,12 @@ async function main() {
   // the bonds each strategy is built around (DESIGN §21.26): the bot skips, and the strategy draft marks 本局禁用, a band
   // whose bond the mode switches off
   for (const b of Object.values(bands)) b.bondIds = bandBondIds(b, { bonds, pools: choices.pools });
-  const config = buildConfig(ctx, waves, stages, bands);
+  const config = buildConfig(ctx, waves, stages, bands, chess, items);
   const files = { config, chess, bonds, garrisons, items, bands, effects, choices, enemies, factions, waves, stages, bosses, tokens, backups };
 
-  const errors = [...validateAll(files), ...checkUnitFormParity(ctx, chess)];
+  // the unit forms rebuild every PRESET chess at every rank (before the annotation: each pass as built)
+  const errors = [...validateAll(files), ...passes.flatMap((p) => checkUnitFormParity(p.ctx, p.chess).map((e) => `${e} (potential rank ${p.ctx.potRank})`))];
+  errors.push(...attachPotential(passes));
   let total = 0;
   const sizes = {};
   const texts = {};

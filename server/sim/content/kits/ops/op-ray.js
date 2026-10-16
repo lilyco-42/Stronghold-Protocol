@@ -60,9 +60,10 @@
 import { num, talentBb, traitBb, skillRec, up } from '../shared/tier1.js';
 import { acquireTargets, effectiveProfile } from '../../../ai.js';
 import { sortEnemyTargets } from '../../../targeting.js';
-import { bodyInKeys } from '../../../body.js';
+import { bodyInRange } from '../../../body.js';
 import { PUSH_DIRECTIONAL_MIN_DIST } from '../../../constants.js';
 import { startCountdown } from '../../tokens.js';
+import { hypot } from '../../../detmath.js';
 
 const S1 = 'skchr_ray_1';
 const S2 = 'skchr_ray_2';
@@ -159,7 +160,7 @@ export default {
               if (!target.alive) { unit.mem.rayLoadExtra = num(unit.mem.rayLoadExtra) + Math.max(0, Math.floor(num(b1.cnt, 1))); return; }
               const force = num(b1.force, 1);
               const [fr, fc] = unit.fwd;
-              const vx = target.x - unit.x, vy = target.y - unit.y, d = Math.hypot(vx, vy);
+              const vx = target.x - unit.x, vy = target.y - unit.y, d = hypot(vx, vy);
               if (d >= PUSH_DIRECTIONAL_MIN_DIST && vx * fc + vy * fr >= d * Math.SQRT1_2) battle.push(target, force, { from: unit, dir: { x: fc, y: fr }, fixed: true });
               else battle.push(target, force - 1, { from: unit });
             },
@@ -261,9 +262,9 @@ export default {
             const area = m.rayArea, prof = ctx.profile ?? unit.profile;
             const all = battle.enemiesInKeys(unit.rangeKeys, unit, prof);
             for (const e of battle.blockedTargets(unit, prof)) if (!all.includes(e)) all.push(e);
-            if (!all.some((e) => bodyInKeys(e, area))) return;
+            if (!all.some((e) => bodyInRange(e, area))) return;
             sortEnemyTargets(battle, unit, all, prof.priority ?? null);
-            const rank = (e) => (e.blockedBy === unit ? 0 : bodyInKeys(e, area) ? 1 : 2);
+            const rank = (e) => (e.blockedBy === unit ? 0 : bodyInRange(e, area) ? 1 : 2);
             const order = all.map((e, i) => ({ e, i, r: rank(e) })).sort((a, b) => a.r - b.r || a.i - b.i).map((x) => x.e);
             ctx.targets = order.slice(0, ctx.targets.length);
           }, { owner: unit, priority: 10 });
@@ -271,7 +272,7 @@ export default {
           if (ds > 0) {
             battle.on('hit', (ctx) => {
               if (ctx.source !== unit || !m.rayArea || !ctx.target || ctx.target.side !== 'enemy' || ctx.dmg.type !== 'phys') return;
-              if (bodyInKeys(ctx.target, m.rayArea)) ctx.dmg.mul *= 1 + ds;
+              if (bodyInRange(ctx.target, m.rayArea)) ctx.dmg.mul *= 1 + ds;
             }, { owner: unit });
           }
           // S2 passive: count the bullets of her attacks that hit an enemy of the area (one per attack)
@@ -279,7 +280,7 @@ export default {
             battle.on('damaged', (ctx) => {
               const d = ctx.dmg, e = ctx.target;
               if (ctx.source !== unit || !m.rayArea || !d || !d.isAttack || !e || e.side !== 'enemy' || (d.tags && d.tags.includes(SPECIAL_TAG))) return;
-              if ((d.attackId && d.attackId === m.rayCounted) || !bodyInKeys(e, m.rayArea)) return;
+              if ((d.attackId && d.attackId === m.rayCounted) || !bodyInRange(e, m.rayArea)) return;
               m.rayCounted = d.attackId;
               m.rayBullets++;
             }, { owner: unit });

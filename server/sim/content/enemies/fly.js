@@ -1,12 +1,14 @@
 // server/sim/content/enemies/fly.js — FLY 飞行 kits (auras, 暴鸰, the “萨科塔”, 假想敌：黑云, shells, seeds) and their part of KITS
 // (split from content/enemies.js).
 
-import { TICK, MOVE_SCALE, PROJECTILE_SPEEDS } from '../../constants.js';
+import { TICK, PROJECTILE_SPEEDS, ALLY_COLLIDER_RADIUS } from '../../constants.js';
 import {
   num, T, hurt, targetsNear, allTargets, areaAllies, areaAlliesInTiles, fieldAllies, byPriority, spawnChildren,
-  stepToward, setForm, expose,
+  setForm, expose, unbalancedNow,
 } from './helpers.js';
 import { enemyAura, allyAura, selfFear, skill, kitSelfFear } from './archetypes.js';
+import { hypot } from '../../detmath.js';
+import { bbCap, fieldCap } from '../../../../shared/plugins/officialBounds.js';
 
 // ---------------------------------------------------------------------------------------------------------------
 // constants (numbers that exist nowhere in the data)
@@ -26,9 +28,14 @@ export const BOMBD_RELEASE = 8 / 30;
  *  提升至200%"; the cast's end clip is already the bomb-less Idle_2 (`_endAnimKey`). */
 export const BOMBD_POST_DELAY = 0.667;
 
-/** 帝国炮火先兆者 shell (PRTS "普通攻击向目标所在位置发射一枚于3秒后命中的弹道，弹道对半径1.2范围内的所有我方单位造成攻击力
- *  100%的无来源物理伤害 … ※弹道始终使用缓存攻击力"): flight time and blast radius. */
-const SHELL_FLIGHT = 3, SHELL_RADIUS = 1.2;
+/** 帝国炮火先兆者 shell (PRTS 天赋 of both 先兆者 "普通攻击向目标所在位置发射一枚于3秒后命中的弹道，弹道对半径1.2范围内的所有我方单位造成
+ *  攻击力100%的无来源物理伤害（此弹道不会强制击中主目标，碰撞无视迷彩）… ※弹道始终使用缓存攻击力"): flight time and the written
+ *  blast radius. The landing is a 碰撞 — PRTS 作战机制 §碰撞体积: collider tests are the common way, an ally's collider a
+ *  circle of ALLY_COLLIDER_RADIUS — so an ally is hit when its collider touches the 1.2 circle: centre distance ≤ 1.45
+ *  (SHELL_REACH), the impact tile and the 8 around it (a diagonal tile centre is √2 ≈ 1.414 away; two tiles, 2, stay
+ *  out) — the 3×3 a player saw in the official game (GitHub #364; until 0.2.2 the bare 1.2: the cross only).
+ *  [ASSUMED] for this shell (its text names the 碰撞); other content zones keep their point radius (constants.js). */
+const SHELL_FLIGHT = 3, SHELL_RADIUS = 1.2, SHELL_REACH = SHELL_RADIUS + ALLY_COLLIDER_RADIUS;
 
 /** 假想敌：黑云 抓取: the blackboard radius counts ×2.5 (PRTS "2.5倍可变半径": range_radius 1.5 → 3.75), at most 3 prey,
  *  "短暂延迟后" the 延迟吞噬 lands (delay [ASSUMED] 0.5 s); its SP (= 全弹发射 hits) caps at the data's spData.maxSp. */
@@ -36,6 +43,8 @@ const GRAB_RADIUS_SCALE = 2.5, GRAB_MAX_PREY = 3, GRAB_DELAY = 0.5;
 
 /** 枯朽之种 summoned per BornBugs cast ("数个") [ASSUMED]. */
 const BUGS_PER_CAST = 3;
+/** 枯朽之种's self-destruct attack projectile speed (PRTS 枯朽之种). */
+const SEED_PROJECTILE_SPEED = 10;
 
 // ---------------------------------------------------------------------------------------------------------------
 // kits
@@ -55,14 +64,15 @@ function kitExposeOnDeath(ab) {
  */
 function kitBlackCloud(ab, e) {
   const k = ab.sk.KillOthers, f = ab.sk.FireWeapon;
-  const maxAmmo = Math.max(1, num(e.def.raw && e.def.raw.sp && e.def.raw.sp.maxSp, 3));
+  // [ASSUMED] DESIGN §32.5: salvo length is sp.maxSp. Official 黑云 maxSp is 3.
+  const maxAmmo = Math.min(fieldCap('enemy.sp.maxSp'), Math.max(1, num(e.def.raw && e.def.raw.sp && e.def.raw.sp.maxSp, 3)));
   const grabR = (k ? num(k.bb.range_radius, 1.5) : 1.5) * GRAB_RADIUS_SCALE;
   const dur = k ? num(k.bb.duration, 4) : 4;
   const isPrey = (b, e2, o) => o !== e2 && o.alive && !o.hidden && o.isFlying && o.def.rank === 'NORMAL' && !o.isBoss && !o.findBuff('ab:devoured');
   const prey = (b, e2) => b.enemiesInRadius(e2.x, e2.y, grabR).filter((o) => isPrey(b, e2, o));
   return [
     skill(k, (b, e2) => {
-      const list = prey(b, e2).sort((p, q) => Math.hypot(p.x - e2.x, p.y - e2.y) - Math.hypot(q.x - e2.x, q.y - e2.y)).slice(0, GRAB_MAX_PREY);
+      const list = prey(b, e2).sort((p, q) => hypot(p.x - e2.x, p.y - e2.y) - hypot(q.x - e2.x, q.y - e2.y)).slice(0, GRAB_MAX_PREY);
       if (!list.length) return;
       b.addBuff(e2, { key: 'ab:grabbing', duration: dur, flags: { bind: true, noMove: true } });   // 技能持续4秒，期间持有束缚
       b.fx('beam', { x: e2.x, y: e2.y, from: e2.id, to: list[0].id, kind: 'devour' });
@@ -73,14 +83,16 @@ function kitBlackCloud(ab, e) {
           b.addBuff(o, { key: 'ab:devoured', duration: dur, visible: true, flags: { bind: true, noMove: true, disarm: true } });
           b.after(dur, () => {
             if (!o.alive || !e2.alive) return;
-            e2.mem.ab.ammo = Math.min(maxAmmo, (e2.mem.ab.ammo ?? 0) + num(k.bb.sp, 1));
+            const gain = num(k.bb.sp, 1);
+            const step = gain > bbCap('sp') ? bbCap('sp') : gain;
+            e2.mem.ab.ammo = Math.min(maxAmmo, (e2.mem.ab.ammo ?? 0) + step);
             b.kill(o, null);
           }, { owner: e2 });
         }
       }, { owner: e2 });
     }, { sil: true, cond: (b, e2) => prey(b, e2).length > 0 }),
     skill(f, (b, e2) => {
-      const hits = Math.floor(e2.mem.ab.ammo ?? 0);
+      const hits = Math.min(maxAmmo, Math.floor(e2.mem.ab.ammo ?? 0));
       if (!(hits > 0)) return;
       e2.mem.ab.ammo = 0;
       for (let i = 0; i < hits; i++) {
@@ -116,12 +128,13 @@ function kitSteal(ab) {
 }
 
 /** “萨科塔昂首” 【祈祷邀约】 (PRTS "令全场我方单位（不可对空，无视迷彩）获得15s【受邀祈祷】攻击速度-30"): a whole-field skill
- *  selection — every ally but an unblocking 隐匿 / untargetable / sleeping one (fieldAllies; no 无视无法选择). */
+ *  selection — every ally but an unblocking 隐匿 / untargetable / sleeping one (fieldAllies; no 无视无法选择) and, 不可对空, a
+ *  flying one (the 炎佑 dragon; until 0.2.1 it was slowed too). */
 function kitRoar(ab) {
   const s = ab.sk.Roar;
   return [selfFear(ab), skill(s, (b, e) => {
     b.fx('telegraph', { x: e.x, y: e.y, r: 99, kind: 'roar', id: e.id });
-    for (const u of fieldAllies(b, e)) b.addBuff(u, { key: 'ab:roar', duration: s.bb.duration ?? 0, refresh: 'extend', mods: { aspd: s.bb.attack_speed ?? 0 }, visible: true });
+    for (const u of fieldAllies(b, e)) if (!u.isFlying) b.addBuff(u, { key: 'ab:roar', duration: s.bb.duration ?? 0, refresh: 'extend', mods: { aspd: s.bb.attack_speed ?? 0 }, visible: true });
   }, { sil: true })];
 }
 
@@ -205,7 +218,8 @@ function kitBombd(ab) {
 
 /**
  * 帝国炮火先兆者 / 中枢先兆者 (PRTS): every normal attack fires a shell at the target's position that lands SHELL_FLIGHT s
- * later and deals 100 % of the ATK at launch as physical damage without a source to every ally within SHELL_RADIUS
+ * later and deals 100 % of the ATK at launch as physical damage without a source to every ally whose collider touches the
+ * SHELL_RADIUS circle (SHELL_REACH)
  * (it may miss the target that moved away; "碰撞无视迷彩"). The landing is the shell's area selection (areaAllies of the
  * enemy that fired it: no unblocking 隐匿 ally; the damage stays 无来源). The attack itself is the engine's (cooldown,
  * pause, 'atk' event of kind 'mortar'); the damage is the shell's (ai.js `profile.deferHit`).
@@ -217,10 +231,11 @@ function kitShell() {
       const atk = e.s.atk * (e.profile.atkScale ?? 1);
       for (const t of c.targets) {
         const x = t.x, y = t.y;
-        b.fx('bombardShell', { x, y, id: e.id, r: SHELL_RADIUS, t: SHELL_FLIGHT });
+        // (the telegraph and the blast are drawn at the reach: every ally whose centre lies in the circle is hit)
+        b.fx('bombardShell', { x, y, id: e.id, r: SHELL_REACH, t: SHELL_FLIGHT });
         b.after(SHELL_FLIGHT, () => {
-          b.fx('bombard', { x, y, r: SHELL_RADIUS, kind: 'emppnt' });
-          for (const u of areaAllies(b, e, x, y, SHELL_RADIUS)) hurt(b, null, u, atk, 'phys', { isSkill: false, tags: ['shell'] });
+          b.fx('bombard', { x, y, r: SHELL_REACH, kind: 'emppnt' });
+          for (const u of areaAllies(b, e, x, y, SHELL_REACH)) hurt(b, null, u, atk, 'phys', { isSkill: false, tags: ['shell'] });
         });
       }
     },
@@ -245,20 +260,29 @@ export const FLY_KITS = Object.freeze({
   enemy_1112_emppnt: kitShell,                                       // 帝国炮火先兆者 · attacks are shells landing 3 s later (r 1.2)
   enemy_1112_emppnt_2: kitShell,                                     // 帝国炮火中枢先兆者 · same
   enemy_1321_wdarft: (ab) => [skill(ab.sk.BornBugs, (b, e) => spawnChildren(b, e, 'enemy_1269_nhfly', BUGS_PER_CAST))], // 枯朽萃聚使徒 · spawns 枯朽之种
-  enemy_1269_nhfly: () => [{                                         // 枯朽之种 · no normal attack: dives onto a nearby operator and self-destructs
+  enemy_1269_nhfly: () => [{                                         // 枯朽之种 · becomes a projectile when self-destructing
     spawn(b, e) { e.profile.noAttack = true; },
-    tick(b, e, a, dt) {
-      if (a.t && !a.t.alive) { a.t = null; b.removeBuff(e, 'ab:dive'); }
-      if (!a.t) {
-        const l = targetsNear(b, e, e.base.rangeRadius || 1).sort((p, q) => Math.hypot(p.x - e.x, p.y - e.y) - Math.hypot(q.x - e.x, q.y - e.y));
-        if (!l.length) return;
-        a.t = l[0];
-        b.addBuff(e, { key: 'ab:dive', flags: { noMove: true } });
-      }
-      if (!stepToward(e, a.t.x, a.t.y, Math.max(e.s.moveSpeed, 0.5) * MOVE_SCALE * dt) && Math.hypot(a.t.x - e.x, a.t.y - e.y) > 0.3) return;
-      hurt(b, e, a.t, e.s.atk, 'phys');
-      b.fx('explode', { x: e.x, y: e.y, r: 0.5, kind: 'seed' });
-      b.kill(e, null);
+    tick(b, e, a) {
+      if (a.shot || unbalancedNow(b, e)) return;
+      const l = targetsNear(b, e, e.base.rangeRadius || 1).sort((p, q) => hypot(p.x - e.x, p.y - e.y) - hypot(q.x - e.x, q.y - e.y));
+      if (!l.length) return;
+      const target = l[0], atk = e.s.atk;
+      // PRTS 枯朽之种: attack radius 2 and projectile speed 10. Keep its model as the projectile's visual while
+      // removing it from operator target selection. [ASSUMED] A lost target leaves the shot to burst at its last point.
+      b.addBuff(e, { key: 'ab:dive', flags: { noMove: true, untargetable: true, invulnerable: true, unblockable: true } });
+      a.shot = b.addProjectile({ from: e, target, speed: SEED_PROJECTILE_SPEED, source: e, hitDead: true,
+        onHit: ({ target: hit, x, y }) => {
+          e.x = x; e.y = y;
+          if (hit) hurt(b, e, hit, atk, 'phys');
+          b.fx('explode', { x, y, r: 0.5, kind: 'seed' });
+          b.kill(e, null);
+        },
+      });
+      b.on('tick', () => {
+        if (!e.alive) return;
+        if (!b.projectiles.list.includes(a.shot)) { b.kill(e, null); return; } // e.g. 逻各斯 S3 cleared the shot
+        e.x = a.shot.x; e.y = a.shot.y;
+      }, { owner: e });
     },
   }],
 });

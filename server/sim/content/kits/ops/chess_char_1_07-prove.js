@@ -3,7 +3,7 @@
 
 import { sortEnemyTargets } from '../../../targeting.js';
 import { frontOf } from '../../../dir.js';
-import { bodyOnTile } from '../../../body.js';
+import { bodyInRangeTile } from '../../../body.js';
 import { num, talentBb, isMainHit, onHitBy, skillBbOf } from '../shared/tier1.js';
 
 /** 普罗旺斯 杀戮嗅觉 "普通攻击不再以生命值高于80%的敌人作为目标" — the 80 % exists only in the skill text. */
@@ -28,7 +28,9 @@ export default {
     const s2On = (u) => !!(u.skill && u.skill.active && u.skill.id === S2);
     return {
       skill: { kind: 'passive' },
-      skills: { [S2]: { kind: 'duration', mods: { atkPct: num(skillBbOf(chess, S2).atk) } } },
+      // [ASSUMED] S2 never shoots 白铁's 铁钳号 (its damage is cancelled, so it never drops below 80 %): the device alone does
+      // not open it (skills.js allyTargetsOk)
+      skills: { [S2]: { kind: 'duration', mods: { atkPct: num(skillBbOf(chess, S2).atk) }, allyTargets: false } },
       trait: {
         canAttack: (battle, u) => !s2On(u) || battle.enemiesInKeys(u.rangeKeys, u, u.profile).some(huntable),
       },
@@ -51,7 +53,7 @@ export default {
           }
           if (!isMainHit(dmg)) return;
           const [fr, fc] = frontOf(unit.tileR, unit.tileC, unit.dir);
-          const front = bodyOnTile(target, fr, fc);
+          const front = bodyInRangeTile(target, fr, fc);
           const p = front ? num(t.prob2) : num(t.prob);
           if (p > 0 && battle.rng.chance(p)) {
             dmg.amount *= num(t.atk_scale, 1);

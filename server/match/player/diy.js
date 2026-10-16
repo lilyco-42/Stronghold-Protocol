@@ -17,15 +17,22 @@
 //   * the per-player stock (initDiyStock, called by the match once its bans are drawn): each slotted DIY piece has copies
 //     of its own — the tier's pool copies, 8 at tier 5 and 5 at tier 6 [ASSUMED: research 0.2.0 §2.5, the excel has no
 //     stock field] — drawn by this player only; it never enters the shared pool (PR #71's shared shop was the mistake to
-//     avoid). A piece all of whose bonds are switched off this match (本局禁用: the drawn bans and the mode's static list)
+//     avoid); in co-op its copies double like the shared pool's (gamedata.js poolCopies × coopPoolMultiplier: 16 / 10 —
+//     the maintainer's decision of 2026-10-15, GitHub #650, DESIGN §32.14.31). A piece all of whose bonds are switched
+//     off this match (本局禁用: the drawn bans and the mode's static list)
 //     gets no stock and so leaves the shop, like a preset chess whose bonds are all off (PRTS 卫戍协议：盟约 "禁用盟约有可能
 //     影响自选的支援干员"); 协防 (emptyShip) is never banned, so a prototype always stays. poolOf(baseId) routes every copy
 //     taken or returned for a slotted slot to that stock (buy, reward picks, merges, promotions, sells, temp, elimination).
-//   * the shop's draws (diyRollEntries): the stock of each slotted slot joins this player's copy-weighted rolls — the
-//     shop's chess slots and the reward offers' temporary refreshes [ASSUMED] — weighted like any chess of its tier, once
-//     the 调度中心 has reached the slot's shopLevel (activity_table shopLevelDisplayDataDict lists the tier-5 slots at
-//     level 5 and the tier-6 slots at level 6; PRTS 帮助 "仅在调度中心等级 ≥ 干员所在等阶"). The price is the slot's (any
-//     chess of its tier: 4).
+//   * the shop's draws (diyRollEntries): the stock of each slotted slot joins this player's copy-weighted shop rolls,
+//     weighted like any chess of its tier, once the 调度中心 has reached the slot's shopLevel (activity_table
+//     shopLevelDisplayDataDict lists the tier-5 slots at level 5 and the tier-6 slots at level 6; PRTS 帮助 "仅在调度中心
+//     等级 ≥ 干员所在等阶" is that persistent shop). The price is the slot's (any chess of its tier: 4).
+//   * the promotion reward (pushRewardOffer with no explicit ids) draws diyStockEntries() under the reward tier
+//     min(shopLevel + 1, 6): a tier-5 自选 piece can appear when the 调度中心 reaches 4, a tier-6 piece when it reaches
+//     5, one shop level before the ordinary shop. 卫戍协议/帮助 干员晋升 names that refresh and no second pool; the owner
+//     decided on 2026-10-12 that it includes 自选 of the newly reached tier. 0.2.0 had [ASSUMED] the shop-level gate
+//     for this refresh too (DESIGN §25); §30.23 reverses it. A piece is not guaranteed. Banned slots and `left <= 0`
+//     stay out. Explicit-id offers do not use this draw.
 //   * random grants (diyStockEntries, 0.2.0 WE2 #9): an effect, reward or 机变 card that grants this player a random
 //     operator from the pool draws its stock too — 「自选干员放入后模拟中的补给池随机范围也将被相应扩大」 (bilibili), "调度中心
 //     随机资源的范围将被扩大" (PRTS 新手教程) — under the roll's own tier rules (the effect's tier / maxTier: no 调度中心 gate,
@@ -36,6 +43,7 @@
 import { KITTED_CHARS } from '../../sim/content/kits/index.js';
 import { checkDiyPicks } from '../../../shared/protocol.js';
 import { diyRecord, diySlot, diyTokenOwner } from '../../../shared/diy.js';
+import { atPotential } from '../../../shared/potential.js';
 
 const posIntOr = (v, d) => (Number.isInteger(v) && v > 0 ? v : d);
 const isObj = (v) => !!v && typeof v === 'object' && !Array.isArray(v);
@@ -52,13 +60,13 @@ export class DiyStock {
 
   has(baseId) { return this.entries.has(baseId); }
   cap(baseId) { return this.entries.get(baseId)?.cap ?? 0; }
-  left(baseId) { return this.entries.get(baseId)?.left ?? 0; }
+  left(baseId) { return Math.max(0, this.entries.get(baseId)?.left ?? 0); }
 
   /** Take up to n copies; returns the number taken (0 for a base id without stock). */
-  take(baseId, n = 1) {
+  take(baseId, n = 1, { overdraw = false } = {}) {
     const e = this.entries.get(baseId);
     if (!e || !(n > 0)) return 0;
-    const k = Math.min(e.left, Math.floor(n));
+    const k = overdraw ? Math.floor(n) : Math.min(Math.max(0, e.left), Math.floor(n));
     e.left -= k;
     return k;
   }
@@ -75,7 +83,7 @@ export class DiyStock {
   /** { baseId: left } (tests / diagnostics). */
   snapshot() {
     const o = {};
-    for (const [id, e] of this.entries) o[id] = e.left;
+    for (const [id, e] of this.entries) o[id] = Math.max(0, e.left);
     return o;
   }
 }
@@ -102,7 +110,8 @@ export function diyGameData(gd, records) {
      * placeable, by the variant of the owner form (`bySkill[skillIndex]` sources) — the deploy limit as the count (PRTS
      * 卫戍协议/帮助 "根据召唤物部署数量上限（非初始持有量）"), the active module's own when its variant has one (`byModule`:
      * 望's TRP-X "可同时部署的陷阱数量提升", 6 → 7 棋子; SUM-Y stage 2+ 4 drones / summons). The data's deploy limit holds the
-     * token's own talent additions (tools/build-data.mjs tokenTalentDeckBonus, 0.2.0): 麦哲伦 / 令 / 电弧 3, 白铁 2, 夜莺 3 幻影.
+     * token's own talent additions (tools/build-data.mjs tokenTalentDeckBonus, 0.2.0): 麦哲伦 / 令 / 电弧 3, 白铁 2, 夜莺 3 幻影 —
+     * at the owner's potential (`loadout.potential`, PlayerState.loadoutFor; 0.2.2: 望's 棋子 6 below 潜能3, 7 from it).
      */
     placeableTokens: {
       value: (chessId, loadout = null) => {
@@ -113,7 +122,7 @@ export function diyGameData(gd, records) {
         for (const tid of Array.isArray(rec.tokens) ? rec.tokens : []) {
           const t = tokenOf(tid);
           if (!t || t.kind !== 'summon' || t.placeable !== true) continue;
-          const v = isObj(t.variants) ? t.variants[owner] ?? null : null;
+          const v = isObj(t.variants) ? atPotential(t.variants[owner] ?? null, loadout?.potential) : null;
           if (v) {
             const alt = loadout && Number.isInteger(loadout.skillIndex) && v.bySkill ? v.bySkill[loadout.skillIndex] : null;
             const src = Array.isArray(alt?.sources) ? alt.sources : Array.isArray(v.sources) ? v.sources : [];
@@ -175,7 +184,14 @@ export class PlayerDiy {
    * @param {Set<string>} off
    */
   initDiyStock(off = new Set()) {
-    this.diyStock = new DiyStock();
+    const { stock, banned } = this.buildDiyStock(off);
+    this.diyStock = stock;
+    this.diyBanned = banned;
+  }
+
+  /** Prepare stock without mutating this player, so setup rerolls can commit all players together. */
+  buildDiyStock(off = new Set()) {
+    const stock = new DiyStock();
     const banned = [];
     const gd = this.m.gd;
     for (const slotId of Object.keys(this.diy || {})) {
@@ -186,9 +202,9 @@ export class PlayerDiy {
       if (bonds.length > 0 && bonds.every((b) => off.has(b))) { banned.push(slotId); continue; }
       const cap = gd.poolCopies(slotId);
       if (!(cap > 0)) continue;
-      this.diyStock.entries.set(slotId, { cap, left: cap, tier: gd.tierOf(slotId), shopLevel: slot.shopLevel });
+      stock.entries.set(slotId, { cap, left: cap, tier: gd.tierOf(slotId), shopLevel: slot.shopLevel });
     }
-    this.diyBanned = Object.freeze(banned);
+    return { stock, banned: Object.freeze(banned) };
   }
 
   /** The copy accounting of base chess `baseId` for this player: its own stock for a slotted DIY slot, else the shared pool. */
@@ -197,8 +213,9 @@ export class PlayerDiy {
   }
 
   /**
-   * The stock entries this player's shop draws from now ([baseId, entry] with copies left and the 调度中心 at the slot's
-   * shopLevel), or null (none — the shared pool's roll alone, exactly as without picks).
+   * The stock entries this player's ordinary shop draws from now ([baseId, entry] with copies left and the 调度中心 at
+   * the slot's shopLevel), or null (none — the shared pool's roll alone, exactly as without picks). The promotion
+   * reward does not use this gate (`diyStockEntries`).
    * @returns {Array<[string, { cap: number, left: number, tier: number, shopLevel: number }]> | null}
    */
   diyRollEntries() {
@@ -209,8 +226,9 @@ export class PlayerDiy {
   }
 
   /**
-   * The stock entries a random grant of this player draws besides the shared pool (see the header): every slotted piece
-   * with copies left, whatever the 调度中心 level (the roll's own tier rules apply), or null (none).
+   * The stock entries a random grant, and the promotion reward's temporary refresh, draw besides the shared pool
+   * (see the header): every slotted piece with copies left, whatever the 调度中心 level (the roll's own tier rules
+   * apply), or null (none).
    * @returns {Array<[string, { cap: number, left: number, tier: number, shopLevel: number }]> | null}
    */
   diyStockEntries() {

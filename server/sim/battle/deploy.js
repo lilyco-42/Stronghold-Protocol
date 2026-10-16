@@ -13,7 +13,7 @@ export class BattleDeploy {
    * operator that left the field comes back on its body tile, restTile). `keepSp` = { sp, charges }
    * restored right after the skill reset, before the `deploy` hook fires.
    */
-  _deploy(u, { initial = false, carry = null, tile = null, keepSp = null } = {}) {
+  _deploy(u, { initial = false, carry = null, tile = null, keepSp = null, preBattleAggroSeq = null } = {}) {
     if ((u.alive && u.deployed) || u._removing) return false;
     const R0 = tile ? tile[0] : u.homeR, C0 = tile ? tile[1] : u.homeC;
     if (!this.grid.inRect(R0, C0)) {
@@ -37,7 +37,9 @@ export class BattleDeploy {
     u.x = C0; u.y = R0; u.tileR = R0; u.tileC = C0;
     u.blocking = [];
     u.deploySeq = ++this._deploySeq;
-    u.aggroSeq = u.deploySeq;
+    // A prepared map character is instantiated after the board deployment but keeps an earlier target order.
+    // Its deploySeq remains the identity of this actual deployment for scheduled effects and redeploy checks.
+    u.aggroSeq = preBattleAggroSeq ?? u.deploySeq;
     u.deployedAt = this.time;
     u.atkCd = 0;
     u.lastAttackAt = -Infinity;
@@ -46,17 +48,23 @@ export class BattleDeploy {
     u.markDirty();
     u.hp = u.s.maxHp;
     // 联防 carry (PRTS 卫戍协议/帮助 §联防阶段 "将对应单位的生命比例、技力修改至与上一阶段结束时相同（召唤物仅修改技力…）"):
-    // an operator's HP ratio here, the SP in skill.reset and again after the `deploy` hook (below) — a summon's SP only
+    // an operator restores HP/SP, a summon SP only; actual 联防 opening restoration is deferred until Battle.start ends
     const cs = initial || (first && this._startDeploying) ? (carry ?? u.carry) : null;
-    if (cs && u.kind === 'op' && Number.isFinite(cs.hpPct)) u.hp = Math.max(1, u.s.maxHp * Math.max(0.01, Math.min(1, cs.hpPct)));
+    // 联防 reconstructs deployment/battle-start effects first, then restores HP/SP once in Battle.start.
+    const restoreLater = this.kind === 'unite' && this._startDeploying;
+    if (!restoreLater && cs && u.kind === 'op' && Number.isFinite(cs.hpPct) && cs.hpPct > 0) u.hp = u.s.maxHp * Math.min(1, cs.hpPct);
     this._occ[k] = u;
     this._refreshRange(u); // also rebuilds baseRangeKeys (initial range incl. permanent rangeExtend)
     if (!u.skill) this._setupUnit(u);
-    u.skill.reset(cs);
+    u.skill.reset(restoreLater ? null : cs);
     const sk = u.skill;
     // "自动操作具有3s冷却，在完成一次操作或作战开始时部署的单位将进入冷却" (PRTS 卫戍协议/帮助; skills.js)
     if (initial) sk.opReadyAt = this.time + this.flags.startOpCooldown;
-    if (keepSp && !sk.noSkill && sk.kind !== 'passive' && !sk.active) {
+    // keepSp (突袭 "保留技力"): the SP / charges before the jump — not for a skill that costs no SP (spCost 0, the
+    // deploy-timed skills), which reset() just re-armed as at every deployment: the retreat ended it, so its snapshot
+    // holds 0 charges, and writing that back took the charge 伊内丝 S3's deploy hook casts with (community report:
+    // 伊内丝激活突袭瞬移以后3技能被吞; those with activateOnDeploy run already, skipped by `!sk.active`)
+    if (keepSp && !sk.noSkill && sk.kind !== 'passive' && !sk.active && sk.spCost > 0) {
       sk.charges = Math.max(0, Math.min(sk.maxCharges, Math.floor(fin(keepSp.charges, 0))));
       sk.sp = Math.max(0, Math.min(sk.spCost, fin(keepSp.sp, 0)));
       if (sk.charges >= sk.maxCharges) sk.sp = sk.spCost;
@@ -64,9 +72,9 @@ export class BattleDeploy {
     if (first) this._ev(['spawn', unitInfo(u)]);
     this._ev(['deploy', u.id]);
     if (this._hooks.deploy) this.emit('deploy', { unit: u, initial });
-    // 联防: "部署完成后，将对应单位的…技力修改至与上一阶段结束时相同" — the carried SP is set again once the deployment is
-    // done, so a deploy-time SP gift (独行, 黄沙罗盘 …) does not come on top of it; later redeploys keep those gifts
-    if (cs && Number.isFinite(cs.sp) && u.alive && u.skill) u.skill.setSpTotal(cs.sp);
+    // Explicit carry outside the 联防 opening follows this one deployment. The opening itself restores at the end
+    // of Battle.start, so deployment/battle-start gifts do not come on top of it; later redeploys keep their gifts.
+    if (!restoreLater && cs && Number.isFinite(cs.sp) && u.alive && u.skill) u.skill.setSpTotal(cs.sp);
     return true;
   }
 
@@ -97,6 +105,7 @@ export class BattleDeploy {
   }
 
   _remove(unit, reason, killer = null, permanent = false, dying = false) {
+    this._cutAttackStand(unit);
     unit.alive = false;
     unit.removeReason = reason;
     unit.deployed = false;
@@ -135,10 +144,16 @@ export class BattleDeploy {
       this._unblock(unit);
       this._enemiesDirty = true;
       if (reason === 'killed') {
+        const pp = this._pp(unit.ownerId);
         if (unit.counted) {
           this.killed++;
-          const pp = this._pp(unit.ownerId);
           if (pp) pp.killed++;
+        }
+        // the HUD capsule's numerator (DESIGN §14): only the enemies the stage itself scheduled (`inTotal`) — a split
+        // child / summon / part knocked down here is no 已解决 of the stage's own list and moves the capsule not at all
+        if (unit.inTotal) {
+          this.killedInTotal++;
+          if (pp) pp.killedInTotal++;
         }
         if (killer) killer.stats.kills++;
         if (unit.bounty && unit.bounty.coins > 0) this.addCoins(this._bountyPayee(unit, killer), unit.bounty.coins);
@@ -252,5 +267,12 @@ export class BattleDeploy {
       if (e.counted || e.isBoss) pp.perfect = false;
     }
     if (e.counted) this.leakedCount++;
+    // the HUD capsule's leak counter (DESIGN §14): only the stage's own enemies (`inTotal`) — a leaked split child or
+    // summon still costs LP through `counted`/`leakedCount` and still breaks 完美作战, but it is no 漏掉 of the stage's
+    // own list, so the capsule's numerator does not move for it
+    if (e.inTotal) {
+      this.leakedInTotal++;
+      if (pp) pp.leakedInTotal++;
+    }
   }
 }

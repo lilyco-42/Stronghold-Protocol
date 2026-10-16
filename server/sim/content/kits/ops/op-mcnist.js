@@ -58,6 +58,8 @@
 import { num, skillRec, batMod, up } from '../shared/tier1.js';
 import { COLS } from '../../../constants.js';
 import { dirVec } from '../../../dir.js';
+import { hypot } from '../../../detmath.js';
+import { atPotential } from '../../../../../shared/potential.js';
 
 const S1 = 'skchr_mcnist_1';
 const S2 = 'skchr_mcnist_2';
@@ -197,7 +199,7 @@ function grafKit(owner, { life, t2, b2, b3, aura }) {
 function chargeGraf(battle, mcn, t, b3) {
   if (!up(t)) return;
   const { stop, land } = chargeEnd(battle, t);
-  const dist = Math.hypot(stop[0] - t.tileR, stop[1] - t.tileC);
+  const dist = hypot(stop[0] - t.tileR, stop[1] - t.tileC);
   t.mem.charging = true;
   battle.fx('charge', { x: t.x, y: t.y, id: t.id, tx: stop[1], ty: stop[0] });
   battle.retreat(t, { reason: 'expired', permanent: true });
@@ -205,7 +207,7 @@ function chargeGraf(battle, mcn, t, b3) {
   const atk = mcn.s.atk, scale = num(b3.atk_scale, 3), radius = num(b3.projectile_range, 1.5);
   battle.after(CHARGE_DELAY + dist / CHARGE_SPEED, () => {
     battle.fx('aoe', { x: stop[1], y: stop[0], radius, id: mcn.id, skill: 'mcnist:charge' });
-    for (const e of battle.foesInRadius(stop[1], stop[0], radius)) {
+    for (const e of battle.foesInColliderRadius(stop[1], stop[0], radius)) {
       if (e.alive) battle.dealDamage(mcn, e, { amount: atk * scale, type: 'phys', isSkill: true, tags: ['skill', 'mcnist:charge'] });
     }
     if (t.alive || t.removed || battle.finished) return;
@@ -248,7 +250,7 @@ export default {
               const atk = unit.s.atk;
               for (let i = 1; i < s1Times; i++) {
                 battle.after(s1Iv * i, () => {
-                  for (const e of battle.foesInRadius(x, y, s1Radius)) {
+                  for (const e of battle.foesInColliderRadius(x, y, s1Radius)) {
                     if (e.alive) battle.dealDamage(unit, e, { amount: atk * s1Scale, type: 'phys', isAttack: true, isSplash: true, isSkill: true, tags: ['skill', 'mcnist:cluster'] });
                   }
                 }, { owner: unit });
@@ -268,6 +270,8 @@ export default {
         [S3]: {
           kind: 'duration',
           mods: { atkPct: num(b3.atk), batPct: batMod(b3.base_attack_time, chess) },
+          // [ASSUMED] the cross lands on an enemy target only: 白铁's 铁钳号 alone does not open it (skills.js allyTargetsOk)
+          allyTargets: false,
           // the attack is the cross: no damage on the target itself (its 0.8 s later landing does it)
           attack: { dmgType: 'arts', hitsFn: () => 0 },
           onAttack({ battle, unit, targets }) {
@@ -283,7 +287,7 @@ export default {
       },
       talents: [
         { install(battle, unit) { // 结构性原理: her pieces run the token's kit (set up before the battle starts)
-          const raw = battle.data.rawToken?.(MCGRAF)?.variants?.[unit.def?.tokenOwner] ?? null;
+          const raw = atPotential(battle.data.rawToken?.(MCGRAF)?.variants?.[unit.def?.tokenOwner] ?? null, unit.def?.loadout?.potential);
           for (const t of battle.allyUnits) {
             if (!isGrafOf(t, unit) || t.alive || t.deployed) continue;
             // its life: the base variant's (the SO-A stage-3 skill@duration −1 is 集成战略-only)

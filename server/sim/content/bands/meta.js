@@ -19,6 +19,7 @@
 //                                                               shop: onBuy — a free pick / grant never uses it up)
 //   band_cost_coin_reach_cnt_gain_chess_from_pool      潘格尼尼 once coin_cnt funds spent in total: 1 chess of pool (elite 拉特兰 ≥ T4)
 //   round_start_bond_check_gain_layer                  余       round start of `round`: exactly factioncount active bonds → +count1, else each active +count2
+//                                                               — never to a bond without layers (noStack; the owner's decision of 2026-10-08)
 //   up_shop_add_special_goods {count,choice,pool}      凯瑟琳   every level-up: pick 1 of `count` items of pool (free)
 //   coin_carry_over {capital,interest,max}             坎诺特   leftover ≥ capital at round start → +min(max, ⌊left/capital⌋×interest) income
 //   round_start_all_player_change_enemy_2              鸭爵     global: every alive player's battle from `round` (own + teammates;
@@ -33,11 +34,15 @@
 // "进入休整期时" / "回合开始时" = onRoundStart (research 01 §5 step 6).
 
 import { GEO } from '../../../../shared/constants.js';
+import { bbCap } from '../../../../shared/plugins/officialBounds.js';
+import { burstLimit } from '../../../../shared/plugins/steps.js';
 import { buffsOf, num, bandRecord, gameData } from '../support/index.js';
 import { metaBonds } from '../support/meta.js';
 import * as garrisons from '../garrisons.js';
 
 const int = (v, d = 0) => Math.trunc(num(v, d));
+// [ASSUMED] DESIGN §32.5: bb.count grant and slot loops share the official `count` cap. Read at call time.
+const timesOf = (v, d = 1) => Math.min(bbCap('count'), Math.max(1, int(v, d)));
 const list = (s) => String(s ?? '').split(',').map((x) => x.trim()).filter(Boolean);
 const hasBond = (ctx, id, bond) => { const c = ctx.gd.chess(id); return !!(c && Array.isArray(c.bonds) && c.bonds.includes(bond)); };
 const isNormalChess = (ctx, id) => { const c = ctx.gd.chess(id); return !!(c && !c.isGolden); };
@@ -102,7 +107,7 @@ K.band_first_self_refresh_present_char = (ps) => ({
   onRefresh(ctx) {
     const p = ps[0];
     if ((ctx.roundStats().refreshes || 0) > 2) return;
-    const need = Math.max(1, int(p.count, 1));
+    const need = timesOf(p.count, 1);
     const idx = chessSlots(ctx);
     const slots = ctx.shopSlots();
     let have = idx.filter((i) => hasBond(ctx, slots[i].id, p.bond)).length;
@@ -135,7 +140,7 @@ K.preparation_start_gain_chess_from_round = (ps) => ({
     for (const p of ps) {
       const id = p.chess ?? p.chess_id;
       if (ctx.round !== int(p.round, -1) || !id) continue;
-      for (let k = 0; k < Math.max(1, int(p.count, 1)); k++) grant(ctx, id, { requirePool: false, source: 'band' });
+      for (let k = 0; k < timesOf(p.count, 1); k++) grant(ctx, id, { requirePool: false, source: 'band' });
     }
   },
 });
@@ -146,7 +151,7 @@ K.preparation_start_gain_chess_every_n_round = (ps) => ({
       const n = int(p.round, 0);
       const id = p.chess ?? p.chess_id;
       if (n <= 0 || ctx.round % n !== 0 || !id) continue;
-      for (let k = 0; k < Math.max(1, int(p.count, 1)); k++) grant(ctx, id, { source: 'band' });
+      for (let k = 0; k < timesOf(p.count, 1); k++) grant(ctx, id, { source: 'band' });
     }
   },
 });
@@ -161,7 +166,7 @@ K.prep_start_gain_chess_from_pool_in_round = (ps) => ({
   onRoundStart(ctx) {
     for (const p of ps) {
       if (ctx.round !== int(p.round, -1)) continue;
-      for (let k = 0; k < Math.max(1, int(p.count, 1)); k++) {
+      for (let k = 0; k < timesOf(p.count, 1); k++) {
         const r = ctx.rollPool(p.pool);
         if (r) grant(ctx, r.id, { source: 'band' });
       }
@@ -175,9 +180,11 @@ K.band_coin_cost_gain_random_char_by_shop_level = (ps) => ({
     const step = int(p.coin_cnt, 0);
     if (step <= 0 || !(ev.amount > 0)) return;
     let acc = ctx.incCounter('band:kirara:acc', ev.amount);
-    while (acc >= step) {
+    let guard = 0;
+    const limit = burstLimit(10000); // [ASSUMED] one spend cannot grant more than this many shop rolls
+    while (acc >= step && guard++ < limit) { // loop-cap: coin_cnt
       acc = ctx.incCounter('band:kirara:acc', -step);
-      for (let k = 0; k < Math.max(1, int(p.count, 1)); k++) {
+      for (let k = 0; k < timesOf(p.count, 1); k++) {
         const id = ctx.rollChess({ maxTier: Math.max(1, ctx.shopLevel()) });
         if (id) ctx.grantChess(id, { source: 'band' });
       }
@@ -214,7 +221,7 @@ K.gain_bond_char_per_round = (ps) => ({
     const p = ps[0];
     const r0 = int(p.round, 1), every = Math.max(1, int(p.preround, 1));
     if (ctx.round < r0 || (ctx.round - r0) % every !== 0) return;
-    for (let k = 0; k < Math.max(1, int(p.count, 1)); k++) {
+    for (let k = 0; k < timesOf(p.count, 1); k++) {
       const id = rollBond(ctx, p.bond, { anyTier: true });
       if (id) ctx.grantChess(id, { source: 'band' });
     }
@@ -244,15 +251,22 @@ K.band_cost_coin_reach_cnt_gain_chess_from_pool = (ps) => ({
   },
 });
 
+/**
+ * 余 【文火慢炖】 「第8回合开始时，若仅激活了1个盟约，使其增加36层；否则使所有已激活盟约增加12层」. The owner's decision of 2026-10-08
+ * overrides PRTS here (下半/PRTS盟约记录: layers of a bond that shows none 「仍然对其生效」): a bond without layers — bonds.json
+ * `noStack`: 绝技, 独行, 调和, 协防干员 — gets none. The count stays the sentence's (every active bond), so one active bond
+ * that is such a bond means nothing is added, and with two active bonds a layered one still gets count2. Only this
+ * strategy: 协防's 「使所有已激活的盟约层数」 (bonds/addon/meta.js) and 华法琳's 【重点监护】 keep adding to every bond they name.
+ */
 K.round_start_bond_check_gain_layer = (ps) => ({
   onRoundStart(ctx) {
     const p = ps[0];
     if (ctx.round !== int(p.round, -1)) return;
     const active = Object.entries(ctx.bonds()).filter(([, b]) => b && b.active).map(([id]) => id);
-    if (active.length === int(p.factioncount, 1)) {
-      for (const b of active) ctx.addLayers(b, int(p.count1, 0), { requireActive: true, reason: 'band' });
-    } else {
-      for (const b of active) ctx.addLayers(b, int(p.count2, 0), { requireActive: true, reason: 'band' });
+    const n = active.length === int(p.factioncount, 1) ? int(p.count1, 0) : int(p.count2, 0);
+    for (const b of active) {
+      if (ctx.gd.bond(b)?.noStack) continue;
+      ctx.addLayers(b, n, { requireActive: true, reason: 'band' });
     }
   },
 });
@@ -260,7 +274,7 @@ K.round_start_bond_check_gain_layer = (ps) => ({
 K.up_shop_add_special_goods = (ps) => ({
   onLevelUp(ctx) {
     const p = ps[0];
-    const ids = rollItems(ctx, p.pool, Math.max(1, int(p.count, 3)));
+    const ids = rollItems(ctx, p.pool, timesOf(p.count, 3));
     if (ids.length) ctx.offerItems(ids, { source: 'band' });
   },
 });
@@ -282,7 +296,7 @@ K.round_start_activate_char_chess_effect_in_board = (ps) => ({
     const cands = ctx.board().filter((v) => v && v.kind === 'chess' && ctx.garrisonsOf(v.uid).some((g) => g.eventType === event));
     if (!cands.length) return;
     cands.sort((a, b) => (b.col - a.col) || (a.row - b.row));
-    for (const v of cands.slice(0, Math.max(1, int(p.count, 1)))) {
+    for (const v of cands.slice(0, timesOf(p.count, 1))) {
       if (event === 'SERVER_GAIN' && typeof garrisons.triggerGainEffects === 'function') garrisons.triggerGainEffects(ctx, v);
       else ctx.triggerGarrisons(v.uid, event);
     }
@@ -311,7 +325,7 @@ K.round_start_gain_char_chess_in_shop_every_n_round = (ps) => ({
     const p = ps[0];
     const n = int(p.round, 0);
     if (n <= 0 || ctx.round % n !== 0) return;
-    for (let k = 0; k < Math.max(1, int(p.count, 1)); k++) {
+    for (let k = 0; k < timesOf(p.count, 1); k++) {
       const idx = chessSlots(ctx);
       if (!idx.length) return;
       const i = ctx.rng.pick(idx);
@@ -350,8 +364,9 @@ K.preparation_start_add_special_goods_every_n_round = (ps) => ({
     const p = ps[0];
     const n = int(p.round, 0);
     if (n <= 0 || ctx.round % n !== 0) return;
-    const ids = rollItems(ctx, p.pool, Math.max(1, int(p.refresh_cnt, 2)));
-    for (let k = 0; k < Math.max(1, int(p.choice_cnt, 1)) && ids.length; k++) ctx.offerItems(ids, { source: 'band' });
+    const ids = rollItems(ctx, p.pool, Math.min(bbCap('refresh_cnt'), Math.max(1, int(p.refresh_cnt, 2))));
+    const choices = Math.min(bbCap('choice_cnt'), Math.max(1, int(p.choice_cnt, 1)));
+    for (let k = 0; k < choices && ids.length; k++) ctx.offerItems(ids, { source: 'band' });
   },
 });
 
@@ -385,8 +400,8 @@ const DUCK_KINDS = new Set(['normal', 'boss', 'hidden']);
 /** Boss-field column between the left ('L') and the right ('R') player's half (the goals are at cols 2–3 / 17). */
 const BOSS_MID_COL = (GEO.BOSS_RECT.c0 + GEO.BOSS_RECT.c1) / 2;
 
-function duckParams() {
-  for (const b of buffsOf(bandRecord(DUCK_BAND))) if (b.key === 'round_start_all_player_change_enemy_2') return b.p;
+function duckParams(bandId = DUCK_BAND) {
+  for (const b of buffsOf(bandRecord(bandId))) if (b.key === 'round_start_all_player_change_enemy_2') return b.p;
   return null;
 }
 
@@ -463,10 +478,10 @@ export function duckReplace(ctx, spawns, p, ownerPlayerId, { routes = null, side
 const duckGlobal = {
   onBattleStart(ctx, ev) {
     if (!ev || !DUCK_KINDS.has(ev.kind) || !Array.isArray(ev.spawns)) return;
-    const p = duckParams();
+    const holder = [ctx, ...ctx.teammates()].find(t => (t.gd.band(t.bandId())?.effectRef ?? t.bandId()) === DUCK_BAND);
+    if (!holder) return;
+    const p = duckParams(holder.bandId());
     if (!p || ctx.round < int(p.round, 1)) return;
-    const held = ctx.bandId() === DUCK_BAND || ctx.teammates().some((t) => t.bandId() === DUCK_BAND);
-    if (!held) return;
     duckReplace(ctx, ev.spawns, p, ctx.playerId, { routes: ev.routes, side: ev.side });
   },
 };

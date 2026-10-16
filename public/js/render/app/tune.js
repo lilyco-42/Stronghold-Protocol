@@ -5,6 +5,14 @@ const CAMERA_MS = 750;
 /** Camera pan to / from the enemy preview pen (configBlackBoard move_time 0.25). */
 export const PEN_CAMERA_MS = 250;
 
+/**
+ * The quick zoom between the shop camera and the shop-collapsed prep camera (收起/展开, 准备就绪, and the temporary
+ * deploy fold of public issue #602): shorter than the ordinary camera flight — the board should be big to aim on the
+ * moment a piece is picked up. [ASSUMED] the duration: no source gives the official timing, tuned to feel snappy
+ * without a visible cut (the pen's pan is 250 ms, a generic flight 750 ms).
+ */
+export const FOLD_CAMERA_MS = 350;
+
 /** Recovery of a lost 3D board context: delays of the rebuild attempts (ms) and how soon a new loss counts as failure. */
 const BOARD3D_RETRY_MS = [1200, 4000, 12000];
 
@@ -26,9 +34,17 @@ const CHAIN_KINDS = new Set(['chain', 'chainHeal']);
 const DROP_PENDING_MS = 1300;
 
 /**
- * A dragged unit is held with its drawn feet this many tiles below the pointer — the pointer on its body, the model
- * under the finger / mouse (user playtest #4 item 1: as in v2.1; mouse and touch alike). An item plate is centred on it.
+ * A dragged unit over no legal target is held with its drawn feet this many tiles below the pointer — the pointer on its
+ * body, the model under the finger / mouse (user playtest #4 item 1: as in v2.1; mouse and touch alike); over a legal
+ * target it stands on that tile (render/drag.js dragStandTile). An item plate is centred on the pointer.
  */
 export const DRAG_HOLD_TILES = 0.45;
+
+/**
+ * The round start's replay of the own board (view.replayDeploys, PR #416 by @Cromemadnd): ms between two pieces' Start
+ * clips, in deployment order. The maintainer saw them come one after another in official play (2026-10-13); [ASSUMED] the
+ * gap — the PR's 50 ms, no source gives the official one.
+ */
+export const DEPLOY_REPLAY_MS = 50;
 
 export { CAMERA_MS, BOARD3D_RETRY_MS, BOARD3D_STABLE_MS, RANGE_GROUPS, CHAIN_KINDS, DROP_PENDING_MS };

@@ -100,7 +100,7 @@ export function followedScout({ field = null, watching = null, alive = true, spe
   return fid;
 }
 
-/** Teammates' progress for the waiting pill: [{ playerId, name, killed, total, done, isBot }]. */
+/** Teammates' progress for the waiting pill: [{ playerId, name, killed, resolved, total, done, isBot }]. */
 export function teammateProgress(pub, myId) {
   const out = [];
   for (const f of fields(pub)) {
@@ -111,7 +111,9 @@ export function teammateProgress(pub, myId) {
     const pr = isObj(f.progress) ? f.progress : null;
     out.push({
       playerId: pid, name: p?.name || t('队友'), isBot: !!p?.isBot,
-      killed: Number.isFinite(pr?.killed) ? pr.killed : null, total: Number.isFinite(pr?.total) ? pr.total : null,
+      killed: Number.isFinite(pr?.killed) ? pr.killed : null,
+      resolved: Number.isFinite(pr?.resolved) ? pr.resolved : (Number.isFinite(pr?.killed) ? pr.killed : null),
+      total: Number.isFinite(pr?.total) ? pr.total : null,
       done: f.live === false || !!pr?.done,
     });
   }
@@ -149,6 +151,17 @@ export function layerCamera(field, layer, mySide = 'L') {
   const rect = field?.rect;
   if (layer === 'L' || layer === 'R') return { rect, side: layer, half: true };
   return { rect, side: mySide };
+}
+
+/**
+ * The one occupied half ('L' | 'R') of a 联防 field with a lone helper, else null. That field
+ * (act1autochess_escaped_single) routes every enemy through the helper's half and the other half holds no player, so
+ * the camera starts on the helper's half and the ‹ › pill keeps 全景 (GitHub #635, PR #637).
+ */
+export function loneHalf(field) {
+  if (field?.kind !== 'unite') return null;
+  const occupied = ['L', 'R'].filter((side) => Object.values(sidesOf(field)).includes(side));
+  return occupied.length === 1 ? occupied[0] : null;
 }
 
 /**

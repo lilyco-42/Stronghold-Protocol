@@ -6,6 +6,7 @@
 import { ELEMENT } from '../../constants.js';
 import { canTargetAlly, sortAllyTargets, areaSelectable, auraSelectable } from '../../targeting.js';
 import { mitigate } from '../../damage.js';
+import { hypot } from '../../detmath.js';
 
 // ---------------------------------------------------------------------------------------------------------------
 // constants (numbers that exist nowhere in the data)
@@ -87,12 +88,29 @@ export function abOf(b, e) {
   const t = { ...((e.def && e.def.talent) || {}), ...((ov && ov.talents && ov.talents.bb) || {}) };
   const tS = { ...((raw.talents && raw.talents.bbStr) || {}), ...((ov && ov.talents && ov.talents.bbStr) || {}) };
   const sk = {};
-  for (const s of (ov && Array.isArray(ov.skills) ? ov.skills : (e.def && e.def.skills) || [])) {
-    if (!s || s.prefabKey == null) continue;
-    sk[s.prefabKey] = { cd: num(s.cooldown, 0), icd: num(s.initCooldown, 0), sp: num(s.spCost, 0), bb: s.bb || {}, bs: s.bbStr || {} };
-  }
+  // `slot`: the skill's index in its data record's skills[] (data/enemies.json — the order the client resolves a
+  // ['cast', id, slot] event's prefabKey by: castSlot); an override's skill keeps the slot of its prefabKey there
+  const base = (e.def && Array.isArray(e.def.skills)) ? e.def.skills : [];
+  const list = ov && Array.isArray(ov.skills) ? ov.skills : base;
+  list.forEach((s, i) => {
+    if (!s || s.prefabKey == null) return;
+    const at = base.findIndex((x) => x && x.prefabKey === s.prefabKey);
+    sk[s.prefabKey] = { cd: num(s.cooldown, 0), icd: num(s.initCooldown, 0), sp: num(s.spCost, 0), bb: s.bb || {}, bs: s.bbStr || {}, slot: at >= 0 ? at : i };
+  });
   e.mem.ab = { key, t, tS, sk, list: [], times: null, hitShield: 0, atkType: null, immune: null, origMaxHp: e.base.maxHp };
   return e.mem.ab;
+}
+
+/**
+ * A display-only client event: enemy `e` uses its skill `s` (an `ab.sk` entry) — ['cast', id, slot] with the slot of
+ * its data record's skills[] (`s.slot`) and, when the skill's blackboard has one, its `duration` (render/app.js: the
+ * slot's skill clip, render/vfx/skillfx.js: that skill's official effects for the window). No gameplay effect: no state,
+ * no random draw (DESIGN §8.2; golden counts the event, nothing else moves).
+ */
+export function castSlot(b, e, s) {
+  if (!b || !e || !s || !Number.isInteger(s.slot)) return;
+  const d = s.bb && typeof s.bb.duration === 'number' && s.bb.duration > 0 ? Math.round(s.bb.duration * 100) / 100 : 0;
+  b._ev(d > 0 ? ['cast', e.id, s.slot, d] : ['cast', e.id, s.slot]);
 }
 
 /** Attach abilities to an enemy (calls their spawn()). */
@@ -131,7 +149,15 @@ export function T(ab, ...keys) { for (const k of keys) { const v = ab.t[k]; if (
 
 export function silenced(e) { return !!e.s.flags.silence; }
 
-export function canCast(e, sil) { return e.alive && !e.hidden && !e.s.flags.stun && !(sil && e.s.flags.silence); }
+/**
+ * Is enemy `e` in its 失衡 (UNBALANCE) state now (battle/displacement.js _unbalance; the 1e-9 keeps a float-summed
+ * end — 35/30 s — on its frame)? PRTS 异常效果图鉴/失衡免疫: 「失衡期间无法自主移动、发动攻击、使用技能」 — content skills
+ * (canCast), blinks and scripted moves wait for its end.
+ */
+export function unbalancedNow(b, e) { return !!(b && e && b.time < e.unbalanceUntil - 1e-9); }
+
+/** Can enemy `e` use a skill now: alive, on the field, not stunned, not silenced (`sil`), not in its 失衡 state (`b` given). */
+export function canCast(e, sil, b = null) { return e.alive && !e.hidden && !e.s.flags.stun && !(sil && e.s.flags.silence) && !unbalancedNow(b, e); }
 
 // ---------------------------------------------------------------------------------------------------------------
 // helpers (exported for bosses.js)
@@ -295,7 +321,7 @@ export function spawnChildren(b, parent, key, n, opts = {}) {
 /** Move a unit straight toward (tx, ty) by `dist` tiles. Returns true on arrival. */
 export function stepToward(u, tx, ty, dist) {
   const dx = tx - u.x, dy = ty - u.y;
-  const d = Math.hypot(dx, dy);
+  const d = hypot(dx, dy);
   if (d <= dist + 1e-9) { u.x = tx; u.y = ty; return true; }
   u.x += (dx / d) * dist;
   u.y += (dy / d) * dist;

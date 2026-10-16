@@ -50,8 +50,10 @@
 //   the stated 2 %]). 晕眩 / 冻结 (any state that stops her acting) ends it at once (PRTS 维持技能状态).
 
 import { num, talentBb, moduleBb, traitBb, skillRec, up, giveSp } from '../shared/tier1.js';
-import { bodyInKeys } from '../../../body.js';
+import { stepOf, STEP_PER_TICK } from '../../../../../shared/plugins/steps.js';
+import { bodyInRange } from '../../../body.js';
 import { hasHp } from '../../../damage.js';
+import { hypot } from '../../../detmath.js';
 
 const S1 = 'skchr_ifrit_1';
 const S2 = 'skchr_ifrit_2';
@@ -134,12 +136,12 @@ export default {
             // 维持技能状态: a hard control (晕眩 / 冻结 / 浮空 / 睡眠 — the unit cannot act) ends it at once
             if (!unit.canAct) { skill.end('interrupted'); return; }
             const t = (unit.mem.scorchAt = (unit.mem.scorchAt ?? 0) + dt);
-            while (t >= unit.mem.scorchNext - 1e-6 && unit.alive && skill.active) {
+            while (t >= unit.mem.scorchNext - 1e-6 && unit.alive && skill.active) { // loop-cap: constant S3_CADENCE
               unit.mem.scorchNext += S3_CADENCE;
               scorch(battle, unit, b3);
             }
             const ratio = num(b3.hp_ratio);
-            while (ratio > 0 && t >= (unit.mem.scorchLoss + 1) * S3_LOSS_IV - 1e-6 && unit.alive) {
+            while (ratio > 0 && t >= (unit.mem.scorchLoss + 1) * S3_LOSS_IV - 1e-6 && unit.alive) { // loop-cap: constant S3_LOSS_IV
               unit.mem.scorchLoss++;
               battle.loseHp(unit, unit.s.maxHp * ratio, { source: unit, tags: ['skill', SCORCH_TAG] });
             }
@@ -153,7 +155,7 @@ export default {
             battle.every(AURA_IV, () => {
               if (!up(unit) || !unit.rangeKeySet) return;
               for (const e of battle.enemies) {
-                if (!e.alive || e.hidden || !bodyInKeys(e, unit.rangeKeySet)) continue;
+                if (!e.alive || e.hidden || !bodyInRange(e, unit.rangeKeySet)) continue;
                 battle.applyStrongest(e, MELT_KEY, { duration: AURA_DUR, value: v, mods: resCut, source: unit });
               }
             }, { owner: unit, immediate: true });
@@ -168,20 +170,22 @@ export default {
           }
         } },
         { install(battle, unit) { // 莱茵回路: +sp SP every interval s; BLA-X stage 2+: prob to +5 SP more
-          const sp = num(t1.sp), iv = num(t1.interval, 6);
+          const sp = num(t1.sp), iv = stepOf('interval', num(t1.interval, 6), 6);
           const dProb = num(t1['ifrit_e_002[dice_sp].prob']), dSp = num(t1['ifrit_e_002[dice_sp].sp']);
-          const dIv = num(t1['ifrit_e_002[dice_sp].interval'], iv);
+          const dIv = stepOf('ifrit_e_002[dice_sp].interval', num(t1['ifrit_e_002[dice_sp].interval'], iv), iv);
           if (!(sp > 0 && iv > 0) && !(dProb > 0 && dSp > 0 && dIv > 0)) return;
           battle.on('deploy', (c) => { if (c.unit === unit) { unit.mem.rhineAcc = 0; unit.mem.rhineDice = 0; } }, { owner: unit });
           battle.on('tick', ({ dt }) => {
             if (!up(unit)) return;
             if (sp > 0 && iv > 0) {
               unit.mem.rhineAcc = (unit.mem.rhineAcc ?? 0) + dt;
-              while (unit.mem.rhineAcc >= iv - 1e-6) { unit.mem.rhineAcc -= iv; giveSp(unit, sp); }
+              let guard = 0;
+              while (unit.mem.rhineAcc >= iv - 1e-6 && guard++ < STEP_PER_TICK) { unit.mem.rhineAcc -= iv; giveSp(unit, sp); } // loop-cap: stepOf interval
             }
             if (dProb > 0 && dSp > 0 && dIv > 0) {
               unit.mem.rhineDice = (unit.mem.rhineDice ?? 0) + dt;
-              while (unit.mem.rhineDice >= dIv - 1e-6) {
+              let guard = 0;
+              while (unit.mem.rhineDice >= dIv - 1e-6 && guard++ < STEP_PER_TICK) { // loop-cap: stepOf interval
                 unit.mem.rhineDice -= dIv;
                 if (battle.rng.chance(dProb)) giveSp(unit, dSp);
               }
@@ -197,7 +201,7 @@ export default {
           battle.on('hit', (c) => {
             const e = c.target;
             if (c.source !== unit || !e || e.side !== 'enemy' || c.dmg.type === 'element' || !up(unit)) return;
-            const d = Math.hypot(e.x - unit.x, e.y - unit.y);
+            const d = hypot(e.x - unit.x, e.y - unit.y);
             c.dmg.mul *= 1 + ds * (hi > lo ? Math.max(0, Math.min(1, (d - lo) / (hi - lo))) : 1);
           }, { owner: unit });
         }

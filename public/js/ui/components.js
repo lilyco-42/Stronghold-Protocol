@@ -55,6 +55,8 @@ export const ICONS = {
   users: { d: 'M9 4a3.5 3.5 0 1 1 0 7 3.5 3.5 0 0 1 0-7zM2 20a7 6.5 0 0 1 14 0zM16.5 5a3 3 0 1 1 0 6 3 3 0 0 1 0-6zm.9 8.1A6.5 6 0 0 1 22.5 20H18a8.6 8 0 0 0-2.4-6.1 6 6 0 0 1 1.8-.8z' },
   rook: { d: 'M5 3h3v2h2V3h4v2h2V3h3v5l-2 2v7l2 2v2H5v-2l2-2v-7L5 8z' },
   signal: { d: 'M2 17h3v4H2zm6-4h3v8H8zm6-4h3v12h-3zm6-4h3v16h-3z' },
+  // 统计 (the stats page's entry): three columns on a baseline — apart from `signal`, the ping bars
+  chart: { d: 'M4 12h4v7H4zm6-6h4v13h-4zm6 3h4v10h-4zM3 20h18v2H3z' },
   refresh: { d: 'M12 4a8 8 0 0 1 7.4 5H17v2h6V5h-2v2.3A10 10 0 0 0 2 12h2a8 8 0 0 1 8-8zm0 16a8 8 0 0 1-7.4-5H7v-2H1v6h2v-2.3A10 10 0 0 0 22 12h-2a8 8 0 0 1-8 8z' },
   snow: { d: 'M11 2h2v4.2l2.3-2.3 1.4 1.4-3.7 3.7v2h2l3.7-3.7 1.4 1.4-2.3 2.3H22v2h-4.2l2.3 2.3-1.4 1.4-3.7-3.7h-2v2l3.7 3.7-1.4 1.4-2.3-2.3V22h-2v-4.2l-2.3 2.3-1.4-1.4 3.7-3.7v-2H9l-3.7 3.7-1.4-1.4L6.2 13H2v-2h4.2L3.9 8.7l1.4-1.4L9 11h2V9L7.3 5.3l1.4-1.4L11 6.2z' },
   chevronRight: { d: 'M8.6 5 7.2 6.4 12.8 12l-5.6 5.6L8.6 19l7-7z' },
@@ -74,6 +76,8 @@ export const ICONS = {
   wifiOff: { d: 'M2 17h3v4H2zm6-4h3v8H8zm6-4h3v12h-3zm6-4h3v16h-3zM2.4 1 23 21.6 21.6 23 1 2.4z' },
   expand: { d: 'M3 3h7v2H5v5H3zm11 0h7v7h-2V5h-5zM3 14h2v5h5v2H3zm16 0h2v7h-7v-2h5z' },
   collapse: { d: 'M8 3h2v7H3V8h5zm6 0h2v5h5v2h-7zM3 14h7v7H8v-5H3zm11 0h7v2h-5v5h-2z' },
+  // 添加到桌面 (add to home screen): a house outline with a + inside
+  homePlus: { d: 'M12 2 22 10.5V21H2V10.5zm0 2.6-8 6.8V19h16v-7.6zM11 10h2v2.5h2.5v2H13V17h-2v-2.5H8.5v-2H11z', eo: true },
   rotate: { d: 'M7 2h8a2 2 0 0 1 2 2v7h-2V4H7v16h4v2H7a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2zm8 12h5a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-5a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2zm0 2v4h5v-4z', eo: true },
   book: { d: 'M2 4h7.5A3.5 3.5 0 0 1 12 5.1 3.5 3.5 0 0 1 14.5 4H22v16h-7.5a1.5 1.5 0 0 0-1.5 1.5h-2A1.5 1.5 0 0 0 9.5 20H2zm2 2v12h5.5c.5 0 1 .1 1.5.3V7.5A1.5 1.5 0 0 0 9.5 6zm10.5 0A1.5 1.5 0 0 0 13 7.5v10.8c.5-.2 1-.3 1.5-.3H20V6z', eo: true },
   // 观战 (spectator seats; the same eye as gameComponents.js GIcon 'eye')
@@ -386,7 +390,7 @@ export function Countdown({ deadline, seconds, total, warnAt = 10, label = 'COUN
 
 // ---- Modal & dialogs ---------------------------------------------------------------------------
 
-const modalStack = []; // open modals, topmost last: only the topmost reacts to Escape
+const modalStack = []; // open modals, topmost last: only the topmost handles keyboard focus / Escape
 
 /**
  * Modal dialog (declarative). Esc / backdrop click call onClose.
@@ -397,24 +401,46 @@ export function Modal({ open, title, micro, tone = 'mint', onClose, actions, wid
   const boxRef = useRef(null);
   const closeRef = useRef(onClose);
   closeRef.current = onClose;
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!open) return undefined;
     const token = {};
     modalStack.push(token);
     const prevFocus = typeof document !== 'undefined' ? document.activeElement : null;
+    const box = boxRef.current;
+    // The independent guide can open above SettingsModal (its z-index is higher than --z-modal).
+    const topmost = () => modalStack[modalStack.length - 1] === token && !document.querySelector('.guide');
+    const available = (el) => !el.matches(':disabled') && !el.closest('[inert]') && el.getClientRects().length > 0
+      && getComputedStyle(el).visibility !== 'hidden';
+    const tabbable = () => [...box.querySelectorAll('button, [href], input, select, textarea, [tabindex], summary')]
+      .filter((el) => el.tabIndex >= 0 && available(el));
+    const focusFirst = () => (tabbable()[0] || box).focus();
     const onKey = (e) => {
-      if (e.key !== 'Escape' || modalStack[modalStack.length - 1] !== token || !closeRef.current) return;
-      e.stopPropagation();
-      closeRef.current();
+      if (!topmost()) return;
+      if (e.key === 'Escape' && closeRef.current) {
+        e.stopPropagation();
+        closeRef.current();
+      } else if (e.key === 'Tab') {
+        const els = tabbable();
+        const first = els[0] || box, last = els[els.length - 1] || box;
+        if (!els.includes(document.activeElement) || document.activeElement === (e.shiftKey ? first : last)) {
+          e.preventDefault();
+          (e.shiftKey ? last : first).focus();
+        }
+      }
+    };
+    const onFocus = (e) => {
+      if (topmost() && !box.contains(e.target)) focusFirst();
     };
     window.addEventListener('keydown', onKey);
-    const t = setTimeout(() => {
-      const el = boxRef.current?.querySelector('[data-autofocus]') || boxRef.current?.querySelector('button, input');
-      el?.focus?.();
-    }, 30);
+    window.addEventListener('focusin', onFocus);
+    const autofocus = box.querySelector('[data-autofocus]');
+    if (topmost()) {
+      if (autofocus && available(autofocus)) autofocus.focus();
+      else focusFirst();
+    }
     return () => {
       window.removeEventListener('keydown', onKey);
-      clearTimeout(t);
+      window.removeEventListener('focusin', onFocus);
       const i = modalStack.indexOf(token);
       if (i >= 0) modalStack.splice(i, 1);
       prevFocus?.focus?.();
@@ -423,7 +449,7 @@ export function Modal({ open, title, micro, tone = 'mint', onClose, actions, wid
   if (!open) return null;
   return html`<div class="modal" role="presentation"
       onMouseDown=${(e) => { if (closeOnBackdrop && e.target === e.currentTarget && onClose) onClose(); }}>
-    <div ref=${boxRef} class=${cx('modal__box', 'brackets', `modal__box--${tone}`, cls)} role="dialog" aria-modal="true"
+    <div ref=${boxRef} class=${cx('modal__box', 'brackets', `modal__box--${tone}`, cls)} role="dialog" aria-modal="true" tabindex="-1"
          style=${width ? `width:${width}` : undefined}>
       <div class="modal__stripe" aria-hidden="true"></div>
       ${title || micro ? html`<header class="modal__head">
@@ -508,24 +534,27 @@ export function DialogHost() {
 
 // ---- Tooltip -----------------------------------------------------------------------------------
 
-let tipState = null; // { id, content, rect, placement }
+let tipState = null; // { id, content, aside, rect, placement }
 let tipSeq = 0;
 const tipListeners = new Set();
 const setTip = (s) => { tipState = s; for (const fn of [...tipListeners]) fn(); };
 
 /**
  * Hover/focus tooltip around its children. Content renders in <TooltipLayer/> (fixed, viewport-clamped).
- * @param {{ text: any, placement?: 'top'|'bottom', delay?: number, block?: boolean, class?: string, children?: any }} props
+ * `aside`: a second section in the same clamped, scrollable box; stacked on narrow screens.
+ * @param {{ text: any, aside?: any, placement?: 'top'|'bottom', delay?: number, block?: boolean, class?: string, children?: any }} props
  */
 const TOUCH_TIP_MS = 450;
 
-export function Tooltip({ text, placement = 'top', delay = 120, block = false, class: cls, children }) {
+export function Tooltip({ text, aside = null, placement = 'top', delay = 120, block = false, class: cls, children }) {
   const ref = useRef(null);
   const idRef = useRef(0);
   const timer = useRef(null);
   const textRef = useRef(text);
+  const asideRef = useRef(aside);
   const pressed = useRef(false); // pointer pressed inside: the focus that follows is not a keyboard focus
   textRef.current = text;
+  asideRef.current = aside;
   if (!idRef.current) idRef.current = ++tipSeq;
   const show = () => {
     clearTimeout(timer.current);
@@ -534,7 +563,8 @@ export function Tooltip({ text, placement = 'top', delay = 120, block = false, c
       const el = ref.current;
       const content = textRef.current; // the text of the render current when the delay ends (a click may change it)
       if (!el || !el.isConnected || content == null || content === '') return;
-      setTip({ id: idRef.current, content, rect: el.getBoundingClientRect(), placement });
+      setTip({ id: idRef.current, content, aside: asideRef.current, rect: el.getBoundingClientRect(), placement,
+        hold: () => clearTimeout(timer.current), hide });
     }, delay);
   };
   const hide = () => {
@@ -544,7 +574,7 @@ export function Tooltip({ text, placement = 'top', delay = 120, block = false, c
   // A click hides the tooltip until the pointer leaves: the focus it gives the button must not bring it back
   // (with the text of the click's closure) over whatever the click opened. Keyboard focus still shows it.
   // Touch: a tap never shows it (the compatibility mouseenter that follows a tap is ignored); a long press
-  // (≥ 450 ms) does, and it goes away shortly after the finger lifts.
+  // (≥ 450 ms) does. Ordinary tips expire after release; compound lists stay open for scrolling until dismissed.
   const touchAt = useRef(0);
   const longTimer = useRef(null);
   const onPointerDown = (e) => {
@@ -560,18 +590,24 @@ export function Tooltip({ text, placement = 'top', delay = 120, block = false, c
     if (!e || e.pointerType === 'mouse') return;
     touchAt.current = Date.now();
     clearTimeout(longTimer.current);
-    if (tipState?.id === idRef.current) { clearTimeout(timer.current); timer.current = setTimeout(hide, 1600); }
+    if (tipState?.id === idRef.current && !asideRef.current) { clearTimeout(timer.current); timer.current = setTimeout(hide, 1600); }
   };
   const onMouseEnter = () => { if (Date.now() - touchAt.current > 900) show(); };
   const onFocusIn = () => { if (!pressed.current && Date.now() - touchAt.current > 900) show(); };
-  const onLeave = () => { pressed.current = false; if (Date.now() - touchAt.current > 900) hide(); };
+  const onLeave = () => {
+    pressed.current = false;
+    if (Date.now() - touchAt.current > 900) {
+      if (asideRef.current) { clearTimeout(timer.current); timer.current = setTimeout(hide, 250); }
+      else hide();
+    }
+  };
   useEffect(() => () => { clearTimeout(longTimer.current); hide(); }, []);
   // Keep the visible tooltip's content fresh when `text` changes (and hide it when text goes away).
   useEffect(() => {
     if (tipState?.id !== idRef.current) return;
     if (text == null || text === '') setTip(null);
-    else setTip({ ...tipState, content: text });
-  }, [text]);
+    else setTip({ ...tipState, content: text, aside: asideRef.current });
+  }, [text, aside]);
   return html`<span ref=${ref} class=${cx('tt-anchor', block && 'tt-anchor--block', cls)}
       onMouseEnter=${onMouseEnter} onMouseLeave=${onLeave} onFocusIn=${onFocusIn} onFocusOut=${onLeave} onPointerDown=${onPointerDown}
       onPointerUp=${onPointerEnd} onPointerCancel=${onPointerEnd} onContextMenu=${(e) => { if (Date.now() - touchAt.current < 900) e.preventDefault(); }}>
@@ -586,7 +622,12 @@ export function TooltipLayer() {
   const [pos, setPos] = useState(null);
   useEffect(() => {
     tipListeners.add(force);
-    return () => tipListeners.delete(force);
+    const outside = (e) => { if (tipState?.aside && !e.target?.closest?.('.tooltip')) tipState.hide?.(); };
+    const escape = (e) => { if (e.key === 'Escape') tipState?.hide?.(); };
+    document.addEventListener('pointerdown', outside);
+    document.addEventListener('keydown', escape);
+    window.addEventListener('resize', force);
+    return () => { tipListeners.delete(force); document.removeEventListener('pointerdown', outside); document.removeEventListener('keydown', escape); window.removeEventListener('resize', force); };
   }, []);
   useLayoutEffect(() => {
     const el = boxRef.current;
@@ -602,13 +643,21 @@ export function TooltipLayer() {
     if (place === 'bottom' && top + b.height > vh - m) { place = 'top'; top = Math.max(m, r.top - b.height - m); }
     let left = r.left + r.width / 2 - b.width / 2;
     left = Math.max(m, Math.min(vw - b.width - m, left));
+    top = Math.max(m, Math.min(vh - b.height - m, top));
     const next = { top: Math.round(top), left: Math.round(left), place, id: tipState.id };
     if (!pos || pos.top !== next.top || pos.left !== next.left || pos.id !== next.id || pos.place !== next.place) setPos(next);
   });
   if (!tipState) return null;
   const ready = pos && pos.id === tipState.id;
-  return html`<div ref=${boxRef} class=${cx('tooltip', ready && 'is-shown', ready && `tooltip--${pos.place}`)} role="tooltip"
-    style=${ready ? `top:${pos.top}px;left:${pos.left}px` : 'top:-9999px;left:-9999px'}>${tipState.content}</div>`;
+  const hasAside = tipState.aside != null && tipState.aside !== '';
+  const off = 'top:-9999px;left:-9999px';
+  return html`<div ref=${boxRef} class=${cx('tooltip', hasAside && 'tooltip--compound', ready && 'is-shown', ready && `tooltip--${pos.place}`)} role="tooltip"
+    tabIndex=${hasAside ? 0 : undefined} onMouseEnter=${() => tipState?.hold?.()} onMouseLeave=${() => tipState?.hide?.()}
+    onFocusIn=${() => tipState?.hold?.()} onPointerDown=${() => tipState?.hold?.()}
+    onFocusOut=${(e) => { if (!e.currentTarget.contains(e.relatedTarget)) tipState?.hide?.(); }}
+    style=${ready ? `top:${pos.top}px;left:${pos.left}px` : off}>
+    ${hasAside ? html`<div class="tooltip__main">${tipState.content}</div><div class="tooltip--aside">${tipState.aside}</div>` : tipState.content}
+  </div>`;
 }
 
 // ---- ProgressBar, Tabs, Spinner ----------------------------------------------------------------

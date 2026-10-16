@@ -39,8 +39,9 @@ export class MatchPlatform {
     // a spectator seat only watches (the platform routes nothing else of it)
     if (ps.spectator && (!msg || msg.t !== 'g.watch')) return fail(ERR.SPECTATOR);
     if (this.disposed || this.ended) {
-      // a battle report that crossed the match end (the last b.progress of a field) is stale: ignored, never an error
-      // (DESIGN §14 — an error frame without a rid would surface as a toast in the browser)
+      // A report that crossed the match end (the last b.progress of a field, a delegated rehearsal's answer) is stale:
+      // ignored, never an error (DESIGN §14 — an error frame without a rid would surface as a toast in the browser).
+      if (msg && msg.t === 'b.rehearsalResult') return OK;
       return this.clientCombat && msg && (msg.t === 'b.progress' || msg.t === 'b.result') ? OK : fail(ERR.WRONG_PHASE);
     }
     if (!msg || typeof msg !== 'object' || typeof msg.t !== 'string' || !GAME_TYPES.has(msg.t)) return fail(ERR.BAD_MSG);
@@ -58,18 +59,20 @@ export class MatchPlatform {
 
   /**
    * room.loadout during the match (DESIGN §16): only while INFO_CHECK runs (the briefing's 干员调配 entry); the lobby
-   * already checked it against the data (PlayerState.setLoadout re-checks it).
+   * already checked it against the data (PlayerState.setLoadout re-checks it). `ops` (0.2.2): the per-operator 潜能 /
+   * 练度 that come with it (undefined = unchanged).
    * @param {string} playerId
    * @param {Record<string, { skill: number, module: string|null }> | null} loadout
+   * @param {Record<string, { potential: number, cultivate: number }> | null} [ops]
    * @returns {{ ok: true } | { error: string, detail?: string }}
    */
-  setLoadout(playerId, loadout) {
+  setLoadout(playerId, loadout, ops = undefined) {
     const ps = this.players.get(playerId);
     if (!ps || ps.isBot || ps.left) return fail(ERR.NOT_IN_ROOM);
     if (this.disposed || this.ended || this.phase !== PHASE.INFO_CHECK) return fail(ERR.WRONG_PHASE, 'loadout locked for this match');
     let res = OK;
     this.guard(() => {
-      if (!ps.setLoadout(loadout)) { res = fail(ERR.BAD_TARGET, 'loadout does not match the game data'); return; }
+      if (!ps.setLoadout(loadout, ops)) { res = fail(ERR.BAD_TARGET, 'loadout does not match the game data'); return; }
       this.markPrivate(ps);
     });
     return res;
@@ -80,9 +83,13 @@ export class MatchPlatform {
     if (!ps || ps.isBot || this.disposed) return;
     this.guard(() => {
       ps.connected = false;
+      // A disconnected human's silence is never consent to a new setup.
+      this.cancelSetupVote();
       // a paused solo battle resumes (the server takes the field over; nobody is left to resume it)
       this._resume();
       if (this.clientCombat) this._authorityLost(ps, 'disconnect');
+      // a rehearsal this host was running falls back to the server (DESIGN §14; a no-op without tasks)
+      this._rehearsalHostChanged();
       this.markPublic();
     });
   }
@@ -128,12 +135,15 @@ export class MatchPlatform {
     if (!ps || ps.isBot || ps.left || this.disposed) return;
     this.guard(() => {
       ps.left = true;
+      this.cancelSetupVote();
       ps.connected = false;
       ps.autoplay = false;
       this.watchers.delete(playerId);
       if (this.ended) return;
       this._resume();
       if (this.clientCombat) this._authorityLost(ps, 'left');
+      // a rehearsal the departed seat was running falls back to the server (DESIGN §14; a no-op without tasks)
+      this._rehearsalHostChanged();
       this.markPublic();
       if (!this.order.some((p) => !p.isBot && !p.left)) {
         this.finish({ victory: false, reason: 'abandoned' });
@@ -200,6 +210,7 @@ export class MatchPlatform {
     this.disposed = true;
     if (this.runner) { try { this.runner.stop(); } catch { /* ignore */ } }
     this._stopClientCombat();
+    this._cancelRehearsal();
     for (const h of this._timers) { try { this.sched.clearTimeout(h); } catch { /* ignore */ } }
     this._timers.clear();
     if (this._pubTimer) { try { this.sched.clearTimeout(this._pubTimer); } catch { /* ignore */ } this._pubTimer = null; }

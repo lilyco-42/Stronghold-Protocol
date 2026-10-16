@@ -50,7 +50,7 @@
 
 import { num, talentBb, traitBb, skillRec, up } from '../shared/tier1.js';
 import { offsetTile, frontOf, dirVec } from '../../../dir.js';
-import { bodyInKeys } from '../../../body.js';
+import { bodyInKeys, bodyInRange } from '../../../body.js';
 import { enemyStealthed, tileKeyOf } from '../../../targeting.js';
 import { hasHp } from '../../../damage.js';
 import { COLS } from '../../../constants.js';
@@ -108,7 +108,7 @@ function glueTiles(battle, unit, count) {
   } else {
     for (const d of [LEFT, RIGHT]) spray(...near([0, 0], d));
   }
-  while (list.length < count) {
+  while (list.length < count) { // loop-cap: spray stops when every tile is spread
     let at = null;
     for (let i = list.length - 1; i >= 0; i--) if (!list[i].spread) { at = list[i]; break; }
     if (!at) break;
@@ -177,6 +177,8 @@ export default {
         },
         [S2]: {
           kind: 'duration',
+          // [ASSUMED] its glue / belt act on ground enemies only: 白铁's 铁钳号 alone does not open it (skills.js allyTargetsOk)
+          allyTargets: false,
           // the owner's rule for a skill whose area is larger than her range (her tile): cast as soon as a ground enemy she
           // can affect is on the glue's first five tiles — her tile, the front one, its two sides and the one beyond
           // (glueTiles' PRTS order), as 余 S2's x-1 (§22.10); the data's DEFAULT (重装 exception) only saw her own tile
@@ -194,12 +196,13 @@ export default {
             if (!g) return;
             const iv = Math.max(0.05, num(b2.interval, 0.7));
             g.acc += dt;
-            while (g.acc + 1e-9 >= iv && unit.alive) { g.acc -= iv; gluePulse(battle, unit, g.keys); }
+            while (g.acc + 1e-9 >= iv && unit.alive) { g.acc -= iv; gluePulse(battle, unit, g.keys); } // loop-cap: interval floored before the loop
           },
           onEnd({ unit }) { unit.mem.thumpyGlue = null; },
         },
         [S3]: {
           kind: 'duration',
+          allyTargets: false,
           // likewise on the conveyor: her tile and the four ahead (the owner's larger-area rule; 余 S2 precedent)
           trigger: { rule: 'ACTIVE_RANGE', grid: [[0, 0], [0, 1], [0, 2], [0, 3], [0, 4]] },
           mods: nz({ atkPct: num(b3.atk), defPct: num(b3.def), blockCnt: num(b3.block_cnt) }),
@@ -225,7 +228,7 @@ export default {
             carry(battle, unit, belt, dt);
             const iv = Math.max(0.05, num(b3.interval, 1));
             belt.acc += dt;
-            while (belt.acc + 1e-9 >= iv && unit.alive) {
+            while (belt.acc + 1e-9 >= iv && unit.alive) { // loop-cap: interval floored before the loop
               belt.acc -= iv;
               for (const e of beltVictims(battle, unit, belt)) battle.dealDamage(unit, e, { amount: unit.s.atk * num(b3.atk_scale), type: 'phys', isSkill: true, tags: ['skill', 'thumpy:belt'] });
             }
@@ -298,7 +301,7 @@ export default {
           battle.on('elementBurst', (c) => {
             const belt = unit.mem.thumpyBelt, t = c.target;
             if (!belt || !up(unit) || c.element !== 'erosion' || !t || t.side !== 'enemy') return;
-            if (t.blockedBy !== unit && (t.isFlying || !bodyInKeys(t, belt.hurtSet))) return;
+            if (t.blockedBy !== unit && (t.isFlying || !bodyInRange(t, belt.hurtSet))) return;
             battle.addBuff(t, { key: BELT_BREAK, refresh: 'stack', stacks: 1, maxStacks: 1e6, mods: { defFlat: breakDef }, source: unit });
           }, { owner: unit });
         }

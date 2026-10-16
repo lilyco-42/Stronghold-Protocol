@@ -53,10 +53,11 @@
 //   帮助 lists the 上半 row that did as removed in 下半, so in a fight the skill simply runs its `duration`.
 
 import { num, talentBb, traitBb, skillRec, up, byEnemyAttack } from '../shared/tier1.js';
-import { canTargetEnemy } from '../../../targeting.js';
+import { absoluteRangeKeys, canTargetEnemy } from '../../../targeting.js';
 import { bodyInRadius } from '../../../body.js';
 import { hasHp } from '../../../damage.js';
 import { COLS } from '../../../constants.js';
+import { sin, cos, atan2 } from '../../../detmath.js';
 
 const S1 = 'skchr_hsgma2_1';
 const S2 = 'skchr_hsgma2_2';
@@ -98,7 +99,7 @@ export default {
     /** S2: the shield's centre after `turned` degrees (row 0 is the bottom row: counter-clockwise = a growing angle). */
     const shieldAt = (unit, sh) => {
       const a = sh.a0 + (sh.turned * Math.PI) / 180;
-      return { x: unit.x + SHIELD_START * Math.cos(a), y: unit.y + SHIELD_START * Math.sin(a) };
+      return { x: unit.x + SHIELD_START * cos(a), y: unit.y + SHIELD_START * sin(a) };
     };
     const touching = (battle, unit, p) => battle.enemies.filter((e) => canTargetEnemy(unit, e, GROUND) && bodyInRadius(e, p.x, p.y, SHIELD_RADIUS));
     /** S2: one shield pulse — 停顿, the arts hit, and her heal of heal_ratio × the HP it removed (ignoring her 禁疗). */
@@ -128,7 +129,7 @@ export default {
             if (!('hits' in s2Attack)) return;
             plainS2(); // the throw was this attack: the shield flies from now on
             const [fr, fc] = unit.fwd;
-            unit.mem.hsShield = { a0: Math.atan2(fr, fc), turned: 0, acc: 0 };
+            unit.mem.hsShield = { a0: atan2(fr, fc), turned: 0, acc: 0 };
             battle.fx('zone', { x: unit.x, y: unit.y, radius: SHIELD_START + SHIELD_RADIUS, dur: SHIELD_TURN / SHIELD_SPEED, id: unit.id, skill: 'hsgma2:shield' });
             shieldPulse(battle, unit, shieldAt(unit, unit.mem.hsShield));
           },
@@ -137,7 +138,7 @@ export default {
             if (!sh) return;
             const iv = Math.max(0.05, num(b2.interval, 0.5));
             sh.acc += dt;
-            while (sh.acc + 1e-9 >= iv && unit.mem.hsShield === sh) { sh.acc -= iv; shieldPulse(battle, unit, shieldAt(unit, sh)); }
+            while (sh.acc + 1e-9 >= iv && unit.mem.hsShield === sh) { sh.acc -= iv; shieldPulse(battle, unit, shieldAt(unit, sh)); } // loop-cap: interval floored before the loop
             if (unit.mem.hsShield !== sh) return;
             const slowed = touching(battle, unit, shieldAt(unit, sh)).length > 0;
             sh.turned += SHIELD_SPEED * (slowed ? 1 - SHIELD_SLOW : 1) * dt;
@@ -179,6 +180,9 @@ export default {
           const capOf = () => num(t0.max_minus_hp_ratio, 2) * unit.s.maxHp;
           const quiet = num(t0['hsgma2_t_1[heal].interval'], 5);
           const regen = num(t0['hsgma2_t_1[heal].hp_recovery_per_sec_by_max_hp_ratio']);
+          // the pool as a share of its cap, read when a snapshot is taken (b.snap `neg`, snapshot.js negView): the green HP bar
+          // sits on the 1-HP floor in 我执, so the client draws the pool as the red bar — display only
+          unit.negFill = () => (unit.mem.hsEgo && unit.mem.hsEgo.pool > 0 ? unit.mem.hsEgo.pool / Math.max(1e-9, capOf()) : 0);
           const enter = (pool) => {
             unit.mem.hsEgo = { pool: Math.max(0, pool), lastHurt: battle.time };
             battle.addBuff(unit, { key: EGO, status: 'healFree', flags: { noHeal: true, healFree: true }, tags: ['talent'] });
@@ -252,6 +256,11 @@ export default {
         } },
       ],
       install(battle, unit) {
+        // S3 attacks air as well: its expanded auto-cast area must not inherit the inactive ground-only profile.
+        if (unit.skill?.id === S3) unit.skill.addTriggerRange(() => [{
+          keys: absoluteRangeKeys(skillRec(chess, S3)?.rangeGrid ?? X2, unit.tileR, unit.tileC, unit.dir, unit.s.baseRangeExtend || 0),
+          profile: { canHitFly: true },
+        }]);
         // S1 恶业苦果: every enemy damage instance she takes (the official hsgma2_s_1 on ON_TAKE_DAMAGE, not its attacks only:
         // tier1 byEnemyAttack) ⇒ atk_scale × ATK arts back to its source
         battle.on('damaged', (c) => {

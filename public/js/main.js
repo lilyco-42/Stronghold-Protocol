@@ -28,6 +28,9 @@
 // Language (ui/lang.js, docs/I18N.md): chosen before the first render (initLang); App re-renders on a switch (useLang).
 // Server texts are translated on arrival: m.toast / m.ticker frames (msgid + params, or the text as a msgid; a
 // config.broadcasts line from its id + args), error codes (ui/toasts.js describeError) and room.closed reasons.
+// Cosmetic plugins (DESIGN §32 P1a): installContent (content.js) lays the room's visual set and the player's personal
+// plugins over the art manifest every screen reads. Gameplay plugins (§32.6): installContentSet (content.js) downloads and
+// checks a room's content set and makes it the data every screen and the battle runner read.
 
 // Polyfills first (older Safari / Firefox ESR): every module evaluated after this one sees them.
 import './ui/compat.js';
@@ -42,19 +45,26 @@ import { data } from './data.js';
 import { GAME_FILES } from './ui/gameComponents.js';
 import { TitleScreen, sanitizeName } from './screens/title.js';
 import { LobbyScreen, rememberRoom, parseRoomParam } from './screens/lobby.js';
-import { RoomScreen } from './screens/room.js';
+import { RoomScreen, TrustedNotice } from './screens/room.js';
 import { GameScreen } from './screens/game.js';
-import { installAudio } from './audio.js';
+import { audio, installAudio } from './audio.js';
 import { settingsStore } from './ui/settings.js';
 import { GuideHost } from './ui/guide.js';
 import { installDeviceSupport } from './ui/device.js';
+import { registerImportedAssetWorker } from './assetCache.js';
 import { LoadoutHost } from './screens/loadout.js';
+import { StatsHost } from './screens/stats.js';
+import { installRehearsal } from './battle/rehearsal.js';
+import { recordResult, installStatsRecorder } from './ui/stats.js';
 import { installLoadoutSync, installOwnershipSync, installDiySync } from './ui/loadoutSync.js';
 import { installAnnouncements, ServerAnnouncementHost } from './ui/serverAnnouncement.js';
 import { installChat, RoomChatHost } from './ui/roomChat.js';
 import { startBuildGuard } from './ui/buildGuard.js';
 import { initLang, useLang, tickerText } from './ui/lang.js';
 import { t, N_, translateWire } from '../../shared/i18n.js';
+import { recordError, installTrafficMeter } from './diag.js';
+import { installContent, installContentSet } from './content.js';
+import { cosmetics } from './cosmetics.js';
 
 const RESTORE_GRACE_MS = 1500;
 const JOIN_DELAY_MS = 350;
@@ -87,6 +97,8 @@ let matchAt = 0;
 let restoreTimer = null;
 let joinTimer = null;
 let joinInFlight = false;
+/** The rehearsal installer (battle/rehearsal.js): its tasks follow the match on screen (see wireNet's store hook). */
+let rehearsal = null;
 
 function clearPendingJoin() {
   store.patch('ui', { pendingJoin: null });
@@ -135,6 +147,7 @@ function maybeFinishRestore() {
  * follow the store themselves).
  */
 function backToLobby() {
+  identity.rememberMatch(null);
   clearTimeout(restoreTimer);
   const s = store.get();
   if (s.room || s.match.public) closeAllDialogs();
@@ -142,12 +155,23 @@ function backToLobby() {
   store.patch('ui', { restoring: false });
 }
 
+/** The unofficial plugins a server counts in welcome / /healthz `content.plugins` (absent: none — DESIGN §32 P1a). */
+const pluginCount = (content) => (content && Number.isInteger(content.plugins) && content.plugins > 0 ? content.plugins : 0);
+
 function onWelcome(msg) {
   identity.saveToken(msg.token);
+  identity.rememberMatch(null);
   const prev = store.get();
   const prevId = prev.me.playerId;
   const name = typeof msg.name === 'string' && msg.name ? msg.name : prev.me.name;
-  store.set({ me: { playerId: msg.playerId ?? null, name, token: typeof msg.token === 'string' ? msg.token : null } });
+  identity.saveName(name);
+  store.set({
+    me: { playerId: msg.playerId ?? null, name, token: typeof msg.token === 'string' ? msg.token : null },
+    // the server's content identity (DESIGN §32): the diagnostics name it (diag.js contentLine)
+    content: msg.content && typeof msg.content.vanilla === 'string' ? { vanilla: msg.content.vanilla } : null,
+    // how many unofficial plugins it has (P1a — absent: none; content.js fetches the catalogue only when there are some)
+    installedPlugins: pluginCount(msg.content),
+  });
   welcomeAt = Date.now();
 
   if (prevId != null && prevId !== msg.playerId) {
@@ -187,6 +211,8 @@ function onRoomState(msg) {
   // A (new) match starts: forget the previous match's state so stale results never show.
   if (room.inMatch && !(prevRoom && prevRoom.inMatch && prevRoom.code === room.code)) store.set({ match: emptyMatch() });
   store.set({ room });
+  identity.rememberMatch(room.inMatch && seats.some((seat) => seat?.playerId === myId)
+    ? { name: store.get().me.name, code: room.code || '' } : null);
   if (room.mode === 'coop' && typeof room.code === 'string') rememberRoom(room.code);
   maybeFinishRestore();
 }
@@ -209,7 +235,10 @@ function wireNet() {
   });
   net.on('clock', (c) => store.set({ clock: { offset: c.offset, rtt: c.rtt, synced: c.synced } }));
   net.on('welcome', onWelcome);
-  net.on('helloError', (err) => toastError(err));
+  net.on('helloError', (err) => {
+    if (err.code === 'SESSION_IN_USE') identity.rejectToken();
+    toastError(err);
+  });
   net.on('replaced', () => toast(t('该身份已在其他页面登录，本页已断开'), 'warn', { ttl: 6000 }));
   net.on('unhandledError', (err) => toastError(err));
   net.on('room.state', onRoomState);
@@ -220,8 +249,20 @@ function wireNet() {
   });
   net.on('m.public', (msg) => { matchAt = Date.now(); store.patch('match', { public: payload(msg) }); maybeFinishRestore(); });
   net.on('m.private', (msg) => { matchAt = Date.now(); store.patch('match', { private: payload(msg) }); });
+  net.on('m.layer', (msg) => {
+    const s = store.get();
+    if (selectRoute(s) === 'game' && msg.playerId === s.me?.playerId) audio.layerGain(msg.bondId, msg.add);
+  });
   net.on('m.field', (msg) => store.patch('match', { field: payload(msg) }));
-  net.on('m.result', (msg) => store.patch('match', { result: payload(msg) }));
+  net.on('m.result', (msg) => {
+    const res = payload(msg);
+    store.patch('match', { result: res });
+    // 本机统计 (PR #323): every arrival, including the lobby's result replay after a reconnect / reload —
+    // replays dedupe by content id inside recordResult (spectator seats' copies build no record at all)
+    // (`vs`: the room's cosmetic plugins, recorded — such a match still counts as the original game: ui/stats.js)
+    // (`content`: the room's content set when it played gameplay plugins — such a match is unofficial: ui/stats.js)
+    recordResult(res, { myId: store.get().me.playerId, roomMode: store.get().room?.mode ?? null, vs: store.get().room?.content?.vs ?? null, content: store.get().room?.content ?? null, now: Date.now() });
+  });
   net.on('m.toast', (msg) => {
     const kind = ['info', 'success', 'warn', 'error'].includes(msg.kind) ? msg.kind : 'info';
     // msgid + params (server ≥ 0.2.0) or the text itself as a msgid, in the current language
@@ -247,6 +288,9 @@ function wireNet() {
     if (s.session.entered && !prev.session.entered) schedulePendingJoin();
     // in a room (co-op or solo, also a resumed one) a match is near: its data starts downloading
     if (s.room && !prev.room) warmGameData();
+    // the match on screen is over (left, closed, kicked, a new session): a rehearsal task of it is dead, and the frame
+    // that cancels it may never arrive (a disposed match sends nothing) — the page stops what it is running itself
+    if (selectRoute(prev) === 'game' && selectRoute(s) !== 'game') rehearsal?.clear();
   });
 }
 
@@ -258,7 +302,8 @@ function wireNet() {
  * data store shares each file's promise).
  */
 function warmGameData() {
-  const go = () => { data.loadAll(GAME_FILES).catch(() => {}); };
+  // a room with gameplay plugins: content.js downloads its content set's files instead (DESIGN §32.6)
+  const go = () => { if (store.get().room?.content?.vanilla === false) return; data.loadAll(GAME_FILES).catch(() => {}); };
   if (typeof globalThis.requestIdleCallback === 'function') globalThis.requestIdleCallback(go, { timeout: 2500 });
   else setTimeout(go, 600);
 }
@@ -284,6 +329,7 @@ function App() {
   return html`<div class="app-root">
     <div class="app-bg" aria-hidden="true"></div>
     ${error ? html`<${ScreenCrashed} error=${error} reset=${resetError} />` : html`<${Screen} key=${route} />`}
+    <${TrustedNotice} />
     <${ConnectionBanner} />
     <${ServerAnnouncementHost} />
     <${RoomChatHost} />
@@ -291,6 +337,7 @@ function App() {
     <${UiHosts} />
     <${GuideHost} />
     <${LoadoutHost} />
+    <${StatsHost} />
   </div>`;
 }
 
@@ -315,19 +362,25 @@ function installGlobalErrorHandlers() {
     // expected browser behaviour, not app errors: log quietly, never toast.
     if (err && (err.name === 'NotAllowedError' || err.name === 'AbortError')) { console.warn('[app] ignored rejection', err.name); return; }
     console.error('[app] unhandled rejection', err);
+    recordError('rejection', err);
     if (err instanceof NetError) toastError(err);
     else toast(t('发生意外错误：{error}', { error: describeError(err) }).slice(0, 120), 'error');
   });
   window.addEventListener('error', (ev) => {
     if (!(ev instanceof ErrorEvent)) return; // resource load errors are not script errors
     console.error('[app] uncaught error', ev.error || ev.message);
+    recordError('error', ev.error || ev.message, ev.error ? null : `${ev.filename || '?'}:${ev.lineno || 0}:${ev.colno || 0}`);
   });
 }
 
 async function boot() {
   installGlobalErrorHandlers();
+  // what this page downloads, by category, for the 问题反馈 report's traffic line (diag.js; nothing is sent anywhere)
+  installTrafficMeter();
   // touch / hover / fullscreen classes, zoom-gesture blocking, rotation re-layout (ui/device.js, css/devices.css)
   installDeviceSupport();
+  // Hashed art a player imported. HTTPS or localhost only; a failure here must not stop boot.
+  void registerImportedAssetWorker();
   // A page restored from the back/forward cache has a dead socket and a stale token choice: start over.
   window.addEventListener('pageshow', (ev) => { if (ev.persisted) location.reload(); });
   // Pick this tab's reconnect token (asks other live tabs; ≤150 ms) while fonts load.
@@ -343,6 +396,7 @@ async function boot() {
   }));
 
   wireNet();
+  installStatsRecorder(store); // follows the match on screen, so a 放弃模拟 can be recorded (ui/stats.js)
   installLoadoutSync({ net });
   // Server announcements (server/announcement.js): subscribe before the first connect so the welcome frame's
   // re-push is never missed. A running strip survives route changes (the host lives in App's chrome layer).
@@ -352,9 +406,22 @@ async function boot() {
   installChat({ net });
   installOwnershipSync({ net });
   installDiySync({ net });
+  // the room's cosmetic plugins and the player's own over the art manifest (content.js; nothing is fetched without them)
+  installContent({ toast });
+  // a room with gameplay plugins: its content set downloaded, checked and shown (content.js — DESIGN §32.6)
+  installContentSet({ toast });
+  // A bot prep's layout rehearsal the server offers this host's browser (DESIGN §14, SP_BOT_REHEARSAL=host on the
+  // server): a same-origin module Worker simulates the candidates off the main thread and answers with its pick; a
+  // browser that cannot run one answers `error` and the server rehearses itself. Nothing happens while the server
+  // does not delegate. A gameplay-plugin room is never offered (the server keeps that rehearsal).
+  rehearsal = installRehearsal({ net });
   net.attachBrowserHooks();
   // Audio: unlock on first gesture, BGM follows the route / match phase (js/audio.js).
-  installAudio({ getManifest: () => data.get('assets'), subscribe: store.subscribe, getState: store.get, selectRoute, settings: settingsStore.get() });
+  // a cosmetic plugin's sound that will not load falls back like its art (content.js, DESIGN §32 P1a)
+  installAudio({ getManifest: () => data.get('assets'), subscribe: store.subscribe, getState: store.get, selectRoute, settings: settingsStore.get(),
+    onFailed: (url) => cosmetics.fail(url) });
+  // …and the music follows the art: the screen's track again when the cosmetic layers change its URLs
+  cosmetics.subscribe(() => audio.refreshBgm());
   data.load('assets').catch(() => {});
   // Warm the data cache in the background (missing files are tolerated).
   data.loadAll('config').catch(() => {});
@@ -385,6 +452,8 @@ async function boot() {
     startBuildGuard({
       inMatch: () => selectRoute(store.get()) === 'game',
       onStale: ({ waiting }) => { if (waiting) store.patch('ui', { buildStale: true }); },
+      // the same /healthz names how many plugins the server has: the title screen shows it before any hello
+      onHealth: (h) => { const n = pluginCount(h.content); if (n !== store.get().installedPlugins) store.set({ installedPlugins: n }); },
     });
   } catch (err) {
     console.warn('[app] build guard failed to start', err);

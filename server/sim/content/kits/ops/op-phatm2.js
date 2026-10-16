@@ -65,9 +65,10 @@ import { num, up, traitBb, talentBb, skillRec, once } from '../shared/tier1.js';
 import { isElite, onElementHit, elementDmg } from '../shared/tier6.js';
 import { releaseSkillSummon, startCountdown } from '../../tokens.js';
 import { absoluteRangeKeys } from '../../../targeting.js';
-import { bodyInKeys } from '../../../body.js';
+import { bodyInRange } from '../../../body.js';
 import { hasHp, burstLocked } from '../../../damage.js';
 import { MIN_DAMAGE_RATIO } from '../../../constants.js';
+import { hypot } from '../../../detmath.js';
 
 const S1 = 'skchr_phatm2_1';
 const S2 = 'skchr_phatm2_2';
@@ -134,7 +135,7 @@ function callKit(t, owner, b2) {
         const keys = keysAt(grid, tok);
         const cands = battle.enemiesInKeys([...keys], tok, ANY).filter((e) => !lured.includes(e) && !e.s.flags.attract
           && (e.motion === 'FLY' || !!battle.grid.waypoints(Math.round(e.y), Math.round(e.x), tok.tileR, tok.tileC)));
-        cands.sort((a, b) => (isElite(b) - isElite(a)) || (Math.hypot(a.x - tok.x, a.y - tok.y) - Math.hypot(b.x - tok.x, b.y - tok.y)) || a.spawnSeq - b.spawnSeq);
+        cands.sort((a, b) => (isElite(b) - isElite(a)) || (hypot(a.x - tok.x, a.y - tok.y) - hypot(b.x - tok.x, b.y - tok.y)) || a.spawnSeq - b.spawnSeq);
         for (const e of cands) {
           if (lured.length >= cap) break;
           if (battle.applyStatus(e, 'attract', { duration: Math.max(0.05, endAt - battle.time), source: tok, point: [tok.tileR, tok.tileC] })) {
@@ -146,7 +147,7 @@ function callKit(t, owner, b2) {
       // the first lured enemy within `arrive` of it: it leaves
       battle.on('tick', () => {
         if (!up(tok)) return;
-        if (lured.some((e) => e.alive && mine(e) && Math.hypot(e.x - tok.x, e.y - tok.y) <= arrive + 1e-9)) battle.retreat(tok, { reason: 'expired', permanent: true });
+        if (lured.some((e) => e.alive && mine(e) && hypot(e.x - tok.x, e.y - tok.y) <= arrive + 1e-9)) battle.retreat(tok, { reason: 'expired', permanent: true });
       }, { owner: tok });
       // leaving (any reason): 停顿 + the damage over time on every selectable enemy of its x-1; the 诱导 ends
       battle.on('death', (c) => {
@@ -286,7 +287,7 @@ export default {
           onStart({ battle, unit }) {
             for (const c of cagesOf(battle, unit)) c.mem.cageUntil = null;   // phatm2_s_3[token_clear_cooldown]
             for (const e of [...battle.enemies]) {
-              if (!e.alive || e.hidden || !e.s.flags.burstLock || !bodyInKeys(e, unit.rangeKeySet)) continue;
+              if (!e.alive || e.hidden || !e.s.flags.burstLock || !bodyInRange(e, unit.rangeKeySet)) continue;
               splash(battle, unit, e, splashR);
               if (e.alive && e.findBuff('neuralBurst')) cageAt(battle, unit, e, false);
             }
@@ -294,7 +295,7 @@ export default {
           onTick({ battle, unit, dt }) {
             if (!(s3Recover > 0)) return;
             for (const e of battle.enemies) {
-              if (!e.alive || e.hidden || !bodyInKeys(e, unit.rangeKeySet)) continue;
+              if (!e.alive || e.hidden || !bodyInRange(e, unit.rangeKeySet)) continue;
               const lock = e.findBuff('neuralBurst');
               if (lock && Number.isFinite(lock.timeLeft)) lock.timeLeft -= dt * s3Recover;
             }
@@ -327,7 +328,7 @@ export default {
           if (dreamValue > 0) {
             battle.on('enemyAttackStart', (c) => {
               const e = c.enemy;
-              if (!up(unit) || !e || !hasHp(e) || !bodyInKeys(e, unit.rangeKeySet)) return;
+              if (!up(unit) || !e || !hasHp(e) || !bodyInRange(e, unit.rangeKeySet)) return;
               elementDmg(battle, unit, e, 'neural', dreamValue, ['talent']);
             }, { owner: unit });
           }
@@ -377,7 +378,7 @@ export default {
         }, { owner: unit });
         battle.on('elementBurst', (c) => {
           const e = c.target;
-          if (c.element !== 'neural' || !skillOn(unit, S3) || !up(unit) || !e || e.side !== 'enemy' || !e.alive || !bodyInKeys(e, unit.rangeKeySet)) return;
+          if (c.element !== 'neural' || !skillOn(unit, S3) || !up(unit) || !e || e.side !== 'enemy' || !e.alive || !bodyInRange(e, unit.rangeKeySet)) return;
           cageAt(battle, unit, e, true);
         }, { owner: unit });
       },

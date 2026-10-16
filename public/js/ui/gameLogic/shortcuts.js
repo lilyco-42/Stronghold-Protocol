@@ -1,5 +1,5 @@
-// ui/gameLogic/shortcuts.js — in-match keyboard shortcuts and the player's key map (设置 → 快捷键, 0.2.0: the community
-// request 「快捷键可不可以自己设置」, the owner's decision of 2026-10-07). Re-exported from ../gameLogic.js.
+// ui/gameLogic/shortcuts.js — in-match keyboard shortcuts and the player's key map (Settings > Shortcuts,
+// community request, 2026-10-07). Re-exported from ../gameLogic.js.
 
 import { isObj } from './shared.js';
 
@@ -7,10 +7,10 @@ import { isObj } from './shared.js';
 // ---- the key map ------------------------------------------------------------------------------------------------
 
 /** The rebindable shortcuts in the settings' order (the ready key also pauses / resumes a solo battle). Esc is fixed. */
-export const HOTKEY_ACTIONS = Object.freeze(['refresh', 'freeze', 'levelUp', 'retreat', 'sell', 'ready']);
+export const HOTKEY_ACTIONS = Object.freeze(['buy', 'refresh', 'freeze', 'levelUp', 'retreat', 'sell', 'ready']);
 
-/** Default key of each action (a KeyboardEvent.code): the keys of 0.1.4, so nothing changes for a player who never rebinds. */
-export const DEFAULT_HOTKEYS = Object.freeze({ refresh: 'KeyR', freeze: 'KeyF', levelUp: 'KeyD', retreat: 'KeyQ', sell: 'KeyX', ready: 'Space' });
+/** Default key of each action (a KeyboardEvent.code), including W to buy the hovered shop card. */
+export const DEFAULT_HOTKEYS = Object.freeze({ buy: 'KeyW', refresh: 'KeyR', freeze: 'KeyF', levelUp: 'KeyD', retreat: 'KeyQ', sell: 'KeyX', ready: 'Space' });
 
 // The keys a shortcut may use → the `key` value each types on a US layout (lower case): letters, digits, Space, the
 // punctuation keys, and six named keys whose `key` equals their `code`. Everything else stays with the interface: Esc
@@ -51,14 +51,20 @@ export function hotkeyLabel(code) {
 
 /**
  * Sanitize a persisted key map: each action keeps a saved key that may be a shortcut, else gets its default; a map in
- * which two actions would share a key is bad data — the defaults instead.
+ * which two saved actions would share a key is bad data — the defaults instead. Legacy maps receive an unused buy key.
  * @param {any} raw
- * @returns {Record<'refresh'|'freeze'|'levelUp'|'retreat'|'sell'|'ready', string>}
+ * @returns {Record<'buy'|'refresh'|'freeze'|'levelUp'|'retreat'|'sell'|'ready', string>}
  */
 export function sanitizeHotkeys(raw) {
   const r = isObj(raw) && !Array.isArray(raw) ? raw : {};
   const out = {};
   for (const a of HOTKEY_ACTIONS) out[a] = Object.hasOwn(r, a) && isBindableCode(r[a]) ? r[a] : DEFAULT_HOTKEYS[a];
+  // Older profiles have no buy binding. If W is already assigned, preserve their keys and give buy
+  // the first free default key; explicit conflicting bindings still fall back to the defaults.
+  if (!Object.hasOwn(r, 'buy')) {
+    const used = new Set(HOTKEY_ACTIONS.filter((a) => a !== 'buy').map((a) => out[a]));
+    out.buy = Object.values(DEFAULT_HOTKEYS).find((code) => !used.has(code));
+  }
   return new Set(Object.values(out)).size === HOTKEY_ACTIONS.length ? out : { ...DEFAULT_HOTKEYS };
 }
 
@@ -103,7 +109,7 @@ export function hotkeyOf(e) {
  * key === 'r'`: a Russian layout or an IME still works by position). No modifier or focus checks (shortcutFor).
  * @param {{ key?: string, code?: string }} e
  * @param {any} [keys] the player's map (settings `keys`); the defaults when omitted
- * @returns {'refresh'|'freeze'|'levelUp'|'retreat'|'sell'|'ready'|null}
+ * @returns {'buy'|'refresh'|'freeze'|'levelUp'|'retreat'|'sell'|'ready'|null}
  */
 export function actionForKey(e, keys = DEFAULT_HOTKEYS) {
   const map = keys === DEFAULT_HOTKEYS ? keys : sanitizeHotkeys(keys);
@@ -138,13 +144,13 @@ export function captureHotkey(e) {
 
 /**
  * Map a keydown to a game shortcut under the player's key map (defaults: R refresh, F freeze, D level-up, Q retreat,
- * X sell, Space ready) or Esc (close; fixed). A shortcut key means its action even while a HUD button has focus (a
- * mouse click leaves the shop card / 刷新 focused, and Space must not re-trigger it); the caller prevents the button's
- * own activation. Enter still activates buttons (it cannot be a shortcut). Nothing while Ctrl / ⌘ / Alt is held or a
- * text field has the focus.
+ * X sell, W buy, Space ready) or Esc (close; fixed). A shortcut key means its action even while a HUD button has focus (a
+ * mouse click leaves the shop card / refresh button focused, and Space must not re-trigger it); the caller prevents the button's
+ * own activation. Enter still activates buttons (it cannot be a shortcut; behind the facing wheel only its ✕:
+ * facingEnter). Nothing while Ctrl / ⌘ / Alt is held or a text field has the focus.
  * @param {{ key?: string, code?: string, ctrlKey?: boolean, metaKey?: boolean, altKey?: boolean, repeat?: boolean, target?: any }} e
  * @param {any} [keys] the player's map (settings `keys`)
- * @returns {'refresh'|'freeze'|'levelUp'|'retreat'|'sell'|'ready'|'escape'|null}
+ * @returns {'buy'|'refresh'|'freeze'|'levelUp'|'retreat'|'sell'|'ready'|'escape'|null}
  */
 export function shortcutFor(e, keys = DEFAULT_HOTKEYS) {
   if (!e || e.ctrlKey || e.metaKey || e.altKey) return null;
@@ -164,24 +170,58 @@ export function shortcutFor(e, keys = DEFAULT_HOTKEYS) {
  */
 export const facingSwallows = (e, keys = DEFAULT_HOTKEYS) => e?.key === ' ' || actionForKey(e, keys) != null;
 
+// what a focused element is when Enter would activate it (a button, a link, a form field, an ARIA control)
+const CONTROL = 'button, a[href], input, select, textarea, summary, [contenteditable=""], [contenteditable="true"], '
+  + '[role="button"], [role="link"], [role="checkbox"], [role="switch"], [role="tab"], [role="menuitem"], [role="option"]';
+
+/**
+ * What Enter does while the facing wheel is open (GitHub #394, PR #395): on the wheel's own ✕ button it cancels; on
+ * any other control (ready, refresh, settings, guide, a shop card — Tab reaches them behind the wheel) nothing happens — the
+ * wheel holds the keyboard as it holds Space and the shortcuts; with the focus anywhere else (the wheel itself, the
+ * page) it confirms the previewed direction, and does nothing while none is previewed. null: not Enter.
+ * @param {{ key?: string, target?: any }} e @param {boolean} chosen a direction is previewed
+ * @returns {'cancel'|'commit'|'swallow'|null}
+ */
+export function facingEnter(e, chosen) {
+  if (e?.key !== 'Enter') return null;
+  const t = e.target;
+  const closest = (sel) => (t && typeof t.closest === 'function' ? t.closest(sel) : null);
+  if (closest('.fwheel__cancel')) return 'cancel';
+  if (closest(CONTROL)) return 'swallow';
+  return chosen ? 'commit' : 'swallow';
+}
+
 /**
  * Whether a press on the field closes the open detail card: a card opened from the field itself (an own piece — tap,
  * right-click or long press — or a battle / teammate unit). Shop, reward, bond-member and intel (enemy) cards stay.
  * @param {{ kind?: string }|null|undefined} detail
  */
-// a card opened BY a field press (a piece, a unit, a special terrain tile: issue #184) closes on the next press of
-// the field; the ones opened from the shop / hand / HUD stay until their own close button (or the flow that opened them)
-export const closesOnFieldPress = (detail) => detail?.kind === 'piece' || detail?.kind === 'unit' || detail?.kind === 'terrain';
+// a card opened BY a field press (a piece, a unit, a special terrain tile: issue #184, a stage device: #228) closes on the
+// next press of the field; the ones opened from the shop / hand / HUD stay until their own close button (or the flow that
+// opened them)
+export const closesOnFieldPress = (detail) => detail?.kind === 'piece' || detail?.kind === 'unit' || detail?.kind === 'terrain' || detail?.kind === 'device';
 
 /**
  * Whether an open overlay swallows a game shortcut: a modal / the guide own the keyboard (Esc included — they close
- * themselves); the 本局信息 / 敌方情报 drawer is a dialog too — only Esc (it closes the drawer) passes, the other
+ * themselves); the match-info / enemy-intel drawer is a dialog too — only Esc (it closes the drawer) passes, the other
  * shortcuts never act behind it.
- * @param {'refresh'|'freeze'|'levelUp'|'retreat'|'sell'|'ready'|'escape'|null} act shortcutFor
+ * @param {'buy'|'refresh'|'freeze'|'levelUp'|'retreat'|'sell'|'ready'|'escape'|null} act shortcutFor
  * @param {{ modal?: boolean, drawer?: boolean }} open
  */
 export function shortcutBlocked(act, { modal = false, drawer = false } = {}) {
   if (!act) return true;
   if (modal) return true;
   return !!drawer && act !== 'escape';
+}
+
+/**
+ * Prep shortcuts (buy, refresh, freeze, level-up, retreat, sell, ready) stay idle for a spectator, an eliminated
+ * player, someone watching another board, or a seat on AI autopilot (local 暂离 or the server's autoplay). Esc, and
+ * a living solo player's battle pause, are the caller's and are not decided here. A missing flag is not that state.
+ * @param {{ spectator?: boolean, alive?: boolean, watchingOther?: boolean, away?: boolean, autoplay?: boolean }|null|undefined} s
+ * @returns {boolean}
+ */
+export function prepShortcutsSuspended(s) {
+  if (!s || typeof s !== 'object') return false;
+  return s.spectator === true || s.alive === false || s.watchingOther === true || s.away === true || s.autoplay === true;
 }

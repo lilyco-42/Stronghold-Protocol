@@ -15,6 +15,10 @@ In scope:
 - Rendering with the real Spine battle chibis (PixiJS 7 + pixi-spine 4), procedural tiles, VFX, damage numbers, real BGM/SFX, emotes, broadcast ticker.
 - Reconnect, AI take-over of disconnected players, robust validation of every client intent.
 
+New features require explicit maintainer approval before implementation. The 2026-10-10 review approved retaining
+the existing PWA installation, unanimous opening reroll, teammate emotes and cooperative purchasing heuristic
+(DESIGN §28.15, §28.16, §28.19, §28.21); this is not blanket approval for future additions.
+
 Out of scope v1: matchmaking queue, training/tutorial, DIY (甄选) slots (the 4 DIY chess are removed from the shared pool — 0.2.0 plays them as 自选编队: the picks of the 干员调配 overlay's 自选编队 tab, each sold only in its player's shop; DATA.md §18, shared/diy.js, server/match/player/diy.js), trophies/progression persistence, reporting.
 
 ---
@@ -38,12 +42,18 @@ server/
   index.js                 process entry: startServer() wires server/http/ (plain node:http + ws); boots when run directly
   http/
     config.js              ROOT, served dirs, env (PORT, HOST, TRUST_PROXY, DEBUG), options handed to net.js / lobby.js
-    websocket.js           session wiring (SessionRegistry → Lobby → Network), WebSocket upgrade at /ws (64 KB frames)
-    static.js              mounts / → public, /data/, /shared/, /sim/ (.js only), the /data.js browser stand-in, path guards
+    websocket.js           session wiring (SessionRegistry → Lobby → Network), WebSocket upgrade at /ws (64 KB frames,
+                           permessage-deflate from 1 KB)
+    static.js              mounts / → public, /data/, /shared/, /sim/ (.js only), the /data.js browser stand-in, path guards,
+                           the ~<hash> segment of /assets/ /fonts/ /media/ URLs stripped (immutable when it names the file)
     media.js               /media/… extension-less audio → public/assets/audio
-    files.js               one file → response: MIME, gzip (.skel/.atlas/.json/.js/.css …), ETag / 304, cache policy, ranges
+    files.js               one file → response: MIME, brotli q5 / gzip (.skel/.atlas/.json/.js/.css …), ETag (content hash when known) / 304,
+                           cache policy, ranges; serveBuffer for the served manifests
     buildTag.js            build tag of the served browser runtime (/healthz build, public/js/ui/buildGuard.js)
-    routes.js              request listener: 414 / 400 / 405 guards, GET /healthz, then static files
+    routes.js              request listener: 414 / 400 / 405 guards, GET /healthz (?traffic=1: the counters), then static files
+    traffic.js             traffic counters: HTTP body bytes by category (assets / audio / code / data), WebSocket wire / payload
+    assetIndex.js          content hashes (SHA-256, 16 hex) of public/assets + public/fonts, background build, .cache/asset-hashes.json
+    assetViews.js          the served /data/assets.json + /data/local-assets.json: art URLs as /assets/~<hash>/… (immutable when it matches)
     common.js              security headers, URL split, error page, JSON replies, bare 400 for unparseable requests
     boot.js                boot banner (Local / LAN / tunnel URLs), port-in-use hint, graceful SIGINT / SIGTERM
   net.js                   session registry, send helpers, per-connection rate limit, message validation (uses shared/protocol.js)
@@ -121,7 +131,8 @@ public/
     ui/                    hud.js, bondStrip.js, bondPopup.js, shopBar.js, teamPanel.js, detailPanel.js,
                            tooltip.js, choiceOverlay.js, rewardOverlay.js, ticker.js, emotes.js, settings.js, toasts.js,
                            gameLogic.js (barrel; gameLogic/*.js placement, bonds, phases, shop, loadout)
-    render/                app.js (field view; app/*.js helpers), projection.js, tiles.js, units.js, spine.js, fx.js (effects; fx/*.js), interp.js, drag.js, pick.js, promote.js (API §9)
+    render/                app.js (field view; app/*.js helpers), projection.js, tiles.js, units.js, spine.js, fx.js (effects; fx/*.js), interp.js, drag.js, pick.js, promote.js (API §9);
+                           vfx/*.js (the official battle effects from the local client: interpreter, WebGL2 renderer, wiring; §9, §33)
   vendor/                  pixi, pixi-spine, preact, hooks, htm (copied from node_modules by tools/vendor.mjs)
   assets/                  downloaded art/audio (git-ignored), see docs/ASSETS.md
   fonts/                   self-hosted fonts

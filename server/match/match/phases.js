@@ -7,6 +7,7 @@
 import { PHASE, ERR } from '../../../shared/constants.js';
 import { buildNormalWave, buildBossWave } from '../waves.js';
 import { pairPlayers } from '../finalAssault.js';
+import { createRng, deriveSeed } from '../../sim/rng.js';
 import { botPickBand } from '../bot.js';
 import { OK, fail, DELAYS, BAND_TURN_SECONDS } from './common.js';
 
@@ -23,10 +24,13 @@ export class MatchPhases {
   }
 
   maybeEndInfo() {
-    if (this.phase !== PHASE.INFO_CHECK) return;
+    if (this.phase !== PHASE.INFO_CHECK || this.setupVote || this._infoAdvanceTimer) return;
     if (this.order.every((p) => p.isBot || p.left || p.infoReady)) {
       this.setDeadline(0);
-      this.later(0, () => { if (this.phase === PHASE.INFO_CHECK) this.enterBandDraft(); });
+      this._infoAdvanceTimer = this.later(0, () => {
+        this._infoAdvanceTimer = null;
+        if (this.phase === PHASE.INFO_CHECK && !this.setupVote) this.enterBandDraft();
+      });
     }
   }
 
@@ -40,8 +44,9 @@ export class MatchPhases {
   enterBandDraft() {
     if (this.phase !== PHASE.INFO_CHECK) return;
     this.phase = PHASE.BAND_DRAFT;
-    const order = this.order.map((p) => p.playerId);
+    let order = this.order.map((p) => p.playerId);
     if (!this.isSolo) this.rngDraft.shuffle(order);
+    order = this.humansFirst(order);
     const skips = this.isSolo ? 0 : this.gd.bandDraft.skipsPerPlayer;
     const untimed = this.soloUntimed;
     this.draft = {
@@ -52,6 +57,22 @@ export class MatchPhases {
     this.setDeadline(0);
     this.startDraftTurn();
     this.markPublic();
+  }
+
+  /**
+   * The co-op room option 「AI 队友最后选择」 (this.aiPicksLast, GitHub #338): every human seat before every AI seat, each
+   * group in the order the draft drew (a stable partition applied AFTER the shuffle — no extra random draw: the order
+   * with the option off is unchanged, and with it on every random stream stands where it would without it; only the
+   * picks made in the new order can differ). A human is any seat that is not an AI seat (room.addBot): under AI 托管,
+   * disconnected or departed it still counts as a human. Used by the strategy draft and the 机变 draft
+   * (MatchSpDraft.enterSpDraft).
+   * @param {string[]} order playerIds in drawn order
+   * @returns {string[]}
+   */
+  humansFirst(order) {
+    if (!this.aiPicksLast) return order;
+    const bot = (pid) => !!this.players.get(pid)?.isBot;
+    return [...order.filter((pid) => !bot(pid)), ...order.filter(bot)];
   }
 
   draftTurn() {
@@ -67,7 +88,7 @@ export class MatchPhases {
     const d = this.draft;
     this.cancel(this._turnTimer);
     this._turnTimer = null;
-    while (d.idx < d.order.length && d.picks[d.order[d.idx]]) d.idx++;
+    while (d.idx < d.order.length && d.picks[d.order[d.idx]]) d.idx++; // loop-cap: draft order
     if (d.idx >= d.order.length) {
       d.turnDeadline = 0;
       this.deadline = 0;
@@ -194,7 +215,16 @@ export class MatchPhases {
     if (d.order.length - d.idx <= 1) return fail(ERR.BAD_TARGET, 'nobody to pass to');
     d.skipsLeft[ps.playerId]--;
     d.order.splice(d.idx, 1);
-    d.order.push(ps.playerId);
+    // the skipper goes to the end; with 「AI 队友最后选择」 to the end of the humans still to pick — behind them, ahead of
+    // the AI seats — and to the very end only when no other human is left to pass to [ASSUMED: the option's intent,
+    // humans before AI, kept through a skip; no source, a remake option]
+    let at = d.order.length;
+    if (this.aiPicksLast) {
+      for (let j = d.order.length - 1; j >= d.idx; j--) {
+        if (!this.players.get(d.order[j])?.isBot) { at = j + 1; break; }
+      }
+    }
+    d.order.splice(at, 0, ps.playerId);
     this.startDraftTurn();
     return OK;
   }
@@ -259,11 +289,14 @@ export class MatchPhases {
     for (const ps of this._viewers()) this._followScout(ps);
   }
 
-  /** The boss round's fields (seat pairs of the alive players) and their templates, generated for the prep preview. */
+  /** Stable per-match pairs and their templates, generated before the prep preview / board validation. */
   _planBossWaves() {
     const r = this.round;
     const bossId = r === this.gd.hiddenRound && r !== this.gd.bossRound ? this.hiddenBossId : this.bossId;
-    this.bossWaves = pairPlayers(this.alivePlayers()).map((g) => ({
+    // Pairing uses an independent seeded draw, consuming no shop, wave, draft or battle randomness.
+    const groups = pairPlayers(this.alivePlayers(), createRng(deriveSeed(this.seed, 'boss-pairs')), this.bossPairs);
+    this.bossPairs = groups.map(g => g.map(p => p.playerId));
+    this.bossWaves = groups.map((g) => ({
       players: g.map((p) => p.playerId),
       wave: buildBossWave(this.gd, this.rngWaves, this.factions, r, { bossId, solo: this.isSolo || g.length === 1 }),
     }));

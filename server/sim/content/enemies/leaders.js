@@ -6,12 +6,15 @@ import { aggroCmp, areaSelectable } from '../../targeting.js';
 import { periodicDamage } from '../../damage.js';
 import {
   nthOf, T, hurt, alliesInTiles, targetsNear, allTargets, areaAllies, areaAlliesInTiles, auraAllies, targetAndArea,
-  byPriority, setForm, auraBuff, watchDeaths,
+  byPriority, setForm, auraBuff, watchDeaths, unbalancedNow, castSlot,
 } from './helpers.js';
 import {
   unblockable, maxTargets, onHitStatus, splashAttack, pathKeysAhead, noAirTargets, resist, nthAttackStatus, lowHpBuff,
   freeAllPrisoners, reborn, frontGuard, faceCrowd, unbalanced, artsBarrier, skill, blinkForward,
 } from './archetypes.js';
+import { hypot, powi } from '../../detmath.js';
+import { bbCap } from '../../../../shared/plugins/officialBounds.js';
+import { burstLimit, stepOf, STEP_PER_TICK } from '../../../../shared/plugins/steps.js';
 
 // ---------------------------------------------------------------------------------------------------------------
 // constants (numbers that exist nowhere in the data)
@@ -59,8 +62,6 @@ const XI_CROSS_REACH = 2;
  *  Until 0.1.3: 2.5 / 2.5 / −30, the aura only during the 重生 [ASSUMED]. */
 const WOLF_RANGE = 1.25, WOLF_AWE_RADIUS = 1.5, WOLF_AWE_ASPD = -50;
 
-/** 失衡 movement speed that turns 弧光锋卫's per-interval bleed into HP per tile moved [ASSUMED]. */
-const UNBALANCE_SPEED = 5;
 
 /** 乌顶巨角卢鲁 【角力对决】: the operator cannot be pushed (fixed tiles) ⇒ "更多伤害" multiplier [ASSUMED]. */
 const ELK_FAIL_SCALE = 2;
@@ -312,7 +313,7 @@ function kitLeaderMisc(key, ab, e) {
             const nx = areaAllies(b, e2, prev.x, prev.y, jr).find((u) => !hit.has(u));
             if (!nx) break;
             hit.add(nx);
-            hurt(b, e2, nx, e2.s.atk * Math.pow(fall, k), 'arts');
+            hurt(b, e2, nx, e2.s.atk * powi(fall, k), 'arts');
             if (nx.alive && cold > 0) b.applyStatus(nx, 'cold', { duration: cold, source: e2 });
             prev = nx;
           }
@@ -323,10 +324,10 @@ function kitLeaderMisc(key, ab, e) {
       skill(cb, (b, e2) => {
         const bb = cb.bb, jump = bb.projectile_range ?? jr, max = bb['chain.max_target'] ?? 3;
         const near = (x, y, r, seen) => b.enemiesInRadius(x, y, r).filter((o) => o !== e2 && !seen.has(o))
-          .sort((p, q) => Math.hypot(p.x - x, p.y - y) - Math.hypot(q.x - x, q.y - y) || p.spawnSeq - q.spawnSeq)[0];
+          .sort((p, q) => hypot(p.x - x, p.y - y) - hypot(q.x - x, q.y - y) || p.spawnSeq - q.spawnSeq)[0];
         const seen = new Set();
         let prev = e2, cur = near(e2.x, e2.y, e2.base.rangeRadius || 3.5, seen);
-        while (cur && seen.size < max) {
+        while (cur && seen.size < max) { // loop-cap: units
           seen.add(cur);
           b.fx('beam', { x: prev.x, y: prev.y, from: prev.id, to: cur.id, kind: 'chainBuff' });
           b.addBuff(cur, { key: 'ab:chainBuff', duration: bb.duration ?? 0, refresh: 'replace', visible: true, mods: { moveMul: 1 + (bb.move_speed ?? 0), aspd: bb.attack_speed ?? 0 } });
@@ -338,7 +339,7 @@ function kitLeaderMisc(key, ab, e) {
     case 'enemy_2052_smgia': {
       // 数次攻击后晕眩; 受到来自自然环境的伤害时 (terrain damage), 自身在短时间内获得高额脆弱 (damage taken ×damage_scale)
       const lim = T(ab, 'Weak.weak[limit]') ?? 0, scale = T(ab, 'Weak.damage_scale') ?? 1;
-      return [nthAttackStatus(nthOf(ab.sk.StunAttack), 'stun', (ab.sk.StunAttack && ab.sk.StunAttack.bb.stun) || 0, false), {
+      return [nthAttackStatus(nthOf(ab.sk.StunAttack), 'stun', (ab.sk.StunAttack && ab.sk.StunAttack.bb.stun) || 0, false, ab.sk.StunAttack), {
         taken(c, b, e2) {
           if (!(lim > 0) || !(c.amount > 0) || !(c.dmg.tags && c.dmg.tags.includes('terrain'))) return;
           b.addBuff(e2, { key: 'ab:natureWeak', duration: lim, refresh: 'replace', visible: true, mods: { dmgTakenMul: scale } });
@@ -357,7 +358,7 @@ function kitLeaderMisc(key, ab, e) {
 function segDist(px, py, ax, ay, bx, by) {
   const dx = bx - ax, dy = by - ay, L = dx * dx + dy * dy;
   const t = L > 0 ? Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / L)) : 0;
-  return Math.hypot(px - (ax + t * dx), py - (ay + t * dy));
+  return hypot(px - (ax + t * dx), py - (ay + t * dy));
 }
 
 /** A second normal hit on the same target ("二连击"): same damage type, no further on-hit procs. */
@@ -385,6 +386,7 @@ function kitUglyThing(ab) {
       dur: T(ab, 'reborn.duration') ?? 0,
       onKo(b, e) {                                  // 生命值降至0后自爆，造成大范围晕眩 (an area selection), 2.17 s into the 重生
         const x = e.x, y = e.y;
+        castSlot(b, e, ab.sk['bomb[reborning]']);   // the self-destruct is its bomb[reborning] skill (display only)
         b.fx('telegraph', { x, y, r: MCM_BOMB_RADIUS, dur: MCM_BOMB_DELAY, kind: 'mechBomb', id: e.id });
         b.after(MCM_BOMB_DELAY, () => {
           if (!e.alive || e.removed) return;
@@ -421,11 +423,14 @@ function kitWarden(ab) {
       e.profile.melee = false;
       b.addBuff(e, { key: 'ab:warden', persist: true, visible: true, mods: { resFlat: en('magic_resistance') } });  // 法术抗性大幅提升
     },
-    before(c, b) { const s = P.killer ? pierce : iron; P.power = !!s && (P.n + 1) % nthOf(s) === 0; },
+    // the (sp+1)th attack is the form's skill: its slot for the client (castSlot, display only)
+    before(c, b, e) { const s = P.killer ? pierce : iron; P.power = !!s && (P.n + 1) % nthOf(s) === 0; if (P.power) castSlot(b, e, s); },
     hitOut(c) { if (P.killer && P.power && c.dmg.isAttack) c.dmg.defIgnorePct = Math.min(1, (c.dmg.defIgnorePct || 0) + pen()); },
     dealt(c, b, e) {
       if (!P.killer || !P.power || !pierce) return;
-      for (let i = 1; i < (pierce.bb.times ?? 1) && c.target.alive; i++) b.dealDamage(e, c.target, { amount: e.s.atk, type: 'phys', defIgnorePct: pen(), canDodge: true, isSkill: true, tags: ['enemyAbility', 'armorPiercing'] });
+      // [ASSUMED] DESIGN §32.5: extra pierce hits share the `times` cap. Official values stay at or below 12.
+      const pierceTimes = Math.min(bbCap('times'), typeof pierce.bb.times === 'number' && Number.isFinite(pierce.bb.times) ? pierce.bb.times : 1);
+      for (let i = 1; i < pierceTimes && c.target.alive; i++) b.dealDamage(e, c.target, { amount: e.s.atk, type: 'phys', defIgnorePct: pen(), canDodge: true, isSkill: true, tags: ['enemyAbility', 'armorPiercing'] });
     },
     attack(c, b, e) {
       P.n++;
@@ -454,7 +459,7 @@ function kitWarden(ab) {
 function kitXi(ab) {
   const cross = ab.sk.CrossAttack, sb = ab.sk.ShieldBurst, sb2 = ab.sk.ShieldBurstReborn;
   const P = { form2: false };
-  const byDist = (b, e) => allTargets(b, e).sort((p, q) => Math.hypot(p.x - e.x, p.y - e.y) - Math.hypot(q.x - e.x, q.y - e.y) || aggroCmp(p, q));
+  const byDist = (b, e) => allTargets(b, e).sort((p, q) => hypot(p.x - e.x, p.y - e.y) - hypot(q.x - e.x, q.y - e.y) || aggroCmp(p, q));
   const crossAt = (b, e, t) => {
     const r0 = t.tileR, c0 = t.tileC;
     b.fx('telegraph', { x: c0, y: r0, r: XI_CROSS_REACH, kind: 'xiCross', tiles: 'plus', id: e.id });
@@ -474,6 +479,9 @@ function kitXi(ab) {
   };
   const re = reborn({
     dur: T(ab, 'reborn.duration') ?? 0, invincible: T(ab, 'reborn.invincible') ?? 0,
+    // #510: Xi's post-rebirth 无敌 also prevents hostile selection (PRTS “自在” / 无敌).
+    // Explicit opt-in: the engine's general invulnerable flag remains damage protection only.
+    invincibleUntargetable: true,
     onKo(b, e) { b.removeBuff(e, 'ab:xiShield'); },
     onReborn(b, e) {
       P.form2 = true;
@@ -522,8 +530,12 @@ function kitMace(ab) {
     hitOut(c, b, e) { const p = penOn(c, e); if (c.dmg.isAttack && p > 0) c.dmg.defIgnorePct = Math.min(1, (c.dmg.defIgnorePct || 0) + p); },
     taken(c, b, e) {                                             // 【瞬息杀机】 every hp_ratio of max HP lost (second form)
       if (!P.form2 || !(cs.ratio > 0)) return;
-      while (e.alive && e.hpRatio <= P.next - cs.ratio + 1e-9 && P.next - cs.ratio > 1e-9) {
+      let guard = 0;
+      const ratioCap = burstLimit(1); // official crossings of one hit stay under this (hp_ratio is a fraction of max HP)
+      while (e.alive && e.hpRatio <= P.next - cs.ratio + 1e-9 && P.next - cs.ratio > 1e-9 && guard++ < ratioCap) { // loop-cap: burstLimit hp_ratio
+        const prev = P.next;
         P.next -= cs.ratio;
+        if (P.next === prev) break;
         b.fx('explode', { x: e.x, y: e.y, r: cs.r, kind: 'clearSp', id: e.id });
         for (const u of areaAllies(b, e, e.x, e.y, cs.r)) {
           const sk = u.skill;
@@ -721,7 +733,7 @@ function kitElk(ab) {
       const ch = P.ch;
       if (!ch) return;
       if (e.s.flags.stun || !ch.t.alive || e.blockedBy !== ch.t) { stop(b, e); b.fx('phase', { x: e.x, y: e.y, id: e.id, kind: 'chargeBroken' }); return; }
-      if (b.time + 1e-9 < ch.until) return;
+      if (b.time + 1e-9 < ch.until || unbalancedNow(b, e)) return;   // a 失衡 that did not move it holds the clash (no skill meanwhile)
       stop(b, e);
       b.fx('explode', { x: ch.t.x, y: ch.t.y, r: 0.5, kind: 'elkClash' });
       hurt(b, e, ch.t, e.s.atk * ((s && s.bb.atk_scale_s) ?? 1) * ELK_FAIL_SCALE, 'phys');
@@ -772,18 +784,31 @@ export const LEADER_KITS = Object.freeze({
   enemy_2085_skzjxd: (ab) => [unblockable(), frontGuard(T(ab, 'Weakness.damage_resistance') ?? 0, faceCrowd)],
   enemy_2085_skzjxd_2: (ab) => [unblockable(), frontGuard(T(ab, 'Weakness.damage_resistance') ?? 0, faceCrowd)], // (鸭爵 strategy) same
   // 失衡 (pushed / pulled by operators)
-  enemy_1328_cbjedi: (ab) => [unbalanced((b, e, a, d) => {           // 弧光锋卫 · takes damage in proportion to the distance moved while unbalanced
-    // PRTS 修正 "失衡移动时持续受到真实伤害", "处于失衡状态时，每0.066s受到400点无来源真实持续伤害" (伤害分类: 弧光锋卫失衡状态下的自残
-    // 伤害 is BUFF damage): damage, not a 流失 (player report D1 audit)
-    const v = T(ab, 'unbalanced_bleed.damage') ?? 0, iv = T(ab, 'unbalanced_bleed.interval') ?? 1;
-    if (v > 0 && iv > 0) b.dealDamage(null, e, { ...periodicDamage((v * d) / (iv * UNBALANCE_SPEED)), tags: ['dot', 'periodic', 'unbalanced'] });
-  })],
+  enemy_1328_cbjedi: (ab) => {                                       // 弧光锋卫 · bleeds while in its 失衡 state
+    // PRTS 修正 "失衡移动时持续受到真实伤害", 天赋 "处于失衡状态时，每0.066s受到400点无来源真实持续伤害" (data unbalanced_bleed.damage /
+    // .interval; 伤害分类: 弧光锋卫失衡状态下的自残伤害 is BUFF damage): damage, not a 流失 (player report D1 audit) — every `interval`
+    // s for as long as the state lasts (battle/displacement.js _unbalance: a push's 位移时间, a pull's force window even
+    // after the 急停 or with no movement). Until 0.2.2 one hit in proportion to the tiles moved [ASSUMED], from the position jump.
+    const v = T(ab, 'unbalanced_bleed.damage') ?? 0;
+    const iv = stepOf('unbalanced_bleed.interval', T(ab, 'unbalanced_bleed.interval') ?? 0, 0.066);
+    return [{
+      tick(b, e, a, dt) {
+        if (!(v > 0 && iv > 0) || !unbalancedNow(b, e)) { a.bleed = 0; return; }
+        a.bleed = (a.bleed ?? 0) + dt;
+        let guard = 0;
+        while (a.bleed >= iv - 1e-9 && e.alive && guard++ < STEP_PER_TICK) { // loop-cap: stepOf unbalanced_bleed.interval
+          a.bleed -= iv;
+          b.dealDamage(null, e, { ...periodicDamage(v), tags: ['dot', 'periodic', 'unbalanced'] });
+        }
+      },
+    }];
+  },
   enemy_10112_ymgds: (ab) => [unbalanced((b, e) => {                 // 冒失的小弟 · stunned after being unbalanced
     const st = T(ab, 'StunAfterUnbalance.stun') ?? 0;
     if (st > 0) b.applyStatus(e, 'stun', { duration: st, source: null });
   })],
   enemy_10138_xdsnow: (ab) => [unbalanced((b, e, a) => {             // 雪孩子 · pushed / pulled into high ground ⇒ hitWall.value damage
-    const dx = e.x - a.lx, dy = e.y - a.ly, d = Math.hypot(dx, dy);
+    const dx = e.x - a.lx, dy = e.y - a.ly, d = hypot(dx, dy);
     if (!(d > 0)) return;
     const r = Math.round(e.y + (dy / d) * 0.6), c = Math.round(e.x + (dx / d) * 0.6);
     if (b.grid.isLow(r, c) && b.grid.groundPassable(r, c)) return;   // stopped by nothing: no collision
@@ -795,6 +820,7 @@ export const LEADER_KITS = Object.freeze({
   enemy_10141_xdpeng_2: (ab) => [noAirTargets(), unbalanced((b, e, a) => {
     if (a.done) return;
     a.done = true;
+    castSlot(b, e, ab.sk.switch);   // losing the egg is its `switch` skill (display only)
     e.profile.noAttack = true;
     b.addBuff(e, { key: 'ab:noEgg', persist: true, visible: true, flags: { unblockable: true }, mods: { moveMul: 1 + (T(ab, 'speed.move_speed') ?? 0) } });
   })],
