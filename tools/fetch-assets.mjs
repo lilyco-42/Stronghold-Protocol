@@ -30,6 +30,16 @@
 // the entries it would drop and exits 1; --allow-shrink (or --prune) writes the
 // smaller manifest.
 //
+// Every leaf the plan had resolved but no alternative of which is on disk is also
+// reported on its own line — `[assets] N leaves dropped: no alternative on disk
+// (…, audio.sfx.units.some_char.attack, …)` — and kept as `droppedLeaves` in the
+// report, whether or not it shrinks the committed manifest: such a leaf is an
+// entry the client loses (a sound that never plays), not a URL it falls back
+// from. --strict (or SP_ASSETS_STRICT=1) turns those drops into exit code 1 for
+// CI and packaging runs; by default the run only warns. No file is downloaded,
+// dropped or kept differently either way, and a run whose files are all present
+// produces the same manifest byte for byte.
+//
 // Beyond research 07's ids the plan covers what data/*.json adds: spawnable
 // enemies / tokens (data/enemies.json, data/tokens.json), the 自选 owned-6★ picks
 // of data/backups.json `units` (art from 07's URL patterns) and their summons
@@ -44,7 +54,8 @@
 //
 // Usage: node tools/fetch-assets.mjs [--concurrency=16] [--force] [--offline]
 //                                    [--dry-run] [--refresh-index] [--prune]
-//                                    [--allow-shrink] [--add-only] [--local-spines] [--help]
+//                                    [--allow-shrink] [--add-only] [--strict]
+//                                    [--local-spines] [--no-optional-voice] [--help]
 
 import { readFile, writeFile, mkdir, rename, readdir, unlink } from 'node:fs/promises';
 import { existsSync, realpathSync } from 'node:fs';
@@ -56,14 +67,16 @@ import { MirrorPolicy, selectDownloadSource, validateSource } from './assets/net
 import { normalizeProxyPrefix } from './assets/sources.mjs';
 import { loadIndexes } from './assets/cache.mjs';
 import { indexAudio, VOICE_DIRS } from './assets/audio.mjs';
-import { buildPlan } from './assets/plan.mjs';
+import { buildPlan, VOICE_OPTIONAL_TREES } from './assets/plan.mjs';
 import {
   processModels, findLocalEnemyModels, findLocalTokenModels, localSpineMeta, loadLocalSpines, LOCAL_ENEMY_SPINES_FILE,
   LOCAL_TOKEN_SPINES_FILE, LOCAL_ENEMY_SPINE_DIR, LOCAL_TOKEN_SPINE_DIR,
 } from './assets/spine.mjs';
 import { collectLeaves, downloadLeaves, resolveTemplate, totalBytes, contentHash, droppedEntries, MANIFEST_VERSION } from './assets/manifest.mjs';
 import { fontJobs, buildFonts } from './assets/fonts.mjs';
+import { statsTemplateJobs } from './assets/stats-template.mjs';
 import { skelParserAvailable } from './assets/skel.mjs';
+import { SourceVerifier } from './assets/source-verifier.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const ASSETS = join(ROOT, 'public', 'assets');
@@ -92,6 +105,8 @@ const HELP = `Usage: node tools/fetch-assets.mjs [options]
   --concurrency=N   parallel downloads (default 16)
   --asset-source=M  direct (default) or mirror (opt-in; no public-IP lookup)
   --force           re-download files even when present
+  --source-snapshot=PATH verify raw bytes against pinned Git trees in a JSON snapshot
+                    (incompatible with --offline / --add-only / --local-spines)
   --offline         no network: post-process what is on disk and rebuild data/assets.json
   --dry-run         print the plan and exit
   --refresh-index   re-download the audio_data.json / charword_table.json / models_data.json indexes
@@ -99,10 +114,16 @@ const HELP = `Usage: node tools/fetch-assets.mjs [options]
                     (audio.voiceJp, the 日本語 setting, is always the JP dub: both trees are planned)
   --voice-all       plan every official voice slot, including the prep-only lines no battle plays
                     (干员报到 / 编入队伍 / 任命队长; 360 files / 19.3 MB more per run — off by default)
+  --no-optional-voice
+                    only the --voice-lang dub and audio.voiceJp: skip the English, Korean and
+                    own-language trees (audio.voiceEn, audio.voiceKr, audio.voiceNative)
   --prune           delete files under public/assets that the manifest no longer references
                     (public/assets/local/** of tools/local-extract is never deleted); implies --allow-shrink
   --allow-shrink    write data/assets.json even when it loses entries the current one has
                     (without it such a run keeps the current manifest, lists the entries and exits 1)
+  --strict          exit 1 when a leaf was dropped for having no file on disk (the report's
+                    droppedLeaves: an entry the plan resolved and the client would lose, e.g. a
+                    sound that never plays); by default such a drop is only reported
   --add-only        download only files missing on disk; never re-download, rewrite or delete an existing
                     file, no font rebuild (a worktree sharing public/assets and public/fonts)
   --local-spines    rewrite ${LOCAL_ENEMY_SPINES_FILE} and ${LOCAL_TOKEN_SPINES_FILE} from the
@@ -110,35 +131,50 @@ const HELP = `Usage: node tools/fetch-assets.mjs [options]
                     (public/assets/local/spine/enemy/, public/assets/local/spine/token/)
   --help            this text
 Environment: SP_ASSET_SOURCE sets the default source; SP_GITHUB_PROXY sets the
-HTTPS mirror prefix (default https://gh-proxy.com/; empty disables the proxy).
+HTTPS mirror prefix (default https://gh-proxy.com/; empty disables the proxy);
+SP_ASSETS_STRICT=1 is the same as --strict (CI / packaging builds).
 Mirror attempts have an 8 s response header timeout; response body has a separate idle timeout. Stops for this run after 3 consecutive
 failures. Only explicitly enabled GitHub downloads use the third-party proxy.`;
 
 /**
+ * True for the usual truthy spellings of a boolean environment variable (`1`, `true`, `yes`, `on`); empty, `0`,
+ * `false`, `no` and `off` are false, and so is anything absent.
+ * @param {string|undefined} value
+ * @returns {boolean}
+ */
+function envFlag(value) {
+  return typeof value === 'string' && value !== '' && !/^(0|false|no|off)$/i.test(value);
+}
+
+/**
  * Parse CLI flags.
  * @param {string[]} argv
- * @returns {{concurrency:number, force:boolean, offline:boolean, dryRun:boolean, refreshIndex:boolean, prune:boolean, allowShrink:boolean, addOnly:boolean, localSpines:boolean, voiceLang:string, voiceAll:boolean, help:boolean, source:string}}
+ * @returns {{concurrency:number, force:boolean, offline:boolean, dryRun:boolean, refreshIndex:boolean, prune:boolean, allowShrink:boolean, strict:boolean, addOnly:boolean, localSpines:boolean, voiceLang:string, voiceAll:boolean, optionalVoice:boolean, help:boolean, source:string, sourceSnapshot:string}}
  */
 export function parseArgs(argv) {
-  const o = { concurrency: 16, force: false, offline: false, dryRun: false, refreshIndex: false, prune: false, allowShrink: false, addOnly: false, localSpines: false, voiceLang: 'cn', voiceAll: false, help: false, source: process.env.SP_ASSET_SOURCE || 'direct' };
+  const o = { concurrency: 16, force: false, offline: false, dryRun: false, refreshIndex: false, prune: false, allowShrink: false, strict: envFlag(process.env.SP_ASSETS_STRICT), addOnly: false, localSpines: false, voiceLang: 'cn', voiceAll: false, optionalVoice: true, help: false, source: process.env.SP_ASSET_SOURCE || 'direct', sourceSnapshot: '' };
   for (const a of argv) {
     const [k, v] = a.split('=');
     if (k === '--concurrency') o.concurrency = Math.max(1, Math.min(64, parseInt(v, 10) || 16));
     else if (k === '--asset-source') o.source = v;
+    else if (k === '--source-snapshot') { if (!v) throw new Error('--source-snapshot requires a path'); o.sourceSnapshot = a.slice(k.length + 1); }
     else if (k === '--force') o.force = true;
     else if (k === '--offline') o.offline = true;
     else if (k === '--dry-run') o.dryRun = true;
     else if (k === '--refresh-index') o.refreshIndex = true;
     else if (k === '--prune') o.prune = true;
     else if (k === '--allow-shrink') o.allowShrink = true;
+    else if (k === '--strict') o.strict = true;
     else if (k === '--add-only') o.addOnly = true;
     else if (k === '--local-spines') o.localSpines = true;
     else if (k === '--voice-lang') { if (!VOICE_DIRS[v]) throw new Error(`unknown --voice-lang ${v} (cn | jp | en | kr)`); o.voiceLang = v; }
     else if (k === '--voice-all') o.voiceAll = true;
+    else if (k === '--no-optional-voice') o.optionalVoice = false;
     else if (k === '--help' || k === '-h') o.help = true;
     else throw new Error(`unknown option ${a}\n${HELP}`);
   }
   if (o.addOnly && (o.prune || o.force)) throw new Error(`--add-only never deletes or rewrites files: not with --prune / --force\n${HELP}`);
+  if (o.sourceSnapshot && (o.offline || o.addOnly || o.localSpines)) throw new Error('--source-snapshot is incompatible with --offline / --add-only / --local-spines');
   if (!o.help) validateSource(o.source);
   return o;
 }
@@ -182,6 +218,50 @@ export function dataExtras(backups, chess) {
 export function shrinkGuard(prev, next, { allowShrink = false, prune = false } = {}) {
   const dropped = prev ? droppedEntries(prev, next) : [];
   return { dropped, write: dropped.length === 0 || !!allowShrink || !!prune };
+}
+
+/**
+ * The one summary line for the leaves the plan had resolved but whose every alternative file is missing on disk
+ * (resolveTemplate `droppedLeaves`). Each of them disappears from data/assets.json, so the client has no entry at all —
+ * for a sound, silence that no "the client uses fallbacks" wording explains. Printed on every run, empty or not: a
+ * green line is the check that nothing was dropped.
+ * @param {string[]} droppedLeaves dotted template paths
+ * @param {number} [max] how many paths the line names before "…"
+ * @returns {string}
+ */
+export function leafDropSummary(droppedLeaves, max = 8) {
+  const n = droppedLeaves.length;
+  if (!n) return '[assets] no leaf dropped: every planned leaf has a file on disk';
+  return `[assets] ${n} ${n === 1 ? 'leaf' : 'leaves'} dropped: no alternative on disk ` +
+    `(${droppedLeaves.slice(0, max).join(', ')}${n > max ? ', …' : ''})`;
+}
+
+/**
+ * The error line of a --strict / SP_ASSETS_STRICT run that dropped at least one leaf for having no alternative on
+ * disk. CI and packaging runs pass --strict so a manifest with such holes cannot ship (the entry is gone from the
+ * client's manifest; nothing retries it later, the next plain run only warns again).
+ * @param {string[]} droppedLeaves dotted template paths
+ * @param {number} [max] how many paths the line names before pointing at the report
+ * @returns {string}
+ */
+export function strictLeafDropError(droppedLeaves, max = 10) {
+  const n = droppedLeaves.length;
+  return `ERROR: ${n} ${n === 1 ? 'leaf' : 'leaves'} dropped for having no alternative on disk ` +
+    `(--strict / SP_ASSETS_STRICT=1): ${droppedLeaves.slice(0, max).join(', ')}` +
+    `${n > max ? `, … (all ${n} in ${relative(ROOT, REPORT)})` : ''}`;
+}
+
+/**
+ * Exit code of a finished run: 0 only when nothing failed — every required asset is present, no leaf was dropped
+ * while --strict / SP_ASSETS_STRICT is on, and the manifest was written (the shrink guard keeps the current one when
+ * the rebuild would lose entries).
+ * @param {{requiredMisses?:number, droppedLeaves?:number, strict?:boolean, manifestWritten?:boolean}} o
+ * @returns {number} 0 or 1
+ */
+export function runExitCode({ requiredMisses = 0, droppedLeaves = 0, strict = false, manifestWritten = true } = {}) {
+  if (requiredMisses) return 1;
+  if (strict && droppedLeaves) return 1;
+  return manifestWritten ? 0 : 1;
 }
 
 /**
@@ -233,6 +313,21 @@ function tidyManifest(m) {
   for (const c of Object.values(m.chars || {})) if (c.spine && !Object.keys(c.spine).length) delete c.spine;
 }
 
+/**
+ * The extra dub trees (plan.mjs VOICE_OPTIONAL_TREES), resolved against the disk: a tree with no line on disk is
+ * dropped, and `audio.voiceNativeLangType` keeps only the operators whose own-language dub landed.
+ * @param {any} m resolved manifest body (mutated)
+ */
+export function tidyVoiceTrees(m) {
+  const a = m?.audio;
+  if (!a || typeof a !== 'object') return;
+  for (const key of Object.keys(VOICE_OPTIONAL_TREES)) if (a[key] && !Object.keys(a[key]).length) delete a[key];
+  if (a.voiceNativeLangType) {
+    for (const id of Object.keys(a.voiceNativeLangType)) if (!a.voiceNative?.[id]) delete a.voiceNativeLangType[id];
+    if (!Object.keys(a.voiceNativeLangType).length) delete a.voiceNativeLangType;
+  }
+}
+
 function countStats(m, bytes, files) {
   const vals = (o) => Object.values(o || {});
   const spines = new Set();
@@ -258,6 +353,9 @@ function countStats(m, bytes, files) {
     sfxUnits: Object.keys(m.audio?.sfx?.units || {}).length,
     voiceChars: Object.keys(m.audio?.voice || {}).length,
     voiceJpChars: Object.keys(m.audio?.voiceJp || {}).length,
+    voiceEnChars: Object.keys(m.audio?.voiceEn || {}).length,
+    voiceKrChars: Object.keys(m.audio?.voiceKr || {}).length,
+    voiceNativeChars: Object.keys(m.audio?.voiceNative || {}).length,
   };
 }
 
@@ -318,9 +416,10 @@ async function main() {
     readJson('docs/research/05-maps.json'),
   ]);
   const proxyPrefix = resolveProxyPrefix(opts.source, opts.offline);
-  const source = await selectDownloadSource({ mode: opts.source, offline: opts.offline, proxyPrefix, log });
+  const verifier = opts.sourceSnapshot ? new SourceVerifier(JSON.parse(await readFile(opts.sourceSnapshot, 'utf8'))) : undefined;
+  const source = await selectDownloadSource({ mode: opts.source, offline: opts.offline, proxyPrefix, log, verified: !!verifier });
   const mirrorPolicy = new MirrorPolicy({ source, proxyPrefix, log });
-  const network = { source, proxyPrefix, mirrorPolicy };
+  const network = { source, proxyPrefix, mirrorPolicy, verifier };
   const { audioData, modelsData, charword } = await loadIndexes(ROOT, { refresh: opts.refreshIndex && !opts.offline, offline: opts.offline, log, ...network });
   const audio = indexAudio(audioData);
   // The game data built by tools/build-data.mjs (when present) may reference more
@@ -332,10 +431,12 @@ async function main() {
   for (const b of Object.values(dataBosses || {})) if (b?.enemyKey && typeof b.handbookId === 'string') extraHandbook[b.enemyKey] = b.handbookId;
   const localEnemySpines = await syncLocalSpines(opts, 'enemy');
   const localTokenSpines = await syncLocalSpines(opts, 'token');
+  const statsTemplate = await statsTemplateJobs(ROOT, { offline: opts.offline || opts.dryRun, log });
   const plan = buildPlan({
     assets07, ops03, enemies05, maps05, audio, modelsData, charword, voiceLang: opts.voiceLang,
     // default: only the slots a battle can play (plan.mjs VOICE_BATTLE_SLOTS); --voice-all takes the whole official set
     voiceSlots: opts.voiceAll ? null : undefined,
+    optionalVoice: opts.optionalVoice,
     extraEnemyIds: Object.keys(dataEnemies || {}),
     extraTokenIds: [...Object.keys(dataTokens || {}), ...extras.tokenIds],
     extraHandbook,
@@ -343,6 +444,7 @@ async function main() {
     localTokenSpines,
     extraOperators: extras.extraOperators,
     moduleTypes: extras.moduleTypes,
+    statsTemplate,
   });
   const leaves = collectLeaves(plan.template);
   log(`[plan] ${leaves.length} files + ${plan.models.size} Spine models ` +
@@ -350,7 +452,10 @@ async function main() {
     `${Object.keys(plan.template.tokens).length} tokens, ${Object.keys(plan.template.ui).length} UI sprites, ` +
     `${Object.keys(plan.template.audio.sfx.units).length} units with SFX, ` +
     `${Object.keys(plan.template.audio.voice).length} operators with ${opts.voiceLang.toUpperCase()} voice, ` +
-    `${Object.keys(plan.template.audio.voiceJp || {}).length} with JP voice)`);
+    `${Object.keys(plan.template.audio.voiceJp || {}).length} with JP voice, ` +
+    `${Object.keys(plan.template.audio.voiceEn || {}).length} with EN, ` +
+    `${Object.keys(plan.template.audio.voiceKr || {}).length} with KR, ` +
+    `${Object.keys(plan.template.audio.voiceNative || {}).length} with an own-language dub)`);
   if (opts.dryRun) {
     for (const n of plan.notes) log(`  note: ${n}`);
     return 0;
@@ -370,14 +475,19 @@ async function main() {
 
   // Fonts (--add-only: not rebuilt — public/fonts may be another checkout's; the manifest keeps its current entry)
   let fontErrors = [];
+  let acceptedFonts;
   if (!opts.offline && !opts.addOnly) {
     const fdl = new Downloader({ root: FONTS, ledgerPath: join(CACHE, 'fonts-ledger.json'), concurrency: 4, force: opts.force, log, ...network });
     await fdl.loadLedger();
     await fdl.run(fontJobs(), 'fonts');
+    acceptedFonts = fdl.accepted;
     dl.totals.bytesDownloaded += fdl.totals.bytesDownloaded;
     for (const k of ['ok', 'skip', 'miss', 'error']) dl.totals[k] += fdl.totals[k];
   }
-  const fonts = opts.addOnly ? { files: {}, errors: [] } : await buildFonts(FONTS, log);
+  const fonts = opts.addOnly ? { files: {}, errors: [] } : await buildFonts(FONTS, log, {
+    verified: !!verifier,
+    ...(verifier ? { available: (rel) => acceptedFonts.has(rel) } : null),
+  });
   fontErrors = fonts.errors;
 
   // Spine
@@ -387,13 +497,17 @@ async function main() {
   });
 
   // Manifest
-  const resolved = resolveTemplate(plan.template, { root: ASSETS, spine: spine.entries, sourceOf: (rel) => dl.ledger.files[rel]?.url });
+  const resolved = resolveTemplate(plan.template, {
+    root: ASSETS, spine: spine.entries, sourceOf: (rel) => dl.ledger.files[rel]?.url,
+    ...(verifier ? { available: (rel) => dl.accepted.has(rel) } : null),
+  });
   const body = resolved.value;
   tidyManifest(body);
+  tidyVoiceTrees(body);
   const fontFaces = {};
   for (const [name, f] of Object.entries(fonts.files)) fontFaces[name] = f;
   body.fonts = opts.addOnly && current?.fonts ? current.fonts
-    : existsSync(join(FONTS, 'fonts.css')) ? { css: '/fonts/fonts.css', faces: fontFaces } : { faces: fontFaces };
+    : (verifier ? fonts.css : existsSync(join(FONTS, 'fonts.css'))) ? { css: '/fonts/fonts.css', faces: fontFaces } : { faces: fontFaces };
   const bytes = totalBytes(ASSETS, resolved.files);
   const manifest = {
     version: MANIFEST_VERSION,
@@ -406,16 +520,20 @@ async function main() {
   if (guard.write) await writeJsonAtomic(MANIFEST, manifest);
 
   // Orphans: files on disk that the manifest does not reference (e.g. after a mapping change).
-  const orphans = orphanFiles(await listFiles(ASSETS), resolved.files);
+  const orphans = orphanFiles(await listFiles(ASSETS), new Set([...resolved.files, ...dl.preserved]));
   if (opts.prune) for (const r of orphans) { try { await unlink(join(ASSETS, r)); } catch { /* ignore */ } }
 
   const charIds = Object.keys(assets07.operators || {});
   const required = requiredMisses(manifest, charIds);
+  // Leaves the plan had resolved and the manifest loses here (no alternative of theirs on disk): reported on their own
+  // line below and kept in the report, whether or not they shrink the committed manifest.
+  const droppedLeaves = resolved.droppedLeaves;
   const report = {
     downloadedBytes: dl.totals.bytesDownloaded,
     totals: dl.totals,
     stats: manifest.stats,
     requiredMisses: required,
+    droppedLeaves,
     misses: resolved.misses,
     downloadErrors, // leaves whose primary failed transiently (fallbacks not tried; re-run to retry)
     fallbacks: resolved.fallbacks,
@@ -440,12 +558,13 @@ async function main() {
   log(`bonds ${s.bonds} · items ${s.items} · bands ${s.bands} · skill icons ${s.skills} · UI ${s.ui} · units with SFX ${s.sfxUnits}`);
   const overlays = (o) => Object.values(o || {}).filter((e) => e?.spineLocal).length;
   log(`local-client models (spineLocal, drawn when extracted): enemies ${overlays(manifest.enemies)} · tokens ${overlays(manifest.tokens)}`);
-  log(`operator battle voice: ${s.voiceChars} charIds (--voice-lang=${opts.voiceLang}) · JP dub (audio.voiceJp): ${s.voiceJpChars} charIds`);
+  log(`operator battle voice: ${s.voiceChars} charIds (--voice-lang=${opts.voiceLang}) · JP dub (audio.voiceJp): ${s.voiceJpChars} charIds · EN ${s.voiceEnChars} · KR ${s.voiceKrChars} · own-language dub ${s.voiceNativeChars}`);
   log(`fonts: ${Object.values(fonts.files).map((f) => f.woff2 || f.original).join(', ') || 'none'}`);
   if (resolved.fallbacks.length) { log(`fallbacks used (${resolved.fallbacks.length}):`); for (const f of resolved.fallbacks.slice(0, 20)) log(`  ${f}`); }
   if (downloadErrors.length) log(`download errors (${downloadErrors.length}, re-run to retry): ${downloadErrors.slice(0, 10).join(', ')}`);
+  log(leafDropSummary(droppedLeaves));
   if (resolved.misses.length) {
-    log(`missing (${resolved.misses.length}, omitted from manifest; client uses fallbacks):`);
+    log(`missing (${resolved.misses.length}, omitted from manifest; the client falls back only where the entry has another alternative):`);
     for (const m of resolved.misses.slice(0, 40)) log(`  ${m}`);
     if (resolved.misses.length > 40) log(`  … see ${REPORT}`);
   }
@@ -460,11 +579,13 @@ async function main() {
     if (!guard.write) log('  re-run to retry the downloads (--refresh-index for the audio/model indexes), or pass --allow-shrink (or --prune) to write the smaller manifest');
   }
   log(`manifest: ${MANIFEST}${guard.write ? '' : ' (kept)'} · report: ${REPORT} · ${((Date.now() - t0) / 1000).toFixed(0)} s`);
-  if (required.length) {
-    log(`ERROR: ${required.length} required assets missing: ${required.slice(0, 10).join(', ')}`);
-    return 1;
+  if (required.length) log(`ERROR: ${required.length} required assets missing: ${required.slice(0, 10).join(', ')}`);
+  if (opts.strict && droppedLeaves.length) {
+    log(strictLeafDropError(droppedLeaves));
+    log('  a plain run downloads them again (--refresh-index if the upstream index lost them); without --strict / SP_ASSETS_STRICT this is only a warning');
   }
-  return guard.write ? 0 : 1;
+  if (verifier && (dl.totals.error || fontErrors.length || downloadErrors.length)) return 1;
+  return runExitCode({ requiredMisses: required.length, droppedLeaves: droppedLeaves.length, strict: opts.strict, manifestWritten: guard.write });
 }
 
 // run only as a script (tests import parseArgs / shrinkGuard)

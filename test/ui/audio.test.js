@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { bgmKeyFor, resolveBgm, SfxLimiter, AudioManager, normalAttackSfx, installAudio, audio, combatTrackFor, COMBAT_TRACK_SWITCH_ROUND, VoiceGate, resultSpeaker, resultVoiceSlot, VOICE_PRIORITY, VOICE_COOLDOWN_MS, voiceLine } from '../../public/js/audio.js';
+import { bgmKeyFor, resolveBgm, SfxLimiter, AudioManager, normalAttackSfx, installAudio, audio, combatTrackFor, COMBAT_TRACK_SWITCH_ROUND, VoiceGate, resultSpeaker, resultVoiceSlot, VOICE_PRIORITY, VOICE_COOLDOWN_MS, voiceLine, VOICE_TREES } from '../../public/js/audio.js';
 import { mediaUrl } from '../../public/js/media.js';
 import { PHASE } from '../../shared/constants.js';
 import { makeBattle, chessRec } from '../helpers/battleHarness.js';
@@ -364,11 +364,62 @@ describe('operator battle voice', () => {
       assert.match(a.voiceNode?.url ?? '', /^\/a\/voice\/cn\/char_a\/cn_02[12]\.mp3$/, '中文 again');
       a._stopVoice();
       a.setVoiceLang('kr');
-      assert.equal(a.voiceLang, 'cn', 'no other dub: anything but jp is 中文');
+      assert.equal(a.voiceLang, 'kr', '한국어 is a dub');
+      a.setVoiceLang('xx');
+      assert.equal(a.voiceLang, 'cn', 'an unknown value stays 中文');
       // the settings store hands the choice over (installAudio and ui/settings.js)
       const settings = readFileSync(path.join(ROOT, 'public/js/ui/settings.js'), 'utf8');
-      assert.match(settings, /audio\.setVoiceLang\(s\.voiceLang\)/);
+      assert.match(settings, /audio\.setVoiceLang\(s\.voiceLang, s\.voiceOverrides\)/);
       assert.match(settings, /t\('语音语言'\)/);
+      assert.match(settings, /audio\.setVoiceNative\(s\.voiceNative\)/);
+    } finally {
+      globalThis.fetch = origFetch;
+    }
+  });
+
+  test('English, Korean and the own-language dub use the same fallback as 日本語; 试听 skips the gate', async () => {
+    assert.deepEqual(VOICE_TREES, { jp: 'voiceJp', en: 'voiceEn', kr: 'voiceKr', native: 'voiceNative' });
+    const id = 'char_102_texas';
+    const audioM = {
+      voice: { [id]: { select: '/a/voice/cn/char_a/cn_021.mp3', place: '/a/voice/cn/char_a/cn_023.mp3' } },
+      voiceEn: { [id]: { select: '/a/voice/en/char_a/cn_021.mp3' } },
+      voiceKr: { [id]: { place: '/a/voice/kr/char_a/cn_023.mp3' } },
+      voiceNative: { [id]: { select: '/a/voice/native/char_a_ita/cn_021.mp3' } },
+    };
+    assert.deepEqual(voiceLine(audioM, id, 'select', 'en'), { url: '/a/voice/en/char_a/cn_021.mp3', fallback: '/a/voice/cn/char_a/cn_021.mp3' });
+    assert.deepEqual(voiceLine(audioM, id, 'place', 'kr'), { url: '/a/voice/kr/char_a/cn_023.mp3', fallback: '/a/voice/cn/char_a/cn_023.mp3' });
+    assert.deepEqual(voiceLine(audioM, id, 'select', 'native'), { url: '/a/voice/native/char_a_ita/cn_021.mp3', fallback: '/a/voice/cn/char_a/cn_021.mp3' });
+    assert.deepEqual(voiceLine(audioM, id, 'place', 'en'), { url: '/a/voice/cn/char_a/cn_023.mp3', fallback: null }, 'a slot the EN tree lacks: the Chinese line');
+    assert.deepEqual(voiceLine(audioM, id, 'place', 'native'), { url: '/a/voice/cn/char_a/cn_023.mp3', fallback: null });
+
+    const fw = fakeWindow();
+    const origFetch = globalThis.fetch;
+    globalThis.fetch = async () => ({ ok: true, arrayBuffer: async () => new ArrayBuffer(8) });
+    const tick = () => new Promise((r) => setTimeout(r, 10));
+    try {
+      const a = new AudioManager({ win: fw.win, getManifest: () => ({ audio: { sfx: { ui: {}, battle: {}, units: {} }, ...audioM } }) });
+      a.voiceGate = new VoiceGate({ gapMs: 60_000 });
+      a.install();
+      fw.fire('pointerdown');
+      await tick();
+      assert.equal(a.voice(id, 'place', { unitKey: 1 }), true);
+      await tick();
+      assert.equal(a.voice(id, 'place', { unitKey: 1 }), false, 'the battle line is on cooldown');
+      assert.equal(a.previewVoice(id, 'en'), true, '试听 takes the channel and skips the cooldown');
+      await tick();
+      assert.equal(a.voiceNode?.url, '/a/voice/en/char_a/cn_021.mp3');
+      a.setVoiceLang('cn', { [id]: 'native' });
+      a.setVoiceNative(false);
+      assert.equal(a.previewVoice(id), true, 'no lang: the operator\'s own choice');
+      await tick();
+      assert.equal(a.voiceNode?.url, '/a/voice/native/char_a_ita/cn_021.mp3');
+      a.setVoiceLang('kr', {});
+      a.setVoiceNative(true);
+      assert.equal(a.voice(id, 'select'), true, '本土语言 wins over the global KR dub');
+      await tick();
+      assert.equal(a.voiceNode?.url, '/a/voice/native/char_a_ita/cn_021.mp3');
+      a.volumes.muted = true;
+      assert.equal(a.previewVoice(id, 'en'), false, 'muted stays silent');
     } finally {
       globalThis.fetch = origFetch;
     }
@@ -577,6 +628,63 @@ describe('AudioManager', () => {
       globalThis.fetch = origFetch;
     }
   });
+  test('BGM is not downloaded while the music is muted or at volume 0; the wanted track starts once it is audible', async () => {
+    const fw = fakeWindow();
+    const origFetch = globalThis.fetch;
+    const urls = [];
+    globalThis.fetch = async (u) => { urls.push(u); return { ok: true, arrayBuffer: async () => new ArrayBuffer(8) }; };
+    const tick = () => new Promise((r) => setTimeout(r, 10));
+    const lobby = manifest.audio.bgm.lobby.loop;
+    const prep = manifest.audio.bgm.prep.loop;
+    assert.notEqual(lobby, prep, 'premise: two different loops');
+    try {
+      const a = new AudioManager({ win: fw.win, getManifest: () => manifest });
+      a.setVolumes({ muted: true });
+      a.install();
+      a.playBgm('lobby');
+      fw.fire('pointerdown');
+      await tick();
+      assert.equal(a.unlocked, true);
+      assert.equal(a.bgmSilent, true);
+      assert.ok(!asked(urls, lobby) && !asked(urls, manifest.audio.bgm.lobby.intro), 'muted: nothing fetched at unlock');
+      a.playBgm('prep');
+      await tick();
+      assert.ok(!asked(urls, prep), 'muted: a phase change fetches nothing');
+      assert.equal(a.wantBgm, 'prep', 'the wanted track is remembered');
+      a.setVolumes({ muted: false });
+      await tick();
+      assert.ok(asked(urls, prep), 'unmuted: the track the screen wants now is fetched');
+      assert.ok(!asked(urls, lobby), 'never the track wanted before');
+      assert.equal(a.bgm?.loopUrl, prep);
+
+      // BGM volume 0 is silent too: another track stops and is not fetched; SFX keep playing
+      a.setVolumes({ bgm: 0 });
+      a.playBgm('lobby');
+      await tick();
+      assert.ok(!asked(urls, lobby), 'BGM volume 0: no download');
+      assert.equal(a.bgm, null, 'the other track stopped');
+      a.sfx('buy');
+      await tick();
+      assert.ok(asked(urls, manifest.audio.sfx.ui.buy), 'SFX are not gated by the BGM volume');
+      a.setVolumes({ bgm: 0.5 });
+      await tick();
+      assert.ok(asked(urls, lobby), 'audible again: fetched');
+      assert.equal(a.bgm?.loopUrl, lobby);
+
+      // the loop that already plays keeps playing through a silent phase change, and is not fetched again
+      a.setVolumes({ muted: true });
+      const n = urls.length;
+      const started = fw.made.started;
+      a.playBgm('lobby');
+      a.setVolumes({ muted: false });
+      await tick();
+      assert.equal(a.bgm?.loopUrl, lobby);
+      assert.equal(urls.length, n, 'no new request');
+      assert.equal(fw.made.started, started, 'no restart');
+    } finally {
+      globalThis.fetch = origFetch;
+    }
+  });
   test('fetch failures are swallowed', async () => {
     const fw = fakeWindow();
     const origFetch = globalThis.fetch;
@@ -596,6 +704,27 @@ describe('AudioManager', () => {
     } finally {
       globalThis.fetch = origFetch;
       console.warn = origWarn;
+    }
+  });
+  test('a served manifest\'s content-hashed audio URL is fetched as /media/~<hash>/…, falling back to the hashed .mp3 URL', async () => {
+    const H = '0123456789abcdef';
+    const raw = manifest.audio.bgm.prep.loop.replace(/^\/assets\//, `/assets/~${H}/`);
+    const served = { ...manifest, audio: { ...manifest.audio, bgm: { ...manifest.audio.bgm, prep: { loop: raw } } } };
+    const fw = fakeWindow();
+    const urls = [];
+    const origFetch = globalThis.fetch;
+    globalThis.fetch = async (u) => { urls.push(u); return u.startsWith('/media/') ? { ok: false, status: 404 } : { ok: true, arrayBuffer: async () => new ArrayBuffer(8) }; };
+    try {
+      const a = new AudioManager({ win: fw.win, getManifest: () => served });
+      a.install();
+      fw.fire('pointerdown');
+      a.playBgm('prep');
+      await new Promise((r) => setTimeout(r, 20));
+      assert.deepEqual(urls, [raw.replace(/^\/assets\/(~[0-9a-f]{16})\/audio\/(.+)\.mp3$/, '/media/$1/$2'), raw]);
+      assert.match(urls[0], new RegExp(`^/media/~${H}/bgm/`));
+      assert.equal(a.bgm?.loopUrl, raw);
+    } finally {
+      globalThis.fetch = origFetch;
     }
   });
   test('音频先走无扩展名的 /media/ 路由；只有它 404 才回退到带扩展名的原地址', async () => {
@@ -867,6 +996,148 @@ describe('impact sounds (user playtest #4 item 6)', () => {
       await settle();
       assert.ok(!asked(urls, manifest.audio.sfx.units[charId].hit), '4 s later: not that attack\'s impact');
     } finally { globalThis.performance = perf; restore(); }
+  });
+});
+
+// 司霆惊蛰's S3 attack had no sound: she is 解放者 (she only attacks while a skill runs) and the official client has no
+// normal-mode bank of hers at all — every attack of hers is a skill mode's (`attacks`, tools/assets/audio.mjs
+// pickModeAttacks). 赤刃明霄陈's S3 slashes are the other half of the same idea: the mode's IMPACT differs too (`hits`,
+// pickModeHits) — without it her S3 still landed with p_imp_hljdswd_n, i.e. it sounded like her normal attack. Both
+// tables play only while that skill is active (the ['skill', id, 1] / 0 events).
+describe('the running skill\'s own attack / impact sound (sfx.units[id].attacks / hits)', () => {
+  const LEIZI2 = 'char_1043_leizi2';
+  const CHEN3 = 'char_1050_chen3';
+  const enemyId = () => Object.keys(manifest.audio.sfx.units).find((k) => k.startsWith('enemy_') && manifest.audio.sfx.units[k].attack);
+  async function rig(units) {
+    const fw = fakeWindow();
+    const urls = [];
+    const origFetch = globalThis.fetch;
+    globalThis.fetch = async (u) => { urls.push(u); return { ok: true, arrayBuffer: async () => new ArrayBuffer(8) }; };
+    const a = new AudioManager({ win: fw.win, getManifest: () => manifest });
+    a.install();
+    fw.fire('pointerdown');
+    a.setFieldUnits(units);
+    const settle = () => new Promise((r) => setTimeout(r, 5));
+    return { a, urls, settle, restore: () => { globalThis.fetch = origFetch; } };
+  }
+  const clear = (a) => { a.limiter.lastByUnit.clear(); a.limiter.lastByUrl.clear(); };
+  // …and forget the decoded buffers too: these assertions count REQUESTS, and a sound the manager already holds is
+  // played from the cache without a second fetch (a real battle hears it either way).
+  const fresh = (a) => { clear(a); a.buffers.clear(); };
+  /** One attack plus the impact that belongs to it (the dmg inside IMPACT_WINDOW_MS). */
+  const swingAndHit = (a) => a.handleBattleEvents([['atk', 1, 2, 'none'], ['dmg', 2, 120, 'phys']]);
+
+
+  test('司霆惊蛰 S3: her attack rings the S3 mode\'s file while the skill runs, and only then', async () => {
+    const u = manifest.audio.sfx.units[LEIZI2];
+    assert.equal(u.attack, undefined, '前提：她没有普通形态的攻击音（这正是那次「没有音效」）');
+    assert.ok(u.attacks['2'] && /_s\.mp3$/.test(u.attacks['2']), '前提：清单带 S3 形态的攻击音');
+    const { a, urls, settle, restore } = await rig([
+      { id: 1, side: 'ally', kind: 'chess', spine: LEIZI2, skillIndex: 2 }, { id: 2, side: 'enemy', kind: 'enemy', spine: enemyId() },
+    ]);
+    try {
+      // 技能没开（解放者本就不攻击，模拟里也不会发 atk；真发了也仍然是静的）
+      a.handleBattleEvents([['atk', 1, 2, 'none']]);
+      await settle();
+      assert.equal(askedCount(urls, u.attacks['2']), 0, '没有技能就没有她的攻击音');
+      // S3 开启 → ['skill', id, 1]
+      a.handleBattleEvents([['skill', 1, 1]]);
+      await settle();
+      const before = askedCount(urls, u.attacks['2']);
+      a.handleBattleEvents([['atk', 1, 2, 'none']]);
+      await settle();
+      assert.equal(askedCount(urls, u.attacks['2']), before + 1, 'S3 期间她的攻击响 S3 的形态音');
+      assert.ok(!asked(urls, u.skill), '技能发动音是另一条事件（这次没发），别混进攻击音');
+      // 重复的 atk 会被同键冷却挡（既有口径，这里确认它没被新分支绕过）
+      a.handleBattleEvents([['atk', 1, 2, 'none']]);
+      await settle();
+      assert.equal(askedCount(urls, u.attacks['2']), before + 1, '同一单位 160 ms 内只响一次');
+      // S3 结束 → ['skill', id, 0]
+      clear(a);
+      a.handleBattleEvents([['skill', 1, 0]]);
+      a.handleBattleEvents([['atk', 1, 2, 'none']]);
+      await settle();
+      assert.equal(askedCount(urls, u.attacks['2']), before + 1, '技能结束后又静音');
+    } finally { restore(); }
+  });
+
+  test('a unit with both banks: the mode file inside the skill, its normal attack outside it', async () => {
+    const id = Object.keys(manifest.audio.sfx.units).find((k) => k.startsWith('char_') && manifest.audio.sfx.units[k].attack && manifest.audio.sfx.units[k].attacks?.['2']);
+    const u = manifest.audio.sfx.units[id];
+    const { a, urls, settle, restore } = await rig([
+      { id: 1, side: 'ally', kind: 'chess', spine: id, skillIndex: 2 }, { id: 2, side: 'enemy', kind: 'enemy', spine: enemyId() },
+    ]);
+    try {
+      a.handleBattleEvents([['atk', 1, 2, 'none']]);
+      await settle();
+      assert.equal(askedCount(urls, u.attack), 1, `${id}: 技能外是普通攻击音`);
+      assert.equal(askedCount(urls, u.attacks['2']), 0, `${id}: 技能外不响形态音`);
+      clear(a);
+      a.handleBattleEvents([['skill', 1, 1]]);
+      a.handleBattleEvents([['atk', 1, 2, 'none']]);
+      await settle();
+      assert.equal(askedCount(urls, u.attacks['2']), 1, `${id}: 技能期间响形态音`);
+      assert.equal(askedCount(urls, u.attack), 1, `${id}: 形态音取代、而不是叠加普通攻击音`);
+    } finally { restore(); }
+  });
+
+  test('a unit whose manifest has no attacks table for that slot keeps its normal bank (and no crash)', async () => {
+    const id = Object.keys(manifest.audio.sfx.units).find((k) => k.startsWith('char_') && manifest.audio.sfx.units[k].attack && !manifest.audio.sfx.units[k].attacks?.['2']);
+    const u = manifest.audio.sfx.units[id];
+    const { a, urls, settle, restore } = await rig([
+      { id: 1, side: 'ally', kind: 'chess', spine: id, skillIndex: 2 }, { id: 2, side: 'enemy', kind: 'enemy', spine: enemyId() },
+    ]);
+    try {
+      a.handleBattleEvents([['skill', 1, 1]]);
+      a.handleBattleEvents([['atk', 1, 2, 'none']]);
+      await settle();
+      assert.equal(askedCount(urls, u.attack), 1, `${id}: 没有形态音就用普通攻击音`);
+    } finally { restore(); }
+  });
+
+  test('赤刃明霄陈 S3: 挥砍与斩击都用 S3 的 `_s` 对，技能外回到普通 `_n` 对', async () => {
+    const u = manifest.audio.sfx.units[CHEN3];
+    assert.ok(u.attacks['2'] && u.hits['2'] && /_s\.mp3$/.test(u.attacks['2']) && /_s\.mp3$/.test(u.hits['2']), '前提：清单带 S3 的挥砍与斩击');
+    const { a, urls, settle, restore } = await rig([
+      { id: 1, side: 'ally', kind: 'chess', spine: CHEN3, skillIndex: 2 }, { id: 2, side: 'enemy', kind: 'enemy', spine: enemyId() },
+    ]);
+    try {
+      fresh(a);
+      swingAndHit(a);
+      await settle();
+      assert.equal(askedCount(urls, u.attack), 1, '技能外：普通挥砍');
+      assert.equal(askedCount(urls, u.hit), 1, '技能外：普通命中');
+      fresh(a);
+      a.handleBattleEvents([['skill', 1, 1]]);       // S3 开启
+      swingAndHit(a);
+      await settle();
+      assert.equal(askedCount(urls, u.attacks['2']), 1, 'S3：挥砍换成 S3 的');
+      assert.equal(askedCount(urls, u.hits['2']), 1, 'S3：斩击（命中）也换成 S3 的');
+      assert.equal(askedCount(urls, u.attack), 1, 'S3：没有叠加普通挥砍');
+      assert.equal(askedCount(urls, u.hit), 1, 'S3：没有叠加普通命中');
+      fresh(a);
+      a.handleBattleEvents([['skill', 1, 0]]);       // S3 结束
+      swingAndHit(a);
+      await settle();
+      assert.equal(askedCount(urls, u.attack), 2, '技能结束：普通挥砍回来了');
+      assert.equal(askedCount(urls, u.hit), 2, '技能结束：普通命中回来了');
+      assert.equal(askedCount(urls, u.hits['2']), 1, '技能结束：不再用 S3 的斩击');
+    } finally { restore(); }
+  });
+
+  test('a mode without a hits entry keeps the unit\'s normal impact while the skill runs', async () => {
+    const u = manifest.audio.sfx.units[LEIZI2];
+    assert.ok(u.attacks['2'] && !u.hits?.['2'], '前提：她的 S3 有挥砍、没有命中 bank（官方就没有）');
+    const { a, urls, settle, restore } = await rig([
+      { id: 1, side: 'ally', kind: 'chess', spine: LEIZI2, skillIndex: 2 }, { id: 2, side: 'enemy', kind: 'enemy', spine: enemyId() },
+    ]);
+    try {
+      a.handleBattleEvents([['skill', 1, 1]]);
+      swingAndHit(a);
+      await settle();
+      assert.equal(askedCount(urls, u.attacks['2']), 1, 'S3 的挥砍');
+      assert.equal(askedCount(urls, u.hit), 1, '命中仍是普通的那条');
+    } finally { restore(); }
   });
 });
 

@@ -207,7 +207,7 @@ export default {
             skill.timeLeft = Math.max(0.01, skill.duration) + dt;   // the 6 s start after the move
             m.t += dt;
             if (gone(m.target) && !handOver(m, battle, unit)) { landS2(battle, unit, skill, m); return; }
-            while (m.n < m.hits && m.t + 1e-9 >= SLASH_IV * m.n) {
+            while (m.n < m.hits && m.t + 1e-9 >= SLASH_IV * m.n) { // loop-cap: constant SLASH_IV and a hit count
               slash(battle, unit, m);
               if (!unit.alive || !skill.active) return;
               if (gone(m.target) && !handOver(m, battle, unit)) { landS2(battle, unit, skill, m); return; }
@@ -248,7 +248,7 @@ export default {
             const m = unit.mem.chen3T2;
             if (!up(unit) || !m) return;
             m.acc += dt;
-            while (m.acc >= 1 - 1e-9) {
+            while (m.acc >= 1 - 1e-9) { // loop-cap: one-second step
               m.acc -= 1;
               if (++m.count < st) continue;
               m.count = 0;
@@ -286,6 +286,12 @@ export default {
         }, { owner: unit });
         // S3: the sword wave
         if (unit.skill?.id !== S3) return;
+        // PRTS: the sword wave hits air, although her S3 normal attacks remain ground-only. Include those selectable
+        // targets in the existing ACTIVE_RANGE automation. [ASSUMED] Use its expanded attack grid (plus permanent
+        // range extension), not the wave's entire eventual route; operation cooldown / control checks stay shared.
+        unit.skill.addTriggerRange(() => [{
+          keys: absoluteRangeKeys(grid3, unit.tileR, unit.tileC, unit.dir, unit.s.baseRangeExtend || 0), profile: AIR,
+        }]);
         const ratio = num(b3.hp_ratio), minScale = num(b3.projectile_min_atk_scale);
         battle.on('tick', ({ dt }) => {
           const w = unit.mem.chen3Wave;

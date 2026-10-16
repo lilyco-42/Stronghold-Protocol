@@ -67,7 +67,7 @@
 
 import { num, talentBb, traitBb, skillRec, moduleOn, up, batMod } from '../shared/tier1.js';
 import { absoluteRangeKeys, sortEnemyTargets, aggroCmp } from '../../../targeting.js';
-import { bodyInKeys } from '../../../body.js';
+import { bodyInRange } from '../../../body.js';
 import { COLS } from '../../../constants.js';
 
 const S1 = 'skchr_necras_1';
@@ -348,8 +348,8 @@ export default {
           battle.on('death', (ctx) => {
             const e = ctx.unit;
             if (!e || e.side !== 'enemy' || ctx.reason !== 'killed' || !up(unit)) return;
-            const mine = bodyInKeys(e, ownRange(unit));
-            const theirs = !mine && killAtk > 0 && skelsUp(unit).some((s) => bodyInKeys(e, new Set(s.rangeKeys ?? [])));
+            const mine = bodyInRange(e, ownRange(unit));
+            const theirs = !mine && killAtk > 0 && skelsUp(unit).some((s) => bodyInRange(e, new Set(s.rangeKeys ?? [])));
             if (!mine && !theirs) return;
             if (killAtk > 0 && killDur > 0) battle.addBuff(unit, { key: 'necras:killAtk', duration: killDur, mods: { atkPct: killAtk }, tags: ['talent'] });
             queue(battle, unit, 1, mine ? [Math.round(e.y), Math.round(e.x)] : null);
@@ -380,12 +380,21 @@ export default {
         } },
       ],
       install(battle, unit) {
+        // PRTS 卫戍协议/帮助: special targeting also supplies the DEFAULT attack opportunity (#440).
+        // Query live owned blockers for both paths; S2's links still use its own effect range, S3 keeps SKILL_RANGE.
+        const blockedKeys = () => {
+          if (!up(unit)) return [];
+          const keys = [];
+          for (const s of skelsUp(unit)) for (const e of s.blocking) if (e.alive && e.blockedBy === s) keys.push(tileKey(Math.round(e.y), Math.round(e.x)));
+          return [...new Set(keys)].sort((a, b) => a - b);
+        };
+        if (unit.skill?.id === S1 || unit.skill?.id === S2) {
+          unit.skill.addTriggerRange(() => [{ keys: blockedKeys(), profile: unit.profile }], { attackOnly: true });
+        }
         // trait: the enemies her summons block are her targets too
         battle.on('tick', () => {
           if (!up(unit)) return;
-          const keys = [];
-          for (const s of skelsUp(unit)) for (const e of s.blocking) if (e.alive && e.blockedBy === s) keys.push(tileKey(Math.round(e.y), Math.round(e.x)));
-          const uniq = [...new Set(keys)].sort((a, b) => a - b);
+          const uniq = blockedKeys();
           const cur = unit.extraRangeKeys ?? [];
           if (uniq.length === cur.length && uniq.every((k, i) => k === cur[i])) return;
           battle.setExtraRange(unit, uniq.length ? uniq : null);

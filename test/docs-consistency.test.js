@@ -290,8 +290,8 @@ test('lost models, live LP, detail card order, static game data (user playtest #
   assert.match(DESIGN, /official `eventTypeIcon` \(`detailPanel\.js garrisonTypeIconKey`/);
   assert.match(DESIGN, /pendingLp\? \/\* COMBAT \/ 联防 of a normal round/);
   assert.match(DESIGN, /`ownLeaks\(local, server\)`/);
-  assert.match(PLAYING, /顶栏的目标生命值会\*\*立即\*\*显示扣除后的数值/);
-  assert.match(README, /漏怪时顶栏的目标生命值实时减少/);
+  assert.match(PLAYING, /顶栏的目标生命值\*\*先不变\*\*.*结算时才显示扣除后的数值.*GitHub #479/);
+  assert.match(README, /漏怪时顶栏用红字 \+ 「−N」标记待扣的目标生命值/);
 });
 
 test('user playtest #4 (DESIGN §18): picking by tile, timers, 机变 two taps, down / element state, content — code and every doc agree', () => {
@@ -323,11 +323,11 @@ test('user playtest #4 (DESIGN §18): picking by tile, timers, 机变 two taps, 
   assert.match(META, /solo \/ single human untimed/);
   assert.match(PLAYING, /只有你一名玩家/);
   // #4 one countdown: BAND_TURN_SECONDS per turn (code = data = docs)
-  assert.equal(BAND_TURN_SECONDS, 30);
+  assert.equal(BAND_TURN_SECONDS, 50);
   assert.equal(DATA.config.timers.bandTurn, BAND_TURN_SECONDS);
-  assert.match(DESIGN, /`BAND_TURN_SECONDS` 30 s per turn = m\.public\.deadline/);
-  assert.match(META, /`Match\.BAND_TURN_SECONDS` 30/);
-  assert.match(PLAYING, /\*\*每人 30 秒\*\*/);
+  assert.match(DESIGN, /`BAND_TURN_SECONDS` 50 s per turn = m\.public\.deadline/);
+  assert.match(META, /`Match\.BAND_TURN_SECONDS` 50/);
+  assert.match(PLAYING, /\*\*每人 50 秒\*\*/);
   assert.ok(!/12 s\/turn/.test(DESIGN) && !/`bandTurn` 12/.test(META) && !/每人 12 秒/.test(PLAYING), 'the old 12 s turn is gone');
   assert.match(META, /`ev\.preview` true/, 'META: onBattleStart handlers must not change the match for the stats preview');
   // #2 机变 two taps
@@ -348,7 +348,7 @@ test('user playtest #4 (DESIGN §18): picking by tile, timers, 机变 two taps, 
   const special = DATA.items.chess_item_4_09_e_a;
   assert.ok(special.shopExcluded && special.shopExcludedBy, '灼燃维式重锤 is never sold');
   assert.match(dataRow('shopExcluded`, `shopExcludedBy'), /isShopItem/);
-  assert.match(PLAYING, /突变细胞只来自昆图斯的策略/);
+  assert.match(PLAYING, /突变细胞来自昆图斯的策略，也会出现在凯瑟琳【定向投放】里（调度中心仍不出售）/);
   // (#11 revisited by user playtest #6: the drone is a hand piece again, still only on the field when her skill fires)
   assert.equal(DATA.tokens.token_10000_silent_healrb.placeable, true, '赫默\'s drone is a hand piece (user playtest #6)');
   assert.match(dataRow('displayType`, `placeable'), /manually deployable summon/);
@@ -484,7 +484,7 @@ test('user playtest #6 (DESIGN §20): summons, skill triggers, blocking, push fo
   assert.equal(ASPD_MIN, 20);
   assert.match(sec(5), /`aspd = clamp\(100 \+ Σaspd \+ base-100, 20, 600\)`/);
   assert.match(sec(5), /isolated \(孤立: no friendly selector picks it/);
-  assert.match(sec(5), /`battle\.push\(e, force, \{ from, dir, fixed, fixedAngle, inward, effect \}\)`/);
+  assert.match(sec(5), /`battle\.push\(e, force, \{ from, dir, fixed, fixedAngle, inward, effect, keepDir \}\)`/);
   assert.match(sec(19), /锏 S3 归于宁静 \(added by §20\.3\)/);
   // #5: the boss pool floor and the verdict (code = §5.5 = §14 = §6.1)
   assert.equal(BOSS_POOL_MIN_HP, 1);
@@ -920,7 +920,11 @@ test('干员战斗语音 (DESIGN §21.30): the manifest data, the official prior
   assert.equal(manifest.stats.voiceJpChars, charIds.length);
   assert.match(doc('docs/ASSETS.md'), /voiceJp: \{ \[charId\]: \{ …the slots of `voice` \} \}/);
   assert.match(doc('docs/DEPLOY.md'), /`FULL_ZIP_JP_VOICE` 改成 `false` 时/);
-  assert.match(PLAYING, /「语音语言」选 \*\*中文 \/ 日本語\*\*（默认中文，和界面语言无关/);
+  assert.match(doc('docs/ASSETS.md'), /voiceEn\?: \{ \[charId\]: \{ …the slots of `voice` \} \}/);
+  assert.match(doc('docs/ASSETS.md'), /voiceNativeLangType\?: \{ \[charId\]:/);
+  assert.match(doc('docs/DEPLOY.md'), /`FULL_ZIP_OPTIONAL_VOICE`/);
+  assert.match(doc('docs/DEPLOY.md'), /5712 个文件，约 169 MB，zip 后约 157 MB/);
+  assert.match(PLAYING, /「语音语言」选 \*\*中文 \/ 日本語 \/ English \/ 한국어\*\*（默认中文，和界面语言无关/);
   assert.match(PLAYING, /会说一句官方的「选中干员」语音，休整期也一样/);
   assert.match(SIM, /\['engage', id\]/);
   // the code: every slot the client asks for comes from a running battle's own stream — the three prep-only lines

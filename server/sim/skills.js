@@ -54,6 +54,8 @@
 
 import { absoluteRangeKeys, canTargetEnemy } from './targeting.js';
 import { AUTO_OP_COOLDOWN, COLS, ROWS } from './constants.js';
+import { boundedCount } from '../../shared/plugins/limits.js';
+import { fieldCap } from '../../shared/plugins/officialBounds.js';
 
 const TICK_RULES = new Set(['SP_FULL', 'SEARCH', 'CUSTOM_RANGE', 'SKILL_RANGE', 'ACTIVE_RANGE', 'GDGLOW_SKILL_2']);
 /** True when a SkillSpec `targeting` changes the unit's range while the skill runs (Battle._refreshRange). */
@@ -92,7 +94,7 @@ export class SkillRuntime {
     this.ammo = Math.max(0, Math.floor(+s.ammo || 0));
     this.baseSpCost = Math.max(0, Number.isFinite(+s.spCost) ? +s.spCost : (d.spCost ?? 0));
     this.initSp = Math.max(0, Number.isFinite(+s.initSp) ? +s.initSp : (d.initSp ?? 0));
-    this.maxCharges = Math.max(1, Math.floor(s.charges ?? d.maxCharges ?? 1));
+    this.maxCharges = Math.max(1, Math.floor(boundedCount(s.charges ?? d.maxCharges ?? 1, fieldCap('skill.maxCharges'), 1)));
     this.spType = s.spType ?? d.spType ?? 'time';
     const trig = typeof s.trigger === 'string' ? { rule: s.trigger } : (s.trigger || d.trigger || {});
     this.rule = String(trig.rule ?? 'DEFAULT').toUpperCase();
@@ -101,8 +103,9 @@ export class SkillRuntime {
     if (this.rule.startsWith('CUSTOM_RANGE')) this.rule = 'CUSTOM_RANGE';
     this.triggerGrid = trig.grid ?? trig.rangeGrid ?? d.trigger?.grid ?? null;
     // kit options: an injured, healable ally of the trigger grid with an HP ratio of at most `hpAtMost` (SKILL_RANGE:
-    // instead of an enemy; DEFAULT: in addition to the basic rule)
+    // instead of an enemy; DEFAULT: a heal target at the normal attack cadence)
     this.triggerAllies = !!trig.allies;
+    this.triggerEnemies = !!trig.enemies; // mixed attack/heal skills may also open for a selectable enemy
     this.triggerHpAtMost = Number.isFinite(+trig.hpAtMost) && +trig.hpAtMost > 0 ? +trig.hpAtMost : 1;
     this.healSkill = s.heal ?? (unit.profile && unit.profile.dmgType === 'heal' && !!unit.profile.heal);
     // the official skill strategies automate the manual 开启: only MANUAL skills wait for the operation cooldown
@@ -124,6 +127,7 @@ export class SkillRuntime {
     this._trigKeys = null;
     this._trigSet = null;
     this.triggerRanges = [];      // content trigger ranges (addTriggerRange)
+    this.attackTriggerRanges = new Set(); // special targeting checked only at the next attack
     this.noSkill = !spec;         // unit without any skill spec
   }
 
@@ -146,20 +150,23 @@ export class SkillRuntime {
    * keys, or `{ keys, profile }` — tile keys with the enemy profile the effect selects by (`canHitFly` false: ground
    * enemies only — the owner's larger-range rule through a summon's area, kits/shared/summoner.js summonTriggerArea;
    * 0.2.0 WV, additive). A targetable enemy (flyers included unless the entry's profile says otherwise) on those tiles
-   * satisfies the DEFAULT rule (and unknown DEFAULT-like rules); it is checked every tick, since the unit itself may
-   * have nothing to attack. Returns an unregister fn.
+   * satisfies the DEFAULT rule (and unknown DEFAULT-like rules). Summon effect areas are checked every tick;
+   * { attackOnly: true } is for special targeting that must wait for the next attack (蕾缪安, 死芒).
+   * Returns an unregister fn.
    */
-  addTriggerRange(fn) {
+  addTriggerRange(fn, { attackOnly = false } = {}) {
     if (typeof fn !== 'function') return () => {};
     this.triggerRanges.push(fn);
-    return () => { const i = this.triggerRanges.indexOf(fn); if (i >= 0) this.triggerRanges.splice(i, 1); };
+    if (attackOnly) this.attackTriggerRanges.add(fn);
+    return () => { this.attackTriggerRanges.delete(fn); const i = this.triggerRanges.indexOf(fn); if (i >= 0) this.triggerRanges.splice(i, 1); };
   }
 
   /** An enemy inside one of the content trigger ranges. */
-  _extraTriggerSatisfied() {
+  _extraTriggerSatisfied(allowAttackOnly = true) {
     const b = this.battle;
     const u = this.unit;
     for (const fn of this.triggerRanges) {
+      if (!allowAttackOnly && this.attackTriggerRanges.has(fn)) continue;
       const list = b._safe(() => fn(b, u), 'skill.triggerRange', u);
       if (!list || typeof list[Symbol.iterator] !== 'function') continue;
       for (const x of list) {
@@ -317,11 +324,12 @@ export class SkillRuntime {
   }
 
   /** Add SP (fires the `spGain` hook). Ignored while a duration/ammo/toggle skill runs (its bar shows the skill). */
-  gainSp(amount, reason = 'time', silent = false) {
+  // ignoreLock is reserved for explicitly documented exceptions (黄沙罗盘), not ordinary SP gifts.
+  gainSp(amount, reason = 'time', silent = false, { ignoreLock = false } = {}) {
     if (this.noSkill || this.kind === 'passive' || !(amount > 0)) return 0;
-    if (this.active && this.isTimed && reason !== 'init') return 0;
+    if (this.active && this.isTimed && reason !== 'init' && !ignoreLock) return 0;
     // 阻回 (the operators' 凋亡 burst, damage.js): "停止并阻止任意形式的技力回复" — no SP of any kind (time, attack, hurt, gifts)
-    if (reason !== 'init' && this.unit.s.flags.noSp) return 0;
+    if (reason !== 'init' && !ignoreLock && this.unit.s.flags.noSp) return 0;
     let cost = this.spCost;
     if (this.charges >= this.maxCharges && this.sp >= cost) return 0;
     let amt = amount;
@@ -340,7 +348,7 @@ export class SkillRuntime {
     this.sp += amt;
     // within 1e-9 of the cost is the cost (the timer tolerance of `timeLeft` below; PR #402): 300 time gains of 1/30 SP
     // add up to 9.999999999999975 in floating point, which held a 10-SP charge one tick
-    while (this.sp > cost - 1e-9 && this.charges < this.maxCharges) {
+    while (this.sp > cost - 1e-9 && this.charges < this.maxCharges) { // loop-cap: fieldCap skill.maxCharges
       this.charges++;
       if (this.charges < this.maxCharges) this.sp = Math.max(0, this.sp - cost);
       else this.sp = cost;
@@ -354,7 +362,7 @@ export class SkillRuntime {
     if (this.noSkill || this.kind === 'passive') return;
     const cost = this.spCost;
     if (cost <= 0) { if (this.sp > 0) { this.sp = 0; this.charges = this.maxCharges; } return; } // became free
-    while (this.sp > cost - 1e-9 && this.charges < this.maxCharges) {   // (the 1e-9 of gainSp)
+    while (this.sp > cost - 1e-9 && this.charges < this.maxCharges) {   // loop-cap: fieldCap skill.maxCharges (the 1e-9 of gainSp)
       this.charges++;
       this.sp = this.charges < this.maxCharges ? Math.max(0, this.sp - cost) : cost;
     }
@@ -404,7 +412,7 @@ export class SkillRuntime {
       const prof = u.profile;
       if (prof && (prof.noAttack || (prof.noAttackUnlessSkill && !this.active))) {
         if (this._defaultCondition()) this.activate('DEFAULT');
-      } else if (this.triggerRanges.length && !this.healSkill && this._extraTriggerSatisfied()) this.activate('DEFAULT');
+      } else if (this.triggerRanges.length && !this.healSkill && this._extraTriggerSatisfied(false)) this.activate('DEFAULT');
     }
   }
 
@@ -460,7 +468,7 @@ export class SkillRuntime {
     if (this.rule === 'SKILL_RANGE') {
       if (this.triggerAllies) return this._allyTriggerSatisfied();
       if (!this.triggerGrid) return this._defaultCondition();
-      return b.anyEnemyInKeys(this._triggerKeys()) || this._allyTargetIn(this._trigSet);
+      return b.anyEnemyInKeys(this._triggerKeys(), u) || this._allyTargetIn(this._trigSet);
     }
     if (this.rule === 'ACTIVE_RANGE') return this._defaultCondition(this.triggerGrid ? this._triggerKeys() : null);
     // GDGLOW_SKILL_2 "全场存在可选目标时释放技能": a targetable enemy anywhere (heal skill: an ally that needs healing)
@@ -483,8 +491,14 @@ export class SkillRuntime {
     if (b.rangeChanged(u)) b._refreshRange(u);
     const keys = range || u.baseRangeKeys || u.rangeKeys;
     if (keys) {
-      if (this.healSkill) return b.injuredAlliesInKeys(keys, u).length > 0;
+      if (this.healSkill) return b.injuredAlliesInKeys(keys, u, !!u.profile?.heal?.elementHealRatio).length > 0
+        || (this.triggerEnemies && b.enemiesInKeys(keys, u, TRIGGER_PROFILE).length > 0);
       if (b.enemiesInKeys(keys, u, u.profile).length > 0 || this._allyTargetIn(keys)) return true;
+    }
+    if (!this.healSkill && u.profile?.fortress) {
+      // The branch's own-tile melee range also satisfies the basic cast condition for unblockable fragments.
+      const here = [u.tileR * COLS + u.tileC];
+      if (b.enemiesInKeys(here, u, u.profile).length > 0 || this._allyTargetIn(here)) return true;
     }
     // the enemies a unit blocks are always its targets (Battle.blockedTargets), in range or not — PRTS 卫戍协议/帮助
     // "敌人被近战干员自身阻挡" satisfies the target condition of the basic strategy (a ranged blocker too: user playtest #6)
@@ -498,8 +512,8 @@ export class SkillRuntime {
     if (this.active && this.isTimed) return false;
     if (this.rule === 'TAKE_DAMAGE' || this.rule === 'NEVER' || TICK_RULES.has(this.rule)) return false;
     if (this.pending || this._opCooling()) return false;
-    if (!this._defaultCondition()) return false;
-    if (this.triggerAllies && !this._allyTriggerSatisfied()) return false;
+    // Guardian charged heals supply their own attack target; no enemy is required (#406).
+    if (this.triggerAllies ? !this._allyTriggerSatisfied() : !this._defaultCondition()) return false;
     this._beforeAttack = true;   // the attack follows this cast in the same check (ai.js updateAlly): attacks pace it
     try { return this.activate('DEFAULT'); } finally { this._beforeAttack = false; }
   }
