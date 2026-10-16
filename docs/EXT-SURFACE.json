@@ -1,5 +1,5 @@
 {
- "generated": "2026-10-13",
+ "generated": "2026-10-16",
  "upstream": "upstream/master",
  "files": {
   "AGENTS.md": [
@@ -356,13 +356,6 @@
    {
     "line": "| [docs/SKINS.md](docs/SKINS.md) | 干员皮肤：素材从哪来、怎么装进包、`room.skins` 与「仅自己可见」的降级 |",
     "anchor": "npm start          # 启动服务器：http://localhost:3000"
-   }
-  ],
-  "data/assets.json": [
-   {
-    "line": "{\"version\":1,\"hash\":\"2424fdc0a6b5\",\"generator\":\"tools/fetch-assets.mjs\",\"stats\":{\"files\":10956,\"bytes\":581063469,\"chars\"…（整行 1724060 字符）",
-    "anchor": "",
-    "opaque": true
    }
   ],
   "public/css/screens/loadout.css": [
@@ -769,7 +762,15 @@
   ],
   "public/dev/uikit.html": [
    {
-    "line": "<link rel=\"stylesheet\" media=\"print\" onload=\"this.media='all'\" href=\"/webfonts/google/google.css\" />",
+    "line": "<!-- 自托管字体（fork）：不指向站外字体主机；data-web-fonts + js/webFonts.js 取代 inline onload（站点 CSP 友好）。 -->",
+    "anchor": ""
+   },
+   {
+    "line": "<link rel=\"stylesheet\" media=\"print\" data-web-fonts href=\"/webfonts/google/google.css\" />",
+    "anchor": ""
+   },
+   {
+    "line": "<script src=\"/js/webFonts.js\" defer></script>",
     "anchor": ""
    }
   ],
@@ -1031,11 +1032,15 @@
     "anchor": ""
    },
    {
-    "line": "starts on its own. Never render-blocking (LAN/offline play must still start); fallbacks in theme.css. -->",
+    "line": "starts on its own. Never render-blocking (LAN/offline play must still start); fallbacks in theme.css.",
     "anchor": ""
    },
    {
-    "line": "<link rel=\"stylesheet\" media=\"print\" onload=\"this.media='all'\" href=\"/webfonts/google/google.css\" />",
+    "line": "data-web-fonts + js/webFonts.js flips media=print to all without an inline handler (site CSP). -->",
+    "anchor": ""
+   },
+   {
+    "line": "<link rel=\"stylesheet\" media=\"print\" data-web-fonts href=\"/webfonts/google/google.css\" />",
     "anchor": ""
    }
   ],
@@ -1176,15 +1181,15 @@
   "public/js/media.js": [
    {
     "line": "export function mediaAliasEnabled(env = globalThis) {",
-    "anchor": "const AUDIO_PATH = /^\\/assets\\/audio\\/(.+)$/i;"
+    "anchor": "const PLUGIN_AUDIO = /^\\/p\\/[a-z0-9][a-z0-9-]{1,31}\\/[0-9a-f]{8}\\/(.+)$/;"
    },
    {
     "line": "return env?.__SP_MEDIA_ALIAS__ !== false;",
-    "anchor": "const AUDIO_PATH = /^\\/assets\\/audio\\/(.+)$/i;"
+    "anchor": "const PLUGIN_AUDIO = /^\\/p\\/[a-z0-9][a-z0-9-]{1,31}\\/[0-9a-f]{8}\\/(.+)$/;"
    },
    {
     "line": "}",
-    "anchor": "const AUDIO_PATH = /^\\/assets\\/audio\\/(.+)$/i;"
+    "anchor": "const PLUGIN_AUDIO = /^\\/p\\/[a-z0-9][a-z0-9-]{1,31}\\/[0-9a-f]{8}\\/(.+)$/;"
    },
    {
     "line": "if (!mediaAliasEnabled()) return url;",
@@ -1579,15 +1584,15 @@
     "anchor": "export class UnitView {"
    },
    {
-    "line": "const url = ICE_TOKENS.has(this.info.defId) ? null : a && (a.picture ? a.picture(this.info.avatar, skinOpt) || a.picture(this.info.defId, skinOpt) || a.picture(this.info.spine, skinOpt) : null);",
+    "line": "return ICE_TOKENS.has(this.info.defId) ? null : a && (a.picture ? a.picture(this.info.avatar, skinOpt) || a.picture(this.info.defId, skinOpt) || a.picture(this.info.spine, skinOpt) : null) || null;",
     "anchor": "export class UnitView {"
    },
    {
-    "line": "this._pic = { key: String(this.info.avatar || this.info.defId || 'unknown') + (this.info.skin ? `|${this.info.skin}` : ''), color: this._frameColor(), img: null, state: 'none', shown: null, t0: nowMs() };",
+    "line": "this._pic = { key: String(this.info.avatar || this.info.defId || 'unknown') + (this.info.skin ? `|${this.info.skin}` : ''), color: this._frameColor(), img: null, state: 'none', shown: null, t0: nowMs(), url, prev: !!old };",
     "anchor": "export class UnitView {"
    },
    {
-    "line": "const entry = id ? a.spineEntry(id, { back, skin: this.info.skin }) : null;",
+    "line": "return a && a.spineEntry && id ? a.spineEntry(id, { back, skin: this.info.skin }) || null : null;",
     "anchor": "export class UnitView {"
    },
    {
@@ -2038,7 +2043,7 @@
   "server/http/files.js": [
    {
     "line": "const LONG_CACHE_DIRS = ['assets', 'fonts', 'vendor', 'webfonts']; // first path segment under public/",
-    "anchor": "const IMMUTABLE_CACHE = 'public, max-age=31536000, immutable';"
+    "anchor": "export const IMMUTABLE_CACHE = 'public, max-age=31536000, immutable';"
    }
   ],
   "server/http/static.js": [

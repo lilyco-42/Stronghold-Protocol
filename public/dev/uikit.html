@@ -10,8 +10,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>UI Kit · 卫戍协议：盟约</title>
   <link rel="icon" href="data:," />
-  <!-- 自托管字体（fork）：不指向站外字体主机；data-web-fonts + js/webFonts.js 取代 inline onload（站点 CSP 友好）。 -->
-  <link rel="stylesheet" media="print" data-web-fonts href="/webfonts/google/google.css" />
+  <!-- 自托管字体（fork）：不指向站外字体主机；data-web-fonts 供上游 js/webFonts.js 在 CSP 下接管，onload 保持原本的不阻塞加载。 -->
+  <link rel="stylesheet" data-web-fonts media="print" onload="this.media='all'" href="/webfonts/google/google.css" />
   <script src="/js/webFonts.js" defer></script>
   <link rel="stylesheet" href="/fonts/fonts.css" />
   <link rel="stylesheet" href="/css/theme.css" />
