@@ -358,6 +358,13 @@
     "anchor": "npm start          # 启动服务器：http://localhost:3000"
    }
   ],
+  "data/assets.json": [
+   {
+    "line": "{\"version\":1,\"hash\":\"2424fdc0a6b5\",\"generator\":\"tools/fetch-assets.mjs\",\"stats\":{\"files\":10956,\"bytes\":581063469,\"chars\"…（整行 1724060 字符）",
+    "anchor": "",
+    "opaque": true
+   }
+  ],
   "public/css/screens/loadout.css": [
    {
     "line": "单行垂直列表：每款皮肤独占一行，左侧头像、中间完整名称与系列、右侧状态标签。兼容旧机型 (Chromium 80-84)。 */",
@@ -762,11 +769,11 @@
   ],
   "public/dev/uikit.html": [
    {
-    "line": "<!-- 自托管字体（fork）：不指向站外字体主机；data-web-fonts + js/webFonts.js 取代 inline onload（站点 CSP 友好）。 -->",
+    "line": "<!-- 自托管字体（fork）：不指向站外字体主机；data-web-fonts 供上游 js/webFonts.js 在 CSP 下接管，onload 保持原本的不阻塞加载。 -->",
     "anchor": ""
    },
    {
-    "line": "<link rel=\"stylesheet\" media=\"print\" data-web-fonts href=\"/webfonts/google/google.css\" />",
+    "line": "<link rel=\"stylesheet\" data-web-fonts media=\"print\" onload=\"this.media='all'\" href=\"/webfonts/google/google.css\" />",
     "anchor": ""
    },
    {
@@ -1036,11 +1043,11 @@
     "anchor": ""
    },
    {
-    "line": "data-web-fonts + js/webFonts.js flips media=print to all without an inline handler (site CSP). -->",
+    "line": "data-web-fonts 让上游的 js/webFonts.js 也能接管（站点 CSP 下 inline onload 失效时），两条路幂等。 -->",
     "anchor": ""
    },
    {
-    "line": "<link rel=\"stylesheet\" media=\"print\" data-web-fonts href=\"/webfonts/google/google.css\" />",
+    "line": "<link rel=\"stylesheet\" data-web-fonts media=\"print\" onload=\"this.media='all'\" href=\"/webfonts/google/google.css\" />",
     "anchor": ""
    }
   ],
