@@ -111,7 +111,8 @@ Cache-Control: no-cache
 
 ## 7. 目录从哪来
 
-- 我们这台默认指 `https://sp.lain42.top/servers.json`（打包仓库 `shell/picker-core.js` 里的 `SERVERS_URL`）。
+- 我们这台默认指 `http://150.158.38.174:3000/servers.json`（打包仓库 `shell/picker-core.js` 里的 `SERVERS_URL`）。
+  0.3.0 起我们自己的服从 `sp.lain42.top` 换成 `http://150.158.38.174:3000/`（下同），旧的域名已下线。
 - 任何一台 fork 也可以发布自己的目录，客户端通过 `?servers=` 指过去。
 - 实现上**不需要写代码**：`public/servers.json` 是静态文件，`public/**` 是读盘服务的（不重启就生效），
   唯一要补的是那行 CORS 头。要它自动更新（比如从各服的 `/healthz` 汇总），就交给一个定时任务重写这个文件。
