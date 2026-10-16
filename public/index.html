@@ -25,8 +25,9 @@
   <!-- CJK + display fonts, mirrored from Google Fonts into public/webfonts/ (tools/fetch-webfonts.mjs): same woff2
        bytes, same unicode-range slices, same display=swap — so no external font host, and offline/LAN play still
        starts on its own. Never render-blocking (LAN/offline play must still start); fallbacks in theme.css.
-       data-web-fonts 让上游的 js/webFonts.js 也能接管（站点 CSP 下 inline onload 失效时），两条路幂等。 -->
-  <link rel="stylesheet" data-web-fonts media="print" onload="this.media='all'" href="/webfonts/google/google.css" />
+       0.3.0 起站点带 CSP（test/plugins/csp.test.js 禁止 inline onload）：不阻塞加载改由
+       data-web-fonts + js/webFonts.js 完成（先 media=print，脚本落地后切到 all）。 -->
+  <link rel="stylesheet" data-web-fonts media="print" href="/webfonts/google/google.css" />
   <script src="/js/webFonts.js" defer></script>
   <!-- Self-hosted Bender / Novecento (provided by the assets pipeline). -->
   <link rel="stylesheet" href="/fonts/fonts.css" />

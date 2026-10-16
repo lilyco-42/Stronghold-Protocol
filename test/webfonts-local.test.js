@@ -23,7 +23,9 @@ test('index.html carries no external font host and links the local sheet', () =>
   assert.equal(REMOTE.test(html), false, 'index.html 又出现远程字体地址');
   REMOTE.lastIndex = 0;
   assert.equal((html.match(/href="\/webfonts\/google\/google\.css"/g) || []).length, 1, '本地样式表恰好引用一次');
-  assert.match(html, /media="print" onload="this\.media='all'" href="\/webfonts\/google\/google\.css"/,
+  // 0.3.0 起站点带 CSP（test/plugins/csp.test.js 禁止 <... onload=>）：不阻塞加载改由
+  // data-web-fonts + js/webFonts.js 完成，语义不变（先 media=print，脚本落地后切到 all）。
+  assert.match(html, /data-web-fonts[^>]*media="print"[^>]*href="\/webfonts\/google\/google\.css"/,
     '仍按不阻塞渲染的方式加载（离线/局域网开局不受字体影响）');
 });
 
