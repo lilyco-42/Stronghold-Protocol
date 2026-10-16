@@ -769,11 +769,11 @@
   ],
   "public/dev/uikit.html": [
    {
-    "line": "<!-- 自托管字体（fork）：不指向站外字体主机；data-web-fonts 供上游 js/webFonts.js 在 CSP 下接管，onload 保持原本的不阻塞加载。 -->",
+    "line": "<!-- 自托管字体（fork）：不指向站外字体主机；站点 0.3.0 起有 CSP，用 data-web-fonts + js/webFonts.js 切到 all。 -->",
     "anchor": ""
    },
    {
-    "line": "<link rel=\"stylesheet\" data-web-fonts media=\"print\" onload=\"this.media='all'\" href=\"/webfonts/google/google.css\" />",
+    "line": "<link rel=\"stylesheet\" data-web-fonts media=\"print\" href=\"/webfonts/google/google.css\" />",
     "anchor": ""
    },
    {
@@ -1043,11 +1043,15 @@
     "anchor": ""
    },
    {
-    "line": "data-web-fonts 让上游的 js/webFonts.js 也能接管（站点 CSP 下 inline onload 失效时），两条路幂等。 -->",
+    "line": "0.3.0 起站点带 CSP（test/plugins/csp.test.js 禁止 inline onload）：不阻塞加载改由",
     "anchor": ""
    },
    {
-    "line": "<link rel=\"stylesheet\" data-web-fonts media=\"print\" onload=\"this.media='all'\" href=\"/webfonts/google/google.css\" />",
+    "line": "data-web-fonts + js/webFonts.js 完成（先 media=print，脚本落地后切到 all）。 -->",
+    "anchor": ""
+   },
+   {
+    "line": "<link rel=\"stylesheet\" data-web-fonts media=\"print\" href=\"/webfonts/google/google.css\" />",
     "anchor": ""
    }
   ],
