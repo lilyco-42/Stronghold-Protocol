@@ -103,7 +103,12 @@ test('nothing under public/ points a request at an off-device URL', async () => 
   // ⚠️ 客户端仓 `tools/check-payload-offline.mjs` 的 `ANCHOR_NAV` / `ALLOWED_NAV` 是**同一套判据**，
   //    改这里就要同步改那边，否则切包时会在客户端仓再红一次（0.2.5 的 cut 就是这么红的）。
   const ANCHOR = /<a\b[^>]*\bhref\s*=\s*["'](https?:\/\/[^"'\s]+)/gi;
-  const ALLOWED = new Set(['https://github.com/sganggs/Stronghold-Protocol']);
+  const ALLOWED = new Set([
+    'https://github.com/sganggs/Stronghold-Protocol',
+    // 上游 0.3.0 插件工作台（public/studio/js/main.js）顶栏的「新手指南」，与上面那条同类：
+    // <a target="_blank" rel="noopener"> 的导航，点了才跳转，不点没有任何网络行为
+    'https://github.com/sganggs/Stronghold-Protocol/blob/master/docs/PLUGIN-GUIDE.md',
+  ]);
   const BARE = /https?:\/\/[^\s"'<>)\]]+/g;
   const exts = new Set(['.html', '.css', '.js', '.mjs', '.json', '.svg', '.txt', '.atlas']);
   const hits = [];
@@ -125,5 +130,5 @@ test('nothing under public/ points a request at an off-device URL', async () => 
   await walk(path.join(ROOT, 'public'));
   assert.deepEqual(hits, [], `这些是真正会发出去的站外请求：\n  ${hits.slice(0, 8).join('\n  ')}`);
   assert.ok(bare > 20, `裸 URL 计数只有 ${bare} —— 扫描大概没跑到 vendor/，这条测试就失去意义了`);
-  assert.equal(ALLOWED.size, 1, '白名单只该有这一条；加条目要同时改客户端仓的同一套判据');
+  assert.equal(ALLOWED.size, 2, '白名单只该有这两条（标题页 / 插件工作台各一条）；加条目要同时改客户端仓的同一套判据');
 });
