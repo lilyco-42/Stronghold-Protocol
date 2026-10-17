@@ -16,7 +16,7 @@
 // Query: ?ids=<chessId,…> 指定要测的干员（默认取清单里前几个有 spine 的）；?many=<n> 改内存压力那一步的数量。
 
 import { data } from '../js/data.js';
-import { assets } from '../js/assets.js';
+import { assets, forgetPendingSpine } from '../js/assets.js';
 
 const q = new URLSearchParams(location.search);
 const MANY = Math.max(1, Math.min(24, Number(q.get('many') || 8)));
@@ -38,6 +38,23 @@ function escapeHtml(s) {
 }
 
 const ms = (t0) => `${Math.round(performance.now() - t0)}ms`;
+
+/** PIXI.Assets.load 自己没有超时 —— 挂住本身就是 iOS 上一种要分辨的故障形状，不能让整页陪着等。 */
+function withTimeout(p, label) {
+  return new Promise((resolve, reject) => {
+    const t = setTimeout(() => reject(new Error(`12 秒没回（挂住）：${label}`)), 12000);
+    Promise.resolve(p).then(
+      (v) => { clearTimeout(t); resolve(v); },
+      (e) => { clearTimeout(t); reject(e); },
+    );
+  });
+}
+
+/** PIXI 资产缓存的只读探查：失败过的请求会被 promiseCache 记住（#68），后面重测会直接 join 那个失败 —— 拆解步骤之间必须清。 */
+function cached(url) {
+  const PIXI = globalThis.PIXI;
+  try { return !!(PIXI && PIXI.Assets && PIXI.Assets.cache && PIXI.Assets.cache.has(url)); } catch { return false; }
+}
 
 /** 一层单独包起来：任何一层炸了都不该把整页带走 —— 那正是我们要读的那一行。 */
 async function step(name, fn) {
@@ -152,13 +169,44 @@ async function main() {
     }
 
     // ⑤ 生产那条路：assets.spine.acquire → PIXI.Assets.load + pixi-spine。
-    await step(`⑤ acquire ${id}`, async () => {
+    const r5 = await step(`⑤ acquire ${id}`, async () => {
       const d = await assets.spine.acquire(entry);
       const anims = Array.isArray(d && d.animations) ? d.animations.length : -1;
       if (anims < 0) throw new Error(`拿到的 spineData 没有 animations 数组：${entry.skel}`);
       held.push(d);
       return { text: `spineData 有 ${anims} 个动画`, cls: 'ok' };
     });
+
+    // ⑤ 失败时拆开它：「acquire」里串着 atlas 文本解析、贴图加载、骨架二进制解析、20 秒超时四件事，
+    // 一行红字分不出是谁。拆解行（⑤+ …）不在 CI 的闸门族里（闸门按前缀匹配 ⑤ acquire），只服务真机读数：
+    //   拆解① 只有 atlas + 贴图（不碰骨架）；拆解② 在 atlas 已缓存的前提下单测骨架解析。
+    // 两步都过而 ⑤ 仍红 → 差异只在 acquire 的包装层（超时 / LRU 失败记忆），解析本身没坏。
+    if (r5.cls === 'bad') {
+      // 上一次失败留在 PIXI 的 promiseCache 里（#68）——不清掉，拆解会直接 join 旧失败而不是重新发起请求。
+      forgetPendingSpine(entry);
+      const a1 = await step(`⑤+ 拆解① atlas+贴图 ${id}`, async () => {
+        const PIXI = globalThis.PIXI;
+        if (!entry.atlas) return { text: '该条目没有 atlas（跳过）', cls: 'skip' };
+        const hit = cached(entry.atlas);
+        const at = await withTimeout(PIXI.Assets.load(entry.atlas), entry.atlas);
+        const pages = at && at.pages ? at.pages.length : -1;
+        if (pages < 0) throw new Error(`atlas 资产没有 pages：${entry.atlas}`);
+        return { text: `TextureAtlas ${pages} 页${hit ? '（缓存命中）' : ''}`, cls: 'ok' };
+      });
+      if (a1.cls === 'ok') {
+        await step(`⑤+ 拆解② 骨架解析 ${id}`, async () => {
+          const PIXI = globalThis.PIXI;
+          const hit = cached(entry.skel);
+          const sd = await withTimeout(PIXI.Assets.load(entry.skel), entry.skel);
+          const d2 = sd && (sd.spineData || sd);
+          const anims2 = d2 && Array.isArray(d2.animations) ? d2.animations.length : -1;
+          if (anims2 < 0) throw new Error(`骨架解析产物没有 animations：${entry.skel}`);
+          return { text: `spineData 有 ${anims2} 个动画${hit ? '（缓存命中）' : ''}`, cls: 'ok' };
+        });
+      }
+      // 失败的记忆别带给 ⑥⑦：成过的留在缓存里（生产路径本来就会复用），失败过的清掉。
+      forgetPendingSpine(entry);
+    }
   }
 
   // ⑥ 阴性对照：一个不存在的骨架必须失败。它要是成功了，说明 ⑤ 的"成功"根本没在解析东西。
@@ -215,6 +263,15 @@ function finish() {
   } else if (anyBad(/④ fetch/)) {
     verdict = '图片能显示、但 .skel/.atlas 取不到 → 问题在自定义 scheme 或传输层，不在 pixi-spine。';
     cls = 'bad';
+  } else if (anyBad(/⑤\+ 拆解①/)) {
+    verdict = 'atlas 文本解析或贴图加载失败（⑤ acquire 因此连带失败）→ 问题在 atlas/贴图这一层，骨架还没轮到。';
+    cls = 'bad';
+  } else if (anyBad(/⑤\+ 拆解②/)) {
+    verdict = 'atlas/贴图都好、骨架二进制解析失败（⑤ acquire 因此连带失败）→ 问题在 pixi-spine 的 skeleton 解析。';
+    cls = 'bad';
+  } else if (anyBad(/⑤ acquire/) && rows.some((r) => r.name.startsWith('⑤+ 拆解') && r.cls === 'ok') && !rows.some((r) => r.name.startsWith('⑤+ 拆解') && r.cls === 'bad')) {
+    verdict = '拆解①②都成功而生产 acquire 失败 → 差异在 acquire 的包装层（20 秒超时 / LRU 失败记忆 / 缓存），不是解析。';
+    cls = 'bad';
   } else if (anyBad(/⑤ acquire/)) {
     verdict = '文件取得到、Spine 解析失败 → 问题在运行时（pixi-spine / PIXI.Assets / WebGL），不是打包也不是网络。';
     cls = 'bad';
@@ -231,6 +288,9 @@ function finish() {
     verdict = '四层全通过：这台设备上图片、取文件、Spine 解析、连续加载都正常。「立绘不显示」不在这些层里。';
   }
   verdictEl.className = cls;
+  // 报告常常只截到页顶那一句 —— 把第一个失败行的错误原文一并带进结论，截图再裁也带着关键读数。
+  const firstBad = rows.find((r) => r.cls === 'bad');
+  if (firstBad) verdict += ` 首个失败行：${firstBad.name} — ${firstBad.value.slice(0, 200)}`;
   verdictEl.textContent = verdict;
   reportEl.value = `${verdict}\n\n${rows.map((r) => `${r.cls === 'bad' ? '✗' : r.cls === 'skip' ? '·' : '✓'} ${r.name}: ${r.value}`).join('\n')}`;
   window.__SPINE_PROBE__ = { done: true, verdict, cls, rows, ua: navigator.userAgent, protocol: location.protocol };
