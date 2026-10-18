@@ -47,7 +47,10 @@ export function clientVerbs(root = ROOT) {
     // 只认 `net.request('x.y')`：那才是**客户端发出去**的。早先还匹配过 `t: 'x.y'`，结果把
     // `b.ev` / `b.snap` / `m.field` 这些"服务器发给客户端"的帧名也收了进来 —— 探针去问服务器
     // "你支持 b.snap 吗"当然是"不支持"，矩阵就假报缺项。
-    for (const m of src.matchAll(/\.request\(\s*'([a-z]+\.[a-zA-Z]+)'/g)) out.add(m[1]);
+    // 两种写法都是"客户端发出去"的：直连的 `net.request('x.y')`，以及走统一同步引擎的
+    // `msgType: 'x.y'`（upstream v0.3.1 起 room.skins / room.loadout 都改成后者，
+    // 只认前一种会把 room.skins 漏掉 —— test/server-compat.test.js 里那条断言就是钉这个的）。
+    for (const m of src.matchAll(/(?:\.request\(\s*|msgType:\s*)'([a-z]+\.[a-zA-Z]+)'/g)) out.add(m[1]);
   }
   return [...out].sort();
 }
