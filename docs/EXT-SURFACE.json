@@ -358,6 +358,13 @@
     "anchor": "npm start          # 启动服务器：http://localhost:3000"
    }
   ],
+  "data/assets.json": [
+   {
+    "line": "{\"version\":1,\"hash\":\"2424fdc0a6b5\",\"generator\":\"tools/fetch-assets.mjs\",\"stats\":{\"files\":10956,\"bytes\":581063469,\"chars\"…（整行 1724060 字符）",
+    "anchor": "",
+    "opaque": true
+   }
+  ],
   "public/css/screens/loadout.css": [
    {
     "line": "单行垂直列表：每款皮肤独占一行，左侧头像、中间完整名称与系列、右侧状态标签。兼容旧机型 (Chromium 80-84)。 */",
@@ -1450,16 +1457,6 @@
    {
     "line": "skin: piece.skin ?? skinFor(baseId) ?? skinFor(piece.id) ?? null,",
     "anchor": "export async function createFieldView(host, options = {}) {"
-   }
-  ],
-  "public/js/render/app/info.js": [
-   {
-    "line": "import { skinForUnit } from '../../ui/skins.js';",
-    "anchor": ""
-   },
-   {
-    "line": "skin: u.skin ?? skinForUnit(u) ?? null,",
-    "anchor": "export function renderInfo(u) {"
    }
   ],
   "public/js/screens/loadout.js": [
