@@ -38,7 +38,6 @@ import {
   opsOf, setOps, resetOps, moduleRecord,
 } from '../ui/loadoutModel.js';
 import { skinsStore, setSkins } from '../ui/skins.js';
-import { SkinSection } from '../ui/skinPicker.js';
 import { loadoutStore, openLoadout, closeLoadout, setEntries, setOpsMap, applyLoadoutEntries, setNotOwned, applyOwnershipImport, setDiyPicks, applyDiyImport } from '../ui/loadoutSync.js';
 import { OperatorVoice } from '../ui/operatorVoice.js';
 // 皮肤 (docs/SKINS.md): a self-contained section — everything it does lives in ui/skinPicker.js, so this screen keeps
