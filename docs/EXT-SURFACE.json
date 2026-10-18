@@ -1,5 +1,5 @@
 {
- "generated": "2026-10-16",
+ "generated": "2026-10-18",
  "upstream": "upstream/master",
  "files": {
   "AGENTS.md": [
@@ -356,13 +356,6 @@
    {
     "line": "| [docs/SKINS.md](docs/SKINS.md) | 干员皮肤：素材从哪来、怎么装进包、`room.skins` 与「仅自己可见」的降级 |",
     "anchor": "npm start          # 启动服务器：http://localhost:3000"
-   }
-  ],
-  "data/assets.json": [
-   {
-    "line": "{\"version\":1,\"hash\":\"2424fdc0a6b5\",\"generator\":\"tools/fetch-assets.mjs\",\"stats\":{\"files\":10956,\"bytes\":581063469,\"chars\"…（整行 1724060 字符）",
-    "anchor": "",
-    "opaque": true
    }
   ],
   "public/css/screens/loadout.css": [
@@ -1057,116 +1050,8 @@
   ],
   "public/js/assets.js": [
    {
-    "line": "if (rec) {",
-    "anchor": "export function avatarUrl(m, id, opts) {"
-   },
-   {
-    "line": "if (opts && str(opts.skin)) {",
-    "anchor": "export function avatarUrl(m, id, opts) {"
-   },
-   {
-    "line": "const skin = get(get(rec, 'skins'), opts.skin);",
-    "anchor": "export function avatarUrl(m, id, opts) {"
-   },
-   {
-    "line": "if (skin && str(skin.avatar)) return str(skin.avatar);",
-    "anchor": "export function avatarUrl(m, id, opts) {"
-   },
-   {
-    "line": "}",
-    "anchor": "export function avatarUrl(m, id, opts) {"
-   },
-   {
-    "line": "return str(e2 && rec.avatarE2) || str(rec.avatar) || null;",
-    "anchor": "export function avatarUrl(m, id, opts) {"
-   },
-   {
-    "line": "}",
-    "anchor": "export function avatarUrl(m, id, opts) {"
-   },
-   {
-    "line": "if (ch) {",
-    "anchor": "export function spineEntry(m, id, opts) {"
-   },
-   {
-    "line": "const defaultSp = (opts && opts.back && isObj(ch.spine?.back)) ? ch.spine.back : ch.spine?.front;",
-    "anchor": "export function spineEntry(m, id, opts) {"
-   },
-   {
-    "line": "const fallbackSp = validSpine(defaultSp) ? defaultSp : null;",
-    "anchor": "export function spineEntry(m, id, opts) {"
-   },
-   {
-    "line": "const skin = opts && str(opts.skin) ? get(get(ch, 'skins'), opts.skin) : null;",
-    "anchor": "export function spineEntry(m, id, opts) {"
-   },
-   {
-    "line": "if (skin && isObj(skin.spine)) {",
-    "anchor": "export function spineEntry(m, id, opts) {"
-   },
-   {
-    "line": "const sp = (opts && opts.back && isObj(skin.spine.back)) ? skin.spine.back : skin.spine.front;",
-    "anchor": "export function spineEntry(m, id, opts) {"
-   },
-   {
-    "line": "if (validSpine(sp)) {",
-    "anchor": "export function spineEntry(m, id, opts) {"
-   },
-   {
-    "line": "return fallbackSp ? { ...sp, fallback: fallbackSp } : sp;",
-    "anchor": "export function spineEntry(m, id, opts) {"
-   },
-   {
-    "line": "}",
-    "anchor": "export function spineEntry(m, id, opts) {"
-   },
-   {
-    "line": "}",
-    "anchor": "export function spineEntry(m, id, opts) {"
-   },
-   {
-    "line": "return fallbackSp;",
-    "anchor": "export function spineEntry(m, id, opts) {"
-   },
-   {
-    "line": "export function hasBackSpine(m, id, skinId) {",
-    "anchor": "export function localSpineEntry(sl, local, web) {"
-   },
-   {
-    "line": "if (!ch) return false;",
-    "anchor": "export function hasBackSpine(m, id) {"
-   },
-   {
-    "line": "const skin = str(skinId) ? get(get(ch, 'skins'), skinId) : null;",
-    "anchor": "export function hasBackSpine(m, id) {"
-   },
-   {
-    "line": "if (skin && isObj(skin.spine) && validSpine(skin.spine.back)) {",
-    "anchor": "export function hasBackSpine(m, id) {"
-   },
-   {
-    "line": "return true;",
-    "anchor": "export function hasBackSpine(m, id) {"
-   },
-   {
-    "line": "}",
-    "anchor": "export function hasBackSpine(m, id) {"
-   },
-   {
-    "line": "return !!(isObj(ch.spine) && validSpine(ch.spine.back));",
-    "anchor": "export function hasBackSpine(m, id) {"
-   },
-   {
     "line": "return isObj(sp) && typeof sp.skel === 'string' && /^(?:https?:\\/\\/|\\/)[^\\s]*\\.skel(?:\\?[^\\s]*)?$/.test(sp.skel) && typeof sp.atlas === 'string' && isObj(sp.anims);",
     "anchor": "export function validSpine(sp) {"
-   },
-   {
-    "line": "picture: (id, o) => unitPictureUrl(m(), id, o),",
-    "anchor": "export function createAssets(options) {"
-   },
-   {
-    "line": "hasBack: (id, skinId) => hasBackSpine(m(), id, skinId),",
-    "anchor": "export function createAssets(options) {"
    }
   ],
   "public/js/data.js": [
@@ -1176,14 +1061,6 @@
    }
   ],
   "public/js/main.js": [
-   {
-    "line": "import { installSkinsSync } from './ui/skins.js';",
-    "anchor": "import { installLoadoutSync, installOwnershipSync, installDiySync } from './ui/l"
-   },
-   {
-    "line": "installSkinsSync({ net });",
-    "anchor": "async function boot() {"
-   },
    {
     "line": "data.load('skins').catch(() => {});",
     "anchor": "async function boot() {"
@@ -1573,10 +1450,6 @@
    {
     "line": "skin: piece.skin ?? skinFor(baseId) ?? skinFor(piece.id) ?? null,",
     "anchor": "export async function createFieldView(host, options = {}) {"
-   },
-   {
-    "line": "const sig = `${info.kind}|${info.defId}|${info.golden ? 1 : 0}|${info.spine || ''}|${info.skin || ''}`;",
-    "anchor": "export async function createFieldView(host, options = {}) {"
    }
   ],
   "public/js/render/app/info.js": [
@@ -1587,32 +1460,6 @@
    {
     "line": "skin: u.skin ?? skinForUnit(u) ?? null,",
     "anchor": "export function renderInfo(u) {"
-   }
-  ],
-  "public/js/render/units.js": [
-   {
-    "line": "const skinOpt = this.info.skin ? { skin: this.info.skin } : undefined;",
-    "anchor": "export class UnitView {"
-   },
-   {
-    "line": "return ICE_TOKENS.has(this.info.defId) ? null : a && (a.picture ? a.picture(this.info.avatar, skinOpt) || a.picture(this.info.defId, skinOpt) || a.picture(this.info.spine, skinOpt) : null) || null;",
-    "anchor": "export class UnitView {"
-   },
-   {
-    "line": "this._pic = { key: String(this.info.avatar || this.info.defId || 'unknown') + (this.info.skin ? `|${this.info.skin}` : ''), color: this._frameColor(), img: null, state: 'none', shown: null, t0: nowMs(), url, prev: !!old };",
-    "anchor": "export class UnitView {"
-   },
-   {
-    "line": "return a && a.spineEntry && id ? a.spineEntry(id, { back, skin: this.info.skin }) || null : null;",
-    "anchor": "export class UnitView {"
-   },
-   {
-    "line": "if (this.isEnemy || this.dir !== 'UP' || !id || !a || typeof a.hasBack !== 'function' || !a.hasBack(id, this.info.skin)) return false;",
-    "anchor": "export class UnitView {"
-   },
-   {
-    "line": "return this.alive || dieClipDur(typeof a.spineEntry === 'function' ? a.spineEntry(id, { back: true, skin: this.info.skin }) : null) > 0;",
-    "anchor": "export class UnitView {"
    }
   ],
   "public/js/screens/loadout.js": [
@@ -1626,10 +1473,6 @@
    },
    {
     "line": "import { skinsStore, setSkins } from '../ui/skins.js';",
-    "anchor": "import {"
-   },
-   {
-    "line": "import { SkinSection } from '../ui/skinPicker.js';",
     "anchor": "import {"
    },
    {
@@ -2069,131 +1912,7 @@
   ],
   "server/lobby.js": [
    {
-    "line": "function freezeSkins(skins, getChess) {",
-    "anchor": "function freezeLoadout(loadout) {"
-   },
-   {
-    "line": "const out = {};",
-    "anchor": "function freezeLoadout(loadout) {"
-   },
-   {
-    "line": "for (const [id, skinId] of Object.entries(skins || {})) {",
-    "anchor": "function freezeLoadout(loadout) {"
-   },
-   {
-    "line": "const rec = getChess(id);",
-    "anchor": "function freezeLoadout(loadout) {"
-   },
-   {
-    "line": "if (!rec || rec.isGolden || rec.visible === false || rec.isHidden || rec.isDiy || (rec.baseId && rec.baseId !== id)) continue;",
-    "anchor": "function freezeLoadout(loadout) {"
-   },
-   {
-    "line": "out[id] = String(skinId);",
-    "anchor": "function freezeLoadout(loadout) {"
-   },
-   {
-    "line": "}",
-    "anchor": "function freezeLoadout(loadout) {"
-   },
-   {
-    "line": "return Object.freeze(out);",
-    "anchor": "function freezeLoadout(loadout) {"
-   },
-   {
-    "line": "}",
-    "anchor": "function freezeLoadout(loadout) {"
-   },
-   {
     "line": "case 'room.skins': return this.skins(session, msg);",
-    "anchor": "export class Lobby {"
-   },
-   {
-    "line": "skins(session, { skins }) {",
-    "anchor": "export class Lobby {"
-   },
-   {
-    "line": "const data = this.safeData();",
-    "anchor": "export class Lobby {"
-   },
-   {
-    "line": "const cleaned = freezeSkins(skins, (id) => lookup('chess', id, data));",
-    "anchor": "export class Lobby {"
-   },
-   {
-    "line": "session.skins = cleaned;",
-    "anchor": "export class Lobby {"
-   },
-   {
-    "line": "const room = this.roomOf(session);",
-    "anchor": "export class Lobby {"
-   },
-   {
-    "line": "if (!room) return OK;",
-    "anchor": "export class Lobby {"
-   },
-   {
-    "line": "const seat = room.seatOf(session.playerId);",
-    "anchor": "export class Lobby {"
-   },
-   {
-    "line": "if (seat) seat.skins = cleaned;",
-    "anchor": "export class Lobby {"
-   },
-   {
-    "line": "if (!room.match) return OK;",
-    "anchor": "export class Lobby {"
-   },
-   {
-    "line": "if (typeof room.match.setSkins !== 'function') return fail(ERR.ROOM_STARTED, 'stored for the next match');",
-    "anchor": "export class Lobby {"
-   },
-   {
-    "line": "let r;",
-    "anchor": "export class Lobby {"
-   },
-   {
-    "line": "try {",
-    "anchor": "export class Lobby {"
-   },
-   {
-    "line": "r = room.match.setSkins(session.playerId, cleaned);",
-    "anchor": "export class Lobby {"
-   },
-   {
-    "line": "} catch (e) {",
-    "anchor": "export class Lobby {"
-   },
-   {
-    "line": "this.log.error(`[lobby] ${room.code} match.setSkins threw`, e);",
-    "anchor": "export class Lobby {"
-   },
-   {
-    "line": "return fail(ERR.INTERNAL);",
-    "anchor": "export class Lobby {"
-   },
-   {
-    "line": "}",
-    "anchor": "export class Lobby {"
-   },
-   {
-    "line": "if (r && typeof r === 'object' && r.error) {",
-    "anchor": "export class Lobby {"
-   },
-   {
-    "line": "return fail(isErrCode(r.error) ? r.error : ERR.INTERNAL, typeof r.detail === 'string' ? r.detail : undefined);",
-    "anchor": "export class Lobby {"
-   },
-   {
-    "line": "}",
-    "anchor": "export class Lobby {"
-   },
-   {
-    "line": "return OK;",
-    "anchor": "export class Lobby {"
-   },
-   {
-    "line": "}",
     "anchor": "export class Lobby {"
    },
    {
@@ -2259,114 +1978,12 @@
   ],
   "server/match/match/views.js": [
    {
-    "line": "...(Object.keys(ps.skins).length ? { skins: ps.skins } : {}),",
-    "anchor": "export class MatchViews {"
-   },
-   {
     "line": "skin: piece.kind === 'chess' ? (ps.skins?.[rec?.baseId || piece.id] || ps.skins?.[piece.id]) : undefined,",
     "anchor": "export class MatchViews {"
    },
    {
     "line": "skin: piece.kind === 'chess' ? (ps.skins?.[rec?.baseId || piece.id] || ps.skins?.[piece.id]) : undefined,",
     "anchor": "export class MatchViews {"
-   }
-  ],
-  "server/match/player/basics.js": [
-   {
-    "line": "setSkins(skins) {",
-    "anchor": "export class PlayerBasics {"
-   },
-   {
-    "line": "if (this.isBot) return false;",
-    "anchor": "export class PlayerBasics {"
-   },
-   {
-    "line": "const out = {};",
-    "anchor": "export class PlayerBasics {"
-   },
-   {
-    "line": "if (skins && typeof skins === 'object' && !Array.isArray(skins)) {",
-    "anchor": "export class PlayerBasics {"
-   },
-   {
-    "line": "for (const [id, skinId] of Object.entries(skins)) {",
-    "anchor": "export class PlayerBasics {"
-   },
-   {
-    "line": "if (typeof skinId !== 'string' || !skinId) continue;",
-    "anchor": "export class PlayerBasics {"
-   },
-   {
-    "line": "const rec = this.gd.chess(id);",
-    "anchor": "export class PlayerBasics {"
-   },
-   {
-    "line": "if (!rec || rec.isGolden || rec.visible === false || rec.isHidden || rec.isDiy || (rec.baseId && rec.baseId !== id)) continue;",
-    "anchor": "export class PlayerBasics {"
-   },
-   {
-    "line": "out[id] = skinId;",
-    "anchor": "export class PlayerBasics {"
-   },
-   {
-    "line": "}",
-    "anchor": "export class PlayerBasics {"
-   },
-   {
-    "line": "}",
-    "anchor": "export class PlayerBasics {"
-   },
-   {
-    "line": "this.skins = Object.freeze(out);",
-    "anchor": "export class PlayerBasics {"
-   },
-   {
-    "line": "if (this.m?._privDirty) this.dirty();",
-    "anchor": "export class PlayerBasics {"
-   },
-   {
-    "line": "return Object.keys(out).length > 0;",
-    "anchor": "export class PlayerBasics {"
-   },
-   {
-    "line": "}",
-    "anchor": "export class PlayerBasics {"
-   }
-  ],
-  "server/match/player/round.js": [
-   {
-    "line": "const skinRec = this.gd.chess(piece.id);",
-    "anchor": "export class PlayerRound {"
-   },
-   {
-    "line": "const skin = this.skins[(skinRec && skinRec.baseId) || piece.id] || this.skins[piece.id];",
-    "anchor": "export class PlayerRound {"
-   },
-   {
-    "line": "if (skin) u.skin = skin;",
-    "anchor": "export class PlayerRound {"
-   }
-  ],
-  "server/match/player/views.js": [
-   {
-    "line": "...(() => {",
-    "anchor": "export class PlayerViews {"
-   },
-   {
-    "line": "const baseId = (rec && rec.baseId) || p.id;",
-    "anchor": "export class PlayerViews {"
-   },
-   {
-    "line": "const skin = p.kind === 'chess' ? (this.skins[baseId] || this.skins[p.id] || null) : null;",
-    "anchor": "export class PlayerViews {"
-   },
-   {
-    "line": "return skin ? { skin } : {};",
-    "anchor": "export class PlayerViews {"
-   },
-   {
-    "line": "})(),",
-    "anchor": "export class PlayerViews {"
    }
   ],
   "server/net.js": [
@@ -2383,30 +2000,6 @@
    {
     "line": "if (typeof inp.skin === 'string' && inp.skin) u.skin = inp.skin;",
     "anchor": "export class BattlePlayers {"
-   }
-  ],
-  "server/sim/snapshot.js": [
-   {
-    "line": "skin: u.skin ?? undefined,",
-    "anchor": "export function unitInfo(u) {"
-   }
-  ],
-  "shared/protocol.js": [
-   {
-    "line": "export const SKIN_LIMITS = Object.freeze({ entries: 160, idLen: 64 });",
-    "anchor": "export function isBattleResult(v) {"
-   },
-   {
-    "line": "export const isSkinId = (v) => typeof v === 'string' && v.length > 0 && v.length <= SKIN_LIMITS.idLen && /^[A-Za-z0-9_@#+.\\-]+$/.test(v);",
-    "anchor": "export function isBattleResult(v) {"
-   },
-   {
-    "line": "export const isSkinSelection = (v) => isMap(v, SKIN_LIMITS.entries, isId, isSkinId);",
-    "anchor": "export function isBattleResult(v) {"
-   },
-   {
-    "line": "'room.skins': { skins: isSkinSelection },",
-    "anchor": "export const C2S = {"
    }
   ],
   "tools/local-extract/extract.py": [

@@ -1,7 +1,5 @@
 // public/js/render/app/info.js — battle-unit info handed to a view, and which deaths draw particles.
 
-import { skinForUnit } from '../../ui/skins.js';
-
 /**
  * 'die' reason of an operator that enters the battle already knocked out — a 联防 helper's operator down at the end of
  * its own combat, deployed and forced out at once (server/sim/constants.js FORCED_EXIT, user playtest #5 item 2): its
@@ -29,8 +27,6 @@ export function renderInfo(u) {
   return {
     id: u.id, uid: u.uid ?? null, kind: u.kind || 'enemy', side: u.side === 'ally' ? 'ally' : 'enemy', ownerId: u.ownerId ?? null,
     defId: u.defId ?? null, name: u.name ?? '', tier: u.tier ?? 1, golden: !!u.golden, spine: u.spine ?? u.defId ?? null,
-    // 时装：服务器发的为准，没发就用本机选的那件（只画自己的单位）；两者都没有才是原皮
-    skin: u.skin ?? skinForUnit(u) ?? null,
     avatar: u.avatar ?? u.defId ?? null, x: Number(u.x) || 0, y: Number(u.y) || 0, facing: u.facing === -1 ? -1 : 1,
     maxHp: Number(u.maxHp) || 1, boss: !!u.boss, motion: u.motion,
     // deploy direction of allies (UnitInfo.dir, DESIGN §3): the model (Back for UP, mirrored for LEFT) and the
