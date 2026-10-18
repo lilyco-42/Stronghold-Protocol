@@ -10,7 +10,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { scanBaseline } from '../tools/compat-baseline.mjs';
+import { SCAN, scanBaseline } from '../tools/compat-baseline.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const r = scanBaseline(ROOT);
@@ -20,8 +20,9 @@ test('扫描确实覆盖到浏览器会加载的三类代码', () => {
   assert.ok(r.files > 120, `只扫了 ${r.files} 个文件，扫描目录清单八成漏了东西`);
   // 摊平进产物的服务端演算代码
   assert.ok(paths.some((p) => p.startsWith('server/sim/')), '没扫 server/sim —— 它会被打包成产物里的 sim/，浏览器真的加载');
-  // 第三方大库（three.core.js 的 static {} 就在这）
-  assert.ok(paths.some((p) => p.startsWith('public/vendor/')), '没扫 public/vendor');
+  // 第三方大库（three.core.js 的 static {} 就在这）。**钉扫描清单，不钉"vendor 里一定有一条硬门槛"**：
+  // 上游换 three 版本时那条 static {} 会消失，钉死它等于让一次正常升级把这条测试变红（2026-10-18 实测）。
+  assert.ok(SCAN.includes('public/vendor'), '没扫 public/vendor');
   // 样式表（CSS 特性的唯一来源）
   assert.ok(paths.some((p) => p.endsWith('.css')), '没扫 public/css');
 });

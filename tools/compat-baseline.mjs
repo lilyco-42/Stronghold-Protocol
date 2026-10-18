@@ -17,7 +17,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 /** 会被浏览器加载的目录/文件。`server/sim` 看着像服务端，其实**会进页面**：打包时
  `package-client.mjs` 把它摊平成产物里的 `sim/`，浏览器端的战斗预演就跑在这份代码上 ——
  漏扫它会得出偏乐观的下限（实测 `??=` 就在 `server/sim/Battle.js` 里）。 */
-const SCAN = ['public/js', 'public/css', 'public/vendor', 'shared', 'server/sim'];
+export const SCAN = ['public/js', 'public/css', 'public/vendor', 'shared', 'server/sim'];
 
 /**
  * Chromium 起版本支持某写法的表。`polyfilled: true` 的条目由 ui/compat.js 兜底，所以不抬下限。
