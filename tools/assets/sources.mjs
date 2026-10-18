@@ -48,11 +48,24 @@ export function githubProxyUrl(url, prefix = DEFAULT_GITHUB_PROXY) {
   return normalized + url;
 }
 
+/**
+ * 音效（`audio/sound_beta_2/**`）只在 ArknightsAssets2 的 **voice** 分支上。
+ * `cn` 分支只有语音索引、没有 sfx 的 mp3，所以按 `cn` 拼出来的 URL 一律 404 —— 2026-10-18 实测：
+ * `p_atk_richfan_s` / `p_atk_javelinthrow_s` / `p_imp_brightensword_s` / `p_atk_staplegun_s`
+ * 这四个 0.3.1 新增的攻击音效在 `cn` 上全是 404、在 `voice` 上全是 200，于是 fetch-assets 把它们
+ * 记成 miss、切包的离线闸门（"manifest 里 17398 个 URL 有 4 个在包里找不到"）就红了。
+ */
+const AA2_CN_DYN = 'https://raw.githubusercontent.com/ArknightsAssets/ArknightsAssets2/cn/assets/dyn/';
+const aa2VoiceAlt = (u) => (u.startsWith(`${AA2_CN_DYN}audio/sound_beta_2/`)
+  ? u.replace('/ArknightsAssets2/cn/', '/ArknightsAssets2/voice/')
+  : null);
+
 /** Ordered transport alternatives; direct mode retains the existing jsDelivr order. */
 export function downloadUrls(url, { source = 'direct', proxyPrefix = DEFAULT_GITHUB_PROXY } = {}) {
   url = githubSourceUrl(url);
   const proxy = source === 'mirror' ? githubProxyUrl(url, proxyPrefix) : null;
-  return [...new Set([proxy, url, mirrorUrl(url)].filter(Boolean))];
+  // voice 分支这条备选放在 mirror 之前：音效在 cn 上必然 404，先试对的省一次往返。
+  return [...new Set([proxy, url, aa2VoiceAlt(url), mirrorUrl(url)].filter(Boolean))];
 }
 
 /** Raw base URLs (always end with '/'). */
