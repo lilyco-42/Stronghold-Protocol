@@ -1445,20 +1445,6 @@
     "anchor": "export class Net {"
    }
   ],
-  "public/js/render/app.js": [
-   {
-    "line": "import { skinFor } from '../ui/skins.js';",
-    "anchor": "import { t } from '../../../shared/i18n.js';"
-   },
-   {
-    "line": "const baseId = rec?.baseId || piece.id;",
-    "anchor": "export async function createFieldView(host, options = {}) {"
-   },
-   {
-    "line": "skin: piece.skin ?? skinFor(baseId) ?? skinFor(piece.id) ?? null,",
-    "anchor": "export async function createFieldView(host, options = {}) {"
-   }
-  ],
   "public/js/screens/loadout.js": [
    {
     "line": "import { net } from '../net.js';",
@@ -1929,48 +1915,6 @@
    {
     "line": "if (!this.isBot && seat.skins) this.setSkins(seat.skins);",
     "anchor": "export class PlayerState {"
-   }
-  ],
-  "server/match/match/platform.js": [
-   {
-    "line": "setSkins(playerId, skins) {",
-    "anchor": "export class MatchPlatform {"
-   },
-   {
-    "line": "const ps = this.players.get(playerId);",
-    "anchor": "export class MatchPlatform {"
-   },
-   {
-    "line": "if (!ps || ps.isBot || ps.left) return fail(ERR.NOT_IN_ROOM);",
-    "anchor": "export class MatchPlatform {"
-   },
-   {
-    "line": "let res = OK;",
-    "anchor": "export class MatchPlatform {"
-   },
-   {
-    "line": "this.guard(() => {",
-    "anchor": "export class MatchPlatform {"
-   },
-   {
-    "line": "ps.setSkins(skins);",
-    "anchor": "export class MatchPlatform {"
-   },
-   {
-    "line": "this.markPublic();",
-    "anchor": "export class MatchPlatform {"
-   },
-   {
-    "line": "});",
-    "anchor": "export class MatchPlatform {"
-   },
-   {
-    "line": "return res;",
-    "anchor": "export class MatchPlatform {"
-   },
-   {
-    "line": "}",
-    "anchor": "export class MatchPlatform {"
    }
   ],
   "server/match/match/views.js": [
