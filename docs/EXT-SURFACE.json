@@ -1936,6 +1936,28 @@
     "anchor": "export class BattlePlayers {"
    }
   ],
+  "tools/assets/sources.mjs": [
+   {
+    "line": "const AA2_CN_DYN = 'https://raw.githubusercontent.com/ArknightsAssets/ArknightsAssets2/cn/assets/dyn/';",
+    "anchor": "export function githubProxyUrl(url, prefix = DEFAULT_GITHUB_PROXY) {"
+   },
+   {
+    "line": "const aa2VoiceAlt = (u) => (u.startsWith(`${AA2_CN_DYN}audio/sound_beta_2/`)",
+    "anchor": "export function githubProxyUrl(url, prefix = DEFAULT_GITHUB_PROXY) {"
+   },
+   {
+    "line": "? u.replace('/ArknightsAssets2/cn/', '/ArknightsAssets2/voice/')",
+    "anchor": "export function githubProxyUrl(url, prefix = DEFAULT_GITHUB_PROXY) {"
+   },
+   {
+    "line": ": null);",
+    "anchor": "export function githubProxyUrl(url, prefix = DEFAULT_GITHUB_PROXY) {"
+   },
+   {
+    "line": "return [...new Set([proxy, url, aa2VoiceAlt(url), mirrorUrl(url)].filter(Boolean))];",
+    "anchor": "export function downloadUrls(url, { source = 'direct', proxyPrefix = DEFAULT_GIT"
+   }
+  ],
   "tools/local-extract/extract.py": [
    {
     "line": "python3 tools/local-extract/fetch-cdn.py [--out <AB root>]   (no client installed: pull the bundles listed below",
